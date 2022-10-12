@@ -8,6 +8,7 @@
 #include <cstdarg>
 
 #include "GenericSingleton.hpp"
+#include "Quadtree.hpp"
 #include <mpi.h>
 #include <petsc.h>
 #include <p4est.h>

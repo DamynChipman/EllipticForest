@@ -37,7 +37,29 @@ public:
 
     Matrix(std::size_t nRows, std::size_t nCols, NumericalType value) : nRows_(nRows), nCols_(nCols), data_(nRows * nCols, value) {}
 
+    Matrix(std::size_t nRows, std::size_t nCols, std::vector<NumericalType> data) : nRows_(nRows), nCols_(nCols), data_(data) {}
+
     Matrix(std::size_t nRows, std::size_t nCols, std::initializer_list<NumericalType> iList) : nRows_(nRows), nCols_(nCols), data_(iList) {}
+
+    Matrix(Matrix& A) {
+        nRows_ = A.nRows();
+        nCols_ = A.nCols();
+        data_ = A.data();
+    }
+
+    Matrix(const Matrix& A) {
+        nRows_ = A.nRows();
+        nCols_ = A.nCols();
+        data_ = A.data();
+    }
+
+    Matrix<NumericalType>& operator=(const Matrix<NumericalType>& rhs) {
+        if (&rhs == this) {
+            return *this;
+        }
+        Matrix<NumericalType> res(rhs);
+        return res;
+    }
 
     std::size_t nRows() const { return nRows_; }
     std::size_t nCols() const { return nCols_; }
@@ -88,6 +110,13 @@ public:
             std::cerr << errorMessage << std::endl;
             throw std::out_of_range(errorMessage);
         }
+        if (J.size() > nCols_) {
+            std::string errorMessage = "[EllipticForest::Matrix::getFromIndexSet] Size of index set `J` is greater than number of columns in `this`:\n";
+            errorMessage += "\tJ.size() = " + std::to_string(J.size()) + "\n";
+            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
 
         Matrix<NumericalType> res(I.size(), J.size());
         for (auto i = 0; i < I.size(); i++) {
@@ -109,6 +138,113 @@ public:
         }
         return res;
 
+    }
+
+    /**
+     * @brief Permutes blocks of a matrix according to index sets `I` and `J` for blocks of sizes specified in `R` and `C`
+     * 
+     * @param I Index set of permuted row indices for each block
+     * @param J Index set of permuted column indices for each block
+     * @param R Vector containing number of rows in each block
+     * @param C Vector containing number of columns in each block
+     * @return Matrix<NumericalType> Permuted matrix
+     */
+    Matrix<NumericalType> blockPermute(Vector<int> I, Vector<int> J, Vector<int> R, Vector<int> C) {
+        std::size_t rowCheck = 0;
+        for (auto r = 0; r < R.size(); r++) rowCheck += R[r];
+        if (rowCheck != nRows_) {
+            std::string errorMessage = "[EllipticForest::Matrix::blockPermute] Rows in `R` do not add up to number of rows in `this`:\n";
+            errorMessage += "\tSum of R = " + std::to_string(rowCheck) + "\n";
+            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::invalid_argument(errorMessage);
+        }
+
+        std::size_t colCheck = 0;
+        for (auto c = 0; c < R.size(); c++) colCheck += C[c];
+        if (colCheck != nCols_) {
+            std::string errorMessage = "[EllipticForest::Matrix::blockPermute] Rows in `C` do not add up to number of rows in `this`:\n";
+            errorMessage += "\tSum of C = " + std::to_string(colCheck) + "\n";
+            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::invalid_argument(errorMessage);
+        }
+
+        Vector<int> IGlobal(nRows_);
+        Vector<int> JGlobal(nCols_);
+
+        std::size_t ICounter = 0;
+        for (auto i = 0; i < I.size(); i++) {
+            auto I_i = I[i];
+            std::size_t r = 0;
+            for (auto ii = 0; ii < I_i; ii++) r += R[ii];
+            for (auto iii = r; iii < (r + R[I_i]); iii++) IGlobal[ICounter++] = iii;
+        }
+
+        std::size_t JCounter = 0;
+        for (auto j = 0; j < J.size(); j++) {
+            auto J_j = J[j];
+            std::size_t c = 0;
+            for (auto jj = 0; jj < J_j; jj++) c += R[jj];
+            for (auto jjj = c; jjj < (c + C[J_j]); jjj++) IGlobal[JCounter++] = jjj;
+        }
+
+        return getFromIndexSet(IGlobal, JGlobal);
+
+    }
+
+    Matrix<NumericalType> getBlock(std::size_t rowIndex, std::size_t colIndex, std::size_t rowLength, std::size_t colLength) {
+        if (rowIndex + rowLength > nRows_) {
+            std::string errorMessage = "[EllipticForest::Matrix::getBlock] Row size exceeds matrix size:\n";
+            errorMessage += "\trowIndex = " + std::to_string(rowIndex) + "\n";
+            errorMessage += "\trowLength = " + std::to_string(rowLength) + "\n";
+            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
+        if (colIndex + colLength > nCols_) {
+            std::string errorMessage = "[EllipticForest::Matrix::getBlock] Column size exceeds matrix size:\n";
+            errorMessage += "\tcolIndex = " + std::to_string(colIndex) + "\n";
+            errorMessage += "\tcolLength = " + std::to_string(colLength) + "\n";
+            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
+
+        std::vector<NumericalType> resData;
+        resData.reserve(rowLength * colLength);
+
+        for (auto i = rowIndex; i < rowIndex + rowLength; i++) {
+            for (auto j = colIndex; j < colIndex + colLength; j++) {
+                resData.emplace_back(operator()(i,j));
+            }
+        }
+        return {rowLength, colLength, std::move(resData)};
+    }
+
+    void setBlock(std::size_t rowIndex, std::size_t colIndex, Matrix<NumericalType>& mat) {
+        if (rowIndex + mat.nRows() > nRows_) {
+            std::string errorMessage = "[EllipticForest::Matrix::setBlock] Row size exceeds matrix size:\n";
+            errorMessage += "\trowIndex = " + std::to_string(rowIndex) + "\n";
+            errorMessage += "\tmat.nRows() = " + std::to_string(mat.nRows()) + "\n";
+            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
+        if (colIndex + mat.nCols() > nCols_) {
+            std::string errorMessage = "[EllipticForest::Matrix::setBlock] Column size exceeds matrix size:\n";
+            errorMessage += "\tcolIndex = " + std::to_string(colIndex) + "\n";
+            errorMessage += "\tmat.nCols() = " + std::to_string(mat.nCols()) + "\n";
+            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
+
+        for (auto i = rowIndex; i < rowIndex + mat.nRows(); i++) {
+            for (auto j = colIndex; j < colIndex + mat.nCols(); j++) {
+                operator()(i,j) = mat(i - rowIndex, j - colIndex);
+            }
+        }
     }
 
     // Matrix<NumericalType>& operator+=(const Matrix<NumericalType>& rhs) {
@@ -138,6 +274,12 @@ public:
         return os;
     }
 
+    Matrix<NumericalType>& operator+=(NumericalType rhs) {
+        return {};
+    }
+
+    // Matrix<NumericalType>& 
+
     Matrix<NumericalType>& operator*=(NumericalType rhs) {
         for (auto i = 0; i < nRows_; i++) {
             for (auto j = 0; j < nCols_; j++) {
@@ -146,6 +288,12 @@ public:
         }
         return *this;
     }
+
+    Matrix<NumericalType>& operator*=(Matrix<NumericalType>& rhs) {
+        return {};
+    }
+
+
 
     // Matrix<NumericalType>& operator*(NumericalType rhs) {
     //     return *this *= rhs;

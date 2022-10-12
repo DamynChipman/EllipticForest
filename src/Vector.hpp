@@ -82,7 +82,16 @@ public:
         data_ = dataCopy;
     }
 
+    /**
+     * @brief Copy assignment
+     * 
+     * @param rhs 
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator=(const Vector<NumericalType>& rhs) {
+        if (&rhs == this) {
+            return *this;
+        }
         Vector<NumericalType> res(rhs);
         return res;
     }
@@ -372,7 +381,7 @@ public:
 
         std::size_t ICounter = 0;
         for (auto i = 0; i < I.size(); i++) {
-            int I_i = I[i];
+            auto I_i = I[i];
             std::size_t s = 0;
             for (auto ii = 0; ii < I_i; ii++) s += S[ii];
 

@@ -36,10 +36,23 @@ TEST(Vector, init) {
         EXPECT_EQ(v5(i), (double) i);
     }
 
-}
+    Vector<double> v6(v5);
+    EXPECT_EQ(v6.size(), v5.size());
+    EXPECT_NE(&v6, &v5);
+    for (auto i = 0; i < v6.size(); i++) {
+        EXPECT_EQ(v6[i], v5[i]);
+    }
+    v6[1] = 10;
+    EXPECT_NE(v6[1], v5[1]);
 
-TEST(Vector, data) {
-
+    Vector<double> v7 = v4;
+    EXPECT_EQ(v7.size(), v4.size());
+    EXPECT_NE(&v7, &v4);
+    for (auto i = 0; i < v7.size(); i++) {
+        EXPECT_EQ(v7[i], v4[i]);
+    }
+    v7[1] = 10;
+    EXPECT_NE(v7[1], v4[1]);
     
 
 }
