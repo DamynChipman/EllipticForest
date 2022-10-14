@@ -8,10 +8,10 @@
 #include <variant>
 #include <cstdarg>
 
-#include "GenericSingleton.hpp"
 #include <mpi.h>
 #include <petsc.h>
 #include <p4est.h>
+#include "GenericSingleton.hpp"
 
 namespace EllipticForest {
 

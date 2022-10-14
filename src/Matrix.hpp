@@ -54,11 +54,13 @@ public:
     }
 
     Matrix<NumericalType>& operator=(const Matrix<NumericalType>& rhs) {
-        if (&rhs == this) {
+        if (&rhs != this) {
+            nRows_ = rhs.nRows();
+            nCols_ = rhs.nCols();
+            data_ = rhs.data();
             return *this;
         }
-        Matrix<NumericalType> res(rhs);
-        return res;
+        return *this;
     }
 
     std::size_t nRows() const { return nRows_; }

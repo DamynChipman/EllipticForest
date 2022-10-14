@@ -55,6 +55,9 @@ int main(int argc, char** argv) {
 
     EllipticForest::EllipticForestApp app(&argc, &argv);
 
+    // Set options
+    app.options.setOption("cache-operators", true);
+
     // Create uniform p4est
     int minLevel = 2;
     int fillUniform = 1;
@@ -81,11 +84,36 @@ int main(int argc, char** argv) {
     //     std::cout << nodePair.first << ",  " << nodePair.second << std::endl;
     // });
 
-    EllipticForest::FISHPACK::FISHPACKFVGrid grid(4, 4, -1, 1, -1, 1);
+    // Create root grid and patch
+    std::size_t nx = 128;
+    std::size_t ny = 128;
+    double xLower = -1;
+    double xUpper = 1;
+    double yLower = -1;
+    double yUpper = 1;
+    EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
     EllipticForest::FISHPACK::FISHPACKPatch rootPatch;
     rootPatch.grid = grid;
+    rootPatch.level = 0;
+    rootPatch.isLeaf = true;
+    rootPatch.nCellsLeaf = nx;
+    
+    // Create PDE to solve
+    EllipticForest::FISHPACK::FISHPACKProblem pde;
+    pde.setU([](double x, double y){
+        return x*x + y*y;
+    });
+    pde.setF([](double x, double y){
+        return 2.0;
+    });
+    pde.setDUDX([](double x, double y){
+        return x;
+    });
+    pde.setDUDY([](double x, double y){
+        return y;
+    });
 
-    EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(rootPatch, p4est);
+    EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, rootPatch, p4est);
     HPS.run();
 
     return EXIT_SUCCESS;

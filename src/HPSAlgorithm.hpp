@@ -4,10 +4,13 @@
 #include <p4est.h>
 #include "Quadtree.hpp"
 #include "EllipticForestApp.hpp"
+#include "DataCache.hpp"
+#include "Vector.hpp"
+#include "Matrix.hpp"
 
 namespace EllipticForest {
 
-template<typename QuadtreeNodeType>
+template<typename QuadtreeNodeType, typename NumericalType>
 class HPSAlgorithmBase {
 
 public:
@@ -33,6 +36,8 @@ public:
     }
 
     Quadtree<QuadtreeNodeType>* quadtree;
+    DataCache<Vector<NumericalType>> vectorCache;
+    DataCache<Matrix<NumericalType>> matrixCache;
 
 protected:
 
@@ -103,8 +108,8 @@ protected:
 
 };
 
-template<typename QuadtreeNodeType>
-class HomogeneousHPSMethod : public HPSAlgorithmBase<QuadtreeNodeType> {
+template<typename QuadtreeNodeType, typename NumericalType>
+class HomogeneousHPSMethod : public HPSAlgorithmBase<QuadtreeNodeType, NumericalType> {
 
 public:
 

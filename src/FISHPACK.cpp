@@ -69,7 +69,7 @@ std::string FISHPACKFVSolver::name() {
     return "FISHPACK90Solver";
 }
 
-Vector<double> FISHPACKFVSolver::solve(FISHPACKFVGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
+Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
     // Unpack Dirichlet Data
 	int nSide = grid.nPointsX();
@@ -111,8 +111,8 @@ Vector<double> FISHPACKFVSolver::solve(FISHPACKFVGrid& grid, Vector<double>& dir
 	hstcrtt_(&A, &B, &M, &MBDCND, BDA, BDB,
 			&C, &D, &N, &NBDCND, BDC, BDD,
 			&ELMBDA, F, &IDIMF, &PERTRB, &IERROR, W);
-	if (IERROR != 1) {
-		std::cerr << "[fc2d_hps_FISHPACK_solver::solve] WARNING: call to hstcrt_ returned non-zero error value: IERROR = " << IERROR << std::endl;
+	if (IERROR) {
+		std::cerr << "[EllipticForest::FISHPACK::FISHPACKFVSolver::solve] WARNING: call to hstcrt_ returned non-zero error value: IERROR = " << IERROR << std::endl;
 	}
 
 	// Move FISHPACK solution into Vector for output
@@ -127,7 +127,7 @@ Vector<double> FISHPACKFVSolver::solve(FISHPACKFVGrid& grid, Vector<double>& dir
 
 }
 
-Vector<double> FISHPACKFVSolver::mapD2N(FISHPACKFVGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
+Vector<double> FISHPACKFVSolver::mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
     // Unpack grid data
 	int nSide = grid.nPointsX();
@@ -182,7 +182,7 @@ Vector<double> FISHPACKFVSolver::mapD2N(FISHPACKFVGrid& grid, Vector<double>& di
 
 }
 
-Matrix<double> FISHPACKFVSolver::buildD2N(FISHPACKFVGrid& grid) {
+Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 
     std::size_t N = grid.nPointsX();
 	std::size_t M = 4*N;
@@ -400,9 +400,10 @@ FISHPACKPatch FISHPACKQuadtree::initData(FISHPACKPatch& parentData, std::size_t 
 // FISHPACK Finite Volume HPS Method
 // ---===========================---
 
-FISHPACKHPSMethod::FISHPACKHPSMethod(FISHPACKPatch rootPatch, p4est_t* p4est) :
-    p4est_(p4est),
-    rootPatch_(rootPatch)
+FISHPACKHPSMethod::FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch rootPatch, p4est_t* p4est) :
+    pde_(PDE),
+    rootPatch_(rootPatch),
+    p4est_(p4est)
         {}
 
 void FISHPACKHPSMethod::setupStage() {
@@ -414,15 +415,29 @@ void FISHPACKHPSMethod::setupStage() {
     this->quadtree = new FISHPACKQuadtree(p4est_);
     quadtree->build(rootPatch_);
 
+    // Set p4est ID (leaf level IDs)
     int currentID = 0;
     quadtree->traversePostOrder([&](FISHPACKPatch& patch){
         if (patch.isLeaf) patch.ID = currentID++;
         else patch.ID = -1;
     });
 
-    // quadtree->traversePreOrder([](FISHPACKPatch& patch){
-    //     std::cout << "patch.ID = " << patch.ID << std::endl;
-    // });
+    // Set D2N on leaf
+    quadtree->traversePostOrder([&](FISHPACKPatch& patch){
+        if (patch.isLeaf) {
+            FISHPACKFVSolver solver;
+            if (std::get<bool>(app.options["cache-operators"])) {
+                if (!matrixCache.contains("T_leaf")) {
+                    // T for leaf patch is not set; build from patch solver
+                    matrixCache["T_leaf"] = solver.buildD2N(patch.grid);
+                }
+                patch.T = matrixCache["T_leaf"];
+            }
+            else {
+                patch.T = solver.buildD2N(patch.grid);
+            }
+        }
+    });
 
     app.log("End FISHPACK-HPS Setup Stage");
 

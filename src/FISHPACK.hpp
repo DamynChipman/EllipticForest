@@ -1,9 +1,12 @@
 #ifndef FISHPACK_HPP_
 #define FISHPACK_HPP_
 
+#include <functional>
+
 #include "PatchGrid.hpp"
 #include "PatchSolver.hpp"
 #include "Patch.hpp"
+#include "EllipticProblem.hpp"
 #include "Quadtree.hpp"
 #include "HPSAlgorithm.hpp"
 
@@ -59,12 +62,14 @@ extern "C" {
 
 class FISHPACKFVSolver : public PatchSolverBase<double> {
 
+public:
+
     FISHPACKFVSolver() {}
 
     std::string name();
-    Vector<double> solve(FISHPACKFVGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
-    Vector<double> mapD2N(FISHPACKFVGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
-    Matrix<double> buildD2N(FISHPACKFVGrid& grid);
+    Vector<double> solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
+    Vector<double> mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
+    Matrix<double> buildD2N(PatchGridBase<double>& grid);
 
 };
 
@@ -117,6 +122,34 @@ struct FISHPACKPatch : public PatchBase<double> {
 
 };
 
+// ---==============---
+// FISHPACK PDE Problem
+// ---==============---
+
+class FISHPACKProblem : public EllipticProblemBase<double> {
+
+public:
+
+    FISHPACKProblem() {}
+    void setU(std::function<double(double, double)> func) { u_ = func; }
+    void setF(std::function<double(double, double)> func) { f_ = func; }
+    void setDUDX(std::function<double(double, double)> func) { dudx_ = func; }
+    void setDUDY(std::function<double(double, double)> func) { dudy_ = func; }
+
+    double u(double x, double y) { return u_(x,y); }
+    double f(double x, double y) { return f_(x,y); }
+    double dudx(double x, double y) { return dudx_(x,y); }
+    double dudy(double x, double y) { return dudy_(x,y); }
+
+private:
+
+    std::function<double(double, double)> u_;
+    std::function<double(double, double)> f_;
+    std::function<double(double, double)> dudx_;
+    std::function<double(double, double)> dudy_;
+
+};
+
 // ---=========================---
 // FISHPACK Finite Volume Quadtree
 // ---=========================---
@@ -136,11 +169,11 @@ public:
 // FISHPACK Finite Volume HPS Method
 // ---===========================---
 
-class FISHPACKHPSMethod : public HPSAlgorithmBase<FISHPACKPatch> {
+class FISHPACKHPSMethod : public HPSAlgorithmBase<FISHPACKPatch, double> {
 
 public:
 
-    FISHPACKHPSMethod(FISHPACKPatch rootPatch, p4est_t* p4est);
+    FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch rootPatch, p4est_t* p4est);
 
 protected:
 
@@ -151,8 +184,10 @@ protected:
 
 private:
 
-    p4est_t* p4est_;
+    FISHPACKProblem pde_;
     FISHPACKPatch rootPatch_;
+    p4est_t* p4est_;
+
 
 };
 
