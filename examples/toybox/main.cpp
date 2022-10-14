@@ -3,7 +3,12 @@
 #include <string>
 
 #include <EllipticForestApp.hpp>
-#include <Quadtree.hpp>
+// #include <HPSAlgorithm.hpp>
+// #include <Quadtree.hpp>
+// #include <PatchGrid.hpp>
+// #include <PatchSolver.hpp>
+// #include <Patch.hpp>
+#include <FISHPACK.hpp>
 #include <p4est.h>
 #include <p4est_connectivity.h>
 #include <p4est_extended.h>
@@ -18,11 +23,32 @@ public:
     MyQuadtree() {}
     MyQuadtree(p4est_t* p4est) : EllipticForest::Quadtree<NodePair>(p4est) {}
 
-    NodePair initData(std::size_t level, std::size_t index) {
+    NodePair initData(NodePair& parentData, std::size_t level, std::size_t index) {
         return {level, index};
     }
 
 };
+
+// class MyHPSAlgorithm : public EllipticForest::HomogeneousHPSMethod< {
+
+// public:
+
+//     MyHPSAlgorithm() {}
+
+// protected:
+
+//     void setupStage() const {
+
+//         EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
+//         app.log("Begin MyHPSAlgorithm-HPS Setup Stage");
+
+        
+
+//         app.log("End MyHPSAlgorithm-HPS Setup Stage");
+
+//     }
+
+// };
 
 int main(int argc, char** argv) {
     std::cout << "Hello from toybox!" << std::endl;
@@ -41,19 +67,26 @@ int main(int argc, char** argv) {
 
     // Create quadtree
     MyQuadtree quadtree(p4est);
-    quadtree.build();
+    quadtree.build({0,0});
 
     std::cout << quadtree << std::endl;
 
-    quadtree.traversePreOrder([&](NodePair& nodePair) {
-        std::cout << nodePair.first << ",  " << nodePair.second << std::endl;
-    });
+    // quadtree.traversePreOrder([&](NodePair& nodePair) {
+    //     std::cout << nodePair.first << ",  " << nodePair.second << std::endl;
+    // });
 
-    std::cout << "=====" << std::endl;
+    // std::cout << "=====" << std::endl;
 
-    quadtree.traversePostOrder([&](NodePair& nodePair) {
-        std::cout << nodePair.first << ",  " << nodePair.second << std::endl;
-    });
+    // quadtree.traversePostOrder([&](NodePair& nodePair) {
+    //     std::cout << nodePair.first << ",  " << nodePair.second << std::endl;
+    // });
+
+    EllipticForest::FISHPACK::FISHPACKFVGrid grid(4, 4, -1, 1, -1, 1);
+    EllipticForest::FISHPACK::FISHPACKPatch rootPatch;
+    rootPatch.grid = grid;
+
+    EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(rootPatch, p4est);
+    HPS.run();
 
     return EXIT_SUCCESS;
 }

@@ -1,13 +1,13 @@
 #ifndef QUADTREE_HPP_
 #define QUADTREE_HPP_
 
+#include <iostream>
+#include <string>
+#include <ostream>
 #include <vector>
 #include <functional>
 #include <p4est.h>
 #include <p4est_search.h>
-#include "GenericSingleton.hpp"
-#include "EllipticForestApp.hpp"
-
 
 namespace EllipticForest {
 
@@ -73,15 +73,16 @@ public:
 	/**
 	 * @brief User derived function for data initialization given the node's level and index
 	 * 
+	 * @param parentData Node's parent data
 	 * @param level Node's level in tree
 	 * @param index Node's index in level
 	 * @return T A newly constructed node data
 	 */
-	virtual T initData(std::size_t level, std::size_t index) = 0;
+	virtual T initData(T& parentData, std::size_t level, std::size_t index) = 0;
 
-	void build() {
+	void build(T rootData) {
 		buildLevelArrays_();
-		buildData_();
+		buildData_(rootData);
 	}
 
 	void traversePreOrder(std::function<void(T&)> visit) {
@@ -106,18 +107,18 @@ public:
 					int c2_idx = i+2;
 					int c3_idx = i+3;
 
-					int c0ID = this->global_indices[l][c0_idx];
-					int c1ID = this->global_indices[l][c1_idx];
-					int c2ID = this->global_indices[l][c2_idx];
-					int c3ID = this->global_indices[l][c3_idx];
-					int pID = this->parent_indices[l][i];
+					int c0ID = globalIndices_[l][c0_idx];
+					int c1ID = globalIndices_[l][c1_idx];
+					int c2ID = globalIndices_[l][c2_idx];
+					int c3ID = globalIndices_[l][c3_idx];
+					int pID = parentIndices_[l][i];
 
 					visit(
-						this->data[pID],
-						this->data[c0ID],
-						this->data[c1ID],
-						this->data[c2ID],
-						this->data[c3ID]
+						data_[pID],
+						data_[c0ID],
+						data_[c1ID],
+						data_[c2ID],
+						data_[c3ID]
 					);
 				}
 			}
@@ -278,7 +279,7 @@ private:
 
     }
 
-    void buildData_() {
+    void buildData_(T rootData) {
 
 		// Count total number of nodes
 		int nodeCounter = 0;
@@ -293,7 +294,15 @@ private:
 		for (int l = 0; l < globalIndices_.size(); l++) {
 			for (int i = 0; i < globalIndices_[l].size(); i++) {
 				// Call init function and place in data array
-				data_[globalIndices_[l][i]] = initData(l, i);
+				if (l == 0) {
+					data_[globalIndices_[l][i]] = rootData;
+				}
+				else {
+					// Get parent data
+					int pID = parentIndices_[l][i];
+					T& parentData = data_[pID];
+					data_[globalIndices_[l][i]] = initData(parentData, l, i);
+				}
 			}
 		}
 

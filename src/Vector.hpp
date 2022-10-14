@@ -1,6 +1,7 @@
 #ifndef VECTOR_HPP_
 #define VECTOR_HPP_
 
+#include <iostream>
 #include <vector>
 #include <initializer_list>
 
@@ -76,10 +77,8 @@ public:
      * @param v 
      */
     Vector(const Vector& v) {
-        std::size_t sizeCopy = v.size();
-        std::vector<NumericalType> dataCopy = v.data();
-        size_ = sizeCopy;
-        data_ = dataCopy;
+        size_ = v.size();
+        data_ = v.data();
     }
 
     /**
@@ -89,11 +88,12 @@ public:
      * @return Vector<NumericalType>& 
      */
     Vector<NumericalType>& operator=(const Vector<NumericalType>& rhs) {
-        if (&rhs == this) {
+        if (&rhs != this) {
+            size_ = rhs.size();
+            data_ = rhs.data();
             return *this;
         }
-        Vector<NumericalType> res(rhs);
-        return res;
+        return *this;
     }
 
     // Vector(Vector&& v) {
@@ -538,7 +538,7 @@ public:
 
 };
 
-Vector<int> vectorRange(std::size_t start, std::size_t end) {
+static Vector<int> vectorRange(std::size_t start, std::size_t end) {
     std::size_t N = (end - start) + 1;
     Vector<int> res(N);
     for (int i = 0; i < N; i++) {

@@ -102,6 +102,50 @@ public:
         return res;
     }
 
+    void setRow(std::size_t rowIndex, Vector<NumericalType>& vec) {
+        if (rowIndex > nRows_) {
+            std::string errorMessage = "[EllipticForest::Matrix::setRow] `rowIndex` exceeds matrix size:\n";
+            errorMessage += "\trowIndex = " + std::to_string(rowIndex) + "\n";
+            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
+        if (vec.size() != nCols_) {
+            std::string errorMessage = "[EllipticForest::Matrix::setRow] Size of `vec` is not the same as number of columns in `this`:\n";
+            errorMessage += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
+            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::invalid_argument(errorMessage);
+        }
+
+        for (auto j = 0; j < nCols_; j++) {
+            operator()(rowIndex, j) = vec[j];
+        }
+
+    }
+
+    void setColumn(std::size_t colIndex, Vector<NumericalType>& vec) {
+        if (colIndex > nCols_) {
+            std::string errorMessage = "[EllipticForest::Matrix::setColumn] `colIndex` exceeds matrix size:\n";
+            errorMessage += "\tcolIndex = " + std::to_string(colIndex) + "\n";
+            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::out_of_range(errorMessage);
+        }
+        if (vec.size() != nRows_) {
+            std::string errorMessage = "[EllipticForest::Matrix::setColumn] Size of `vec` is not the same as number of rows in `this`:\n";
+            errorMessage += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
+            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
+            std::cerr << errorMessage << std::endl;
+            throw std::invalid_argument(errorMessage);
+        }
+
+        for (auto i = 0; i < nRows_; i++) {
+            operator()(i, colIndex) = vec[i];
+        }
+
+    }
+
     Matrix<NumericalType> getFromIndexSet(Vector<int> I, Vector<int> J) {
         if (I.size() > nRows_) {
             std::string errorMessage = "[EllipticForest::Matrix::getFromIndexSet] Size of index set `I` is greater than number of rows in `this`:\n";
@@ -332,7 +376,7 @@ Matrix<NumericalType> operator*(NumericalType a, Matrix<NumericalType>& A) {
     return res;
 }
 
-Vector<double> operator*(Matrix<double>& A, Vector<double>& x) {
+static Vector<double> operator*(Matrix<double>& A, Vector<double>& x) {
     if (A.nCols() != x.size()) {
         std::string errorMessage = "[EllipticForest::Matrix::operator*] Invalid matrix and vector dimensions; `A.nCols() != x.size()`:\n";
         errorMessage += "\tA.nRows = " + std::to_string(A.nRows()) + "\n";

@@ -7,6 +7,8 @@ set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
 
 set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
+    FISHPACK.cpp
+    P4est.cpp
 )
 
 target_sources(EllipticForest PRIVATE

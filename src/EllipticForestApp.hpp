@@ -3,12 +3,12 @@
 
 #include <iostream>
 #include <string>
+#include <chrono>
 #include <map>
 #include <variant>
 #include <cstdarg>
 
 #include "GenericSingleton.hpp"
-#include "Quadtree.hpp"
 #include <mpi.h>
 #include <petsc.h>
 #include <p4est.h>
@@ -67,12 +67,22 @@ struct Options {
 };
 
 
-class EllipticForestApp : public GenericSingleton<EllipticForestApp> {
+class Timer {
 
 private:
 
-    int* argc_;
-    char*** argv_;
+    double accumulatedTime_ = 0;
+    double startTime_;
+    double endTime_;
+
+public:
+
+    Timer() {}
+
+};
+
+
+class EllipticForestApp : public GenericSingleton<EllipticForestApp> {
 
 public:
     
@@ -107,6 +117,11 @@ public:
     void log(std::string message, Args... args) {
         logger.log(message, args...);
     }
+
+private:
+
+    int* argc_;
+    char*** argv_;
 
 };
 
