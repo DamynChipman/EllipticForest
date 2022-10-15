@@ -1,7 +1,9 @@
 #ifndef FISHPACK_HPP_
 #define FISHPACK_HPP_
 
+#include <cmath>
 #include <functional>
+#include <vector>
 
 #include "PatchGrid.hpp"
 #include "PatchSolver.hpp"
@@ -9,6 +11,7 @@
 #include "EllipticProblem.hpp"
 #include "Quadtree.hpp"
 #include "HPSAlgorithm.hpp"
+#include "SpecialMatrices.hpp"
 
 namespace EllipticForest {
 
@@ -119,6 +122,7 @@ struct FISHPACKPatch : public PatchBase<double> {
     // FISHPACKPatch(FISHPACKFVGrid& grid, int ID, int level, bool isLeaf);
 
     FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
+    void coarsen();
 
 };
 
@@ -187,6 +191,9 @@ private:
     FISHPACKProblem pde_;
     FISHPACKPatch rootPatch_;
     p4est_t* p4est_;
+
+    Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+
 
 
 };

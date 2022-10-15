@@ -60,6 +60,13 @@ public:
     Vector(std::initializer_list<NumericalType> iList) : size_(iList.size()), data_(iList) {}
 
     /**
+     * @brief Construct a from a std::vector
+     * 
+     * @param vec std::vector to construct from
+     */
+    Vector(std::vector<NumericalType> vec) : size_(vec.size()), data_(vec) {}
+
+    /**
      * @brief Copy constructor
      * 
      * @param v 

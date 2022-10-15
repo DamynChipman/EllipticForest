@@ -407,6 +407,29 @@ static Vector<double> operator*(Matrix<double>& A, Vector<double>& x) {
     return b;
 }
 
+template<typename NumericalType>
+Matrix<NumericalType> blockDiagonalMatrix(std::vector<Matrix<NumericalType>> diag) {
+
+    std::size_t nRowsTotal = 0;
+    std::size_t nColsTotal = 0;
+    for (auto& d : diag) {
+        nRowsTotal += d.nRows();
+        nColsTotal += d.nCols();
+    }
+
+    Matrix<NumericalType> res(nRowsTotal, nColsTotal);
+
+    std::size_t rowIndex = 0;
+    std::size_t colIndex = 0;
+    for (auto& d : diag) {
+        res.setBlock(rowIndex, colIndex, d);
+        rowIndex += d.nRows();
+        colIndex += d.nCols();
+    }
+    return res;
+
+}
+
 } // NAMESPACE : EllipticForest
 
 #endif // MATRIX_HPP_

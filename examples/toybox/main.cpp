@@ -9,6 +9,7 @@
 // #include <PatchSolver.hpp>
 // #include <Patch.hpp>
 #include <FISHPACK.hpp>
+#include <SpecialMatrices.hpp>
 #include <p4est.h>
 #include <p4est_connectivity.h>
 #include <p4est_extended.h>
@@ -58,6 +59,14 @@ int main(int argc, char** argv) {
     // Set options
     app.options.setOption("cache-operators", true);
 
+    int nCoarse = 4;
+    int nFine = 8;
+    EllipticForest::InterpolationMatrixFine2Coarse<double> L21(nCoarse);
+    EllipticForest::InterpolationMatrixCoarse2Fine<double> L12(nFine);
+
+    std::cout << "L21 = " << L21 << std::endl;
+    std::cout << "L12 = " << L12 << std::endl;
+
     // Create uniform p4est
     int minLevel = 2;
     int fillUniform = 1;
@@ -85,8 +94,8 @@ int main(int argc, char** argv) {
     // });
 
     // Create root grid and patch
-    std::size_t nx = 128;
-    std::size_t ny = 128;
+    std::size_t nx = 32;
+    std::size_t ny = 32;
     double xLower = -1;
     double xUpper = 1;
     double yLower = -1;
