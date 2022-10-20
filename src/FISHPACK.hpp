@@ -192,8 +192,71 @@ private:
     FISHPACKPatch rootPatch_;
     p4est_t* p4est_;
 
-    Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    Vector<int> IS_alpha_beta_;
+    Vector<int> IS_alpha_gamma_;
+    Vector<int> IS_alpha_omega_;
+    Vector<int> IS_alpha_tau_;
 
+    Vector<int> IS_beta_alpha_;
+    Vector<int> IS_beta_gamma_;
+    Vector<int> IS_beta_omega_;
+    Vector<int> IS_beta_tau_;
+
+    Vector<int> IS_gamma_alpha_;
+    Vector<int> IS_gamma_beta_;
+    Vector<int> IS_gamma_omega_;
+    Vector<int> IS_gamma_tau_;
+
+    Vector<int> IS_omega_alpha_;
+    Vector<int> IS_omega_beta_;
+    Vector<int> IS_omega_gamma_;
+    Vector<int> IS_omega_tau_;
+
+    // Blocks for X_tau
+    Matrix<double> T_ag_ag;
+    Matrix<double> T_ga_ga;
+    Matrix<double> T_ag_gb;
+    Matrix<double> T_ga_go;
+    Matrix<double> T_bo_bo;
+    Matrix<double> T_ob_ob;
+    Matrix<double> T_bo_bg;
+    Matrix<double> T_ob_og;
+    Matrix<double> T_ab_ag;
+    Matrix<double> T_ba_bo;
+    Matrix<double> T_ab_ab;
+    Matrix<double> T_ba_ba;
+    Matrix<double> T_go_ga;
+    Matrix<double> T_og_ob;
+    Matrix<double> T_go_go;
+    Matrix<double> T_og_og;
+
+    // Blocks for S_tau
+    Matrix<double> T_ag_at;
+    Matrix<double> T_ga_gt;
+    Matrix<double> T_bo_bt;
+    Matrix<double> T_ob_ot;
+    Matrix<double> T_ab_at;
+    Matrix<double> T_ba_bt;
+    Matrix<double> T_go_gt;
+    Matrix<double> T_og_ot;
+
+    // Blocks for T_tau
+    Matrix<double> T_at_at;
+    Matrix<double> T_bt_bt;
+    Matrix<double> T_gt_gt;
+    Matrix<double> T_ot_ot;
+    Matrix<double> T_at_ag;
+    Matrix<double> T_at_ab;
+    Matrix<double> T_bt_bo;
+    Matrix<double> T_bt_ba;
+    Matrix<double> T_gt_ga;
+    Matrix<double> T_gt_go;
+    Matrix<double> T_ot_ob;
+    Matrix<double> T_ot_og;
+
+    Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
 
 
 };

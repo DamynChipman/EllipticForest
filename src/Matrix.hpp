@@ -186,6 +186,10 @@ public:
 
     }
 
+    Matrix<NumericalType> operator()(Vector<int> I, Vector<int> J) {
+        return getFromIndexSet(I,J);
+    }
+
     /**
      * @brief Permutes blocks of a matrix according to index sets `I` and `J` for blocks of sizes specified in `R` and `C`
      * 

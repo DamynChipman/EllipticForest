@@ -498,6 +498,8 @@ void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     }
 
     // Perform the merge
+    createIndexSets_(tau, alpha, beta, gamma, omega);
+    createMatrixBlocks_(tau, alpha, beta, gamma, omega);
 
 }
 
@@ -537,6 +539,87 @@ Vector<int> FISHPACKHPSMethod::tagPatchesForCoarsening_(FISHPACKPatch& tau, FISH
 
 }
 
+void FISHPACKHPSMethod::createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+    
+    int nSide = alpha.grid.nPointsX();
+
+    Vector<int> I_W = vectorRange(0, nSide-1);
+    Vector<int> I_E = vectorRange(nSide, 2*nSide - 1);
+    Vector<int> I_S = vectorRange(2*nSide, 3*nSide - 1);
+    Vector<int> I_N = vectorRange(3*nSide, 4*nSide - 1);
+
+    IS_alpha_beta_ = I_E;
+    IS_alpha_gamma_ = I_N;
+    IS_alpha_tau_ = concatenate({I_W, I_S});
+    
+    IS_beta_alpha_ = I_W;
+    IS_beta_omega_ = I_N;
+    IS_beta_tau_ = concatenate({I_E, I_S});
+    
+    IS_gamma_alpha_ = I_S;
+    IS_gamma_omega_ = I_E;
+    IS_gamma_tau_ = concatenate({I_W, I_N});
+
+    IS_omega_beta_ = I_S;
+    IS_omega_gamma_ = I_W;
+    IS_gamma_tau_ = concatenate({I_E, I_N});
+
+    return;
+
+}
+
+void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    Matrix<double>& T_alpha = alpha.T;
+    Matrix<double>& T_beta = beta.T;
+    Matrix<double>& T_gamma = gamma.T;
+    Matrix<double>& T_omega = omega.T;
+
+    // Blocks for X_tau
+    T_ag_ag = T_alpha.getFromIndexSet(IS_alpha_gamma_, IS_alpha_gamma_);
+    T_ga_ga = T_gamma.getFromIndexSet(IS_gamma_alpha_, IS_gamma_alpha_);
+    T_ag_gb = T_alpha.getFromIndexSet(IS_alpha_gamma_, IS_gamma_beta_);
+    T_ga_go = T_gamma.getFromIndexSet(IS_gamma_alpha_, IS_gamma_omega_);
+    T_bo_bo = T_beta.getFromIndexSet(IS_beta_omega_, IS_beta_omega_);
+    T_ob_ob = T_omega.getFromIndexSet(IS_omega_beta_, IS_omega_beta_);
+    T_bo_bg = T_beta.getFromIndexSet(IS_beta_omega_, IS_beta_gamma_);
+    T_ob_og = T_omega.getFromIndexSet(IS_omega_beta_, IS_omega_gamma_);
+    T_ab_ag = T_alpha.getFromIndexSet(IS_alpha_beta_, IS_alpha_gamma_);
+    T_ba_bo = T_beta.getFromIndexSet(IS_beta_alpha_, IS_beta_omega_);
+    T_ab_ab = T_alpha.getFromIndexSet(IS_alpha_beta_, IS_alpha_beta_);
+    T_ba_ba = T_beta.getFromIndexSet(IS_beta_alpha_, IS_beta_alpha_);
+    T_go_ga = T_gamma.getFromIndexSet(IS_gamma_omega_, IS_gamma_alpha_);
+    T_og_ob = T_omega.getFromIndexSet(IS_omega_gamma_, IS_omega_beta_);
+    T_go_go = T_gamma.getFromIndexSet(IS_gamma_omega_, IS_gamma_omega_);
+    T_og_og = T_omega.getFromIndexSet(IS_omega_gamma_, IS_omega_gamma_);
+
+    // Blocks for S_tau
+    T_ag_at = T_alpha.getFromIndexSet(IS_alpha_gamma_, IS_alpha_tau_);
+    T_ga_gt = T_gamma.getFromIndexSet(IS_gamma_alpha_, IS_gamma_tau_);
+    T_bo_bt = T_beta.getFromIndexSet(IS_beta_omega_, IS_beta_tau_);
+    T_ob_ot = T_omega.getFromIndexSet(IS_omega_beta_, IS_omega_tau_);
+    T_ab_at = T_alpha.getFromIndexSet(IS_alpha_beta_, IS_alpha_tau_);
+    T_ba_bt = T_beta.getFromIndexSet(IS_beta_alpha_, IS_beta_tau_);
+    T_go_gt = T_gamma.getFromIndexSet(IS_gamma_omega_, IS_gamma_tau_);
+    T_og_ot = T_omega.getFromIndexSet(IS_omega_gamma_, IS_omega_tau_);
+
+    // Blocks for T_tau
+    T_at_at = T_alpha.getFromIndexSet(IS_alpha_tau_, IS_alpha_tau_);
+    T_bt_bt = T_beta.getFromIndexSet(IS_beta_tau_, IS_beta_tau_);
+    T_gt_gt = T_gamma.getFromIndexSet(IS_gamma_tau_, IS_gamma_tau_);
+    T_ot_ot = T_omega.getFromIndexSet(IS_omega_tau_, IS_omega_tau_);
+    T_at_ag = T_alpha.getFromIndexSet(IS_alpha_tau_, IS_alpha_gamma_);
+    T_at_ab = T_alpha.getFromIndexSet(IS_alpha_tau_, IS_alpha_beta_);
+    T_bt_bo = T_beta.getFromIndexSet(IS_beta_tau_, IS_beta_omega_);
+    T_bt_ba = T_beta.getFromIndexSet(IS_beta_tau_, IS_beta_alpha_);
+    T_gt_ga = T_gamma.getFromIndexSet(IS_gamma_tau_, IS_gamma_alpha_);
+    T_gt_go = T_gamma.getFromIndexSet(IS_gamma_tau_, IS_gamma_omega_);
+    T_ot_ob = T_omega.getFromIndexSet(IS_omega_tau_, IS_omega_beta_);
+    T_ot_og = T_omega.getFromIndexSet(IS_omega_tau_, IS_omega_gamma_);
+
+    return;
+
+}
 
 } // NAMESPACE : FISHPACK
 

@@ -545,8 +545,8 @@ public:
 
 };
 
-static Vector<int> vectorRange(std::size_t start, std::size_t end) {
-    std::size_t N = (end - start) + 1;
+static Vector<int> vectorRange(int start, int end) {
+    int N = (end - start) + 1;
     Vector<int> res(N);
     for (int i = 0; i < N; i++) {
         res[i] = start + i;
@@ -561,6 +561,26 @@ Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
         res[i] = lhs * rhs[i];
     }
     return res;
+}
+
+template<typename NumericalType>
+Vector<NumericalType> concatenate(std::vector<Vector<NumericalType>> vectors) {
+    std::size_t nEntries = 0;
+    for (auto& v : vectors) nEntries += v.size();
+    Vector<NumericalType> res(nEntries);
+    std::size_t index = 0;
+    for (auto& v : vectors) {
+        for (auto i = 0; i < v.size(); i++) {
+            res[index++] = v[i];
+        }
+    }
+    return res;
+}
+
+template<typename NumericalType>
+Vector<NumericalType> concatenate(std::initializer_list<Vector<NumericalType>> vectors) {
+    std::vector<Vector<NumericalType>> v(vectors);
+    return concatenate(v);
 }
 
 // template<typename NumericalType>
