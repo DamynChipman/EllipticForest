@@ -59,16 +59,16 @@ int main(int argc, char** argv) {
     // Set options
     app.options.setOption("cache-operators", true);
 
-    int nCoarse = 4;
-    int nFine = 8;
-    EllipticForest::InterpolationMatrixFine2Coarse<double> L21(nCoarse);
-    EllipticForest::InterpolationMatrixCoarse2Fine<double> L12(nFine);
+    // int nCoarse = 4;
+    // int nFine = 8;
+    // EllipticForest::InterpolationMatrixFine2Coarse<double> L21(nCoarse);
+    // EllipticForest::InterpolationMatrixCoarse2Fine<double> L12(nFine);
 
-    std::cout << "L21 = " << L21 << std::endl;
-    std::cout << "L12 = " << L12 << std::endl;
+    // std::cout << "L21 = " << L21 << std::endl;
+    // std::cout << "L12 = " << L12 << std::endl;
 
     // Create uniform p4est
-    int minLevel = 2;
+    int minLevel = 1;
     int fillUniform = 1;
     p4est_connectivity_t* conn = p4est_connectivity_new_unitsquare();
     p4est_t* p4est = p4est_new_ext(MPI_COMM_WORLD, conn, 0, minLevel, fillUniform, 0, NULL, NULL);
@@ -78,10 +78,10 @@ int main(int argc, char** argv) {
     p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
 
     // Create quadtree
-    MyQuadtree quadtree(p4est);
-    quadtree.build({0,0});
+    // MyQuadtree quadtree(p4est);
+    // quadtree.build({0,0});
 
-    std::cout << quadtree << std::endl;
+    // std::cout << quadtree << std::endl;
 
     // quadtree.traversePreOrder([&](NodePair& nodePair) {
     //     std::cout << nodePair.first << ",  " << nodePair.second << std::endl;
@@ -94,8 +94,8 @@ int main(int argc, char** argv) {
     // });
 
     // Create root grid and patch
-    std::size_t nx = 32;
-    std::size_t ny = 32;
+    std::size_t nx = 4;
+    std::size_t ny = 4;
     double xLower = -1;
     double xUpper = 1;
     double yLower = -1;
@@ -106,6 +106,7 @@ int main(int argc, char** argv) {
     rootPatch.level = 0;
     rootPatch.isLeaf = true;
     rootPatch.nCellsLeaf = nx;
+    rootPatch.nPatchSideVector = {1, 1, 1, 1};
     
     // Create PDE to solve
     EllipticForest::FISHPACK::FISHPACKProblem pde;
@@ -123,7 +124,26 @@ int main(int argc, char** argv) {
     });
 
     EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, rootPatch, p4est);
+    // EllipticForest::FISHPACK::FISHPACKQuadtree& quadtree = *HPS.quadtree;
     HPS.run();
+
+    // Get merged root T
+    EllipticForest::Matrix<double> T_merged = HPS.quadtree->data()[HPS.quadtree->globalIndices()[0][0]].T;
+
+    // Create refined T
+    EllipticForest::FISHPACK::FISHPACKFVGrid fineGrid(nx*2, ny*2, xLower, xUpper, yLower, yUpper);
+    EllipticForest::FISHPACK::FISHPACKFVSolver solver;
+    EllipticForest::Matrix<double> T_fine = solver.buildD2N(fineGrid);
+
+    for (auto i = 0; i < T_merged.nRows(); i++) {
+        for (auto j = 0; j < T_merged.nCols(); j++) {
+            double diff = T_merged(i,j) - T_fine(i,j);
+            printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff);
+        }
+    }
+
+    double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
+    printf("infNorm = %24.16e\n", infNorm);
 
     return EXIT_SUCCESS;
 }

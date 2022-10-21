@@ -500,6 +500,9 @@ void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     // Perform the merge
     createIndexSets_(tau, alpha, beta, gamma, omega);
     createMatrixBlocks_(tau, alpha, beta, gamma, omega);
+    mergeX_(tau, alpha, beta, gamma, omega);
+    mergeS_(tau, alpha, beta, gamma, omega);
+    mergeT_(tau, alpha, beta, gamma, omega);
 
 }
 
@@ -531,7 +534,7 @@ Vector<int> FISHPACKHPSMethod::tagPatchesForCoarsening_(FISHPACKPatch& tau, FISH
     std::vector<int> gens(4);
     std::vector<int> tags(4);
 
-    for (auto i = 0; i < 4; i++) gens[i] = static_cast<int>(log2(patches[i]->nPatchSideVector[1])); // 1 = EAST
+    for (auto i = 0; i < 4; i++) gens[i] = static_cast<int>(log2(patches[i]->nPatchSideVector[EAST])); // 1 = EAST
     int minGens = *std::min_element(gens.begin(), gens.end());
     for (auto i = 0; i < 4; i++) tags[i] = gens[i] - minGens;
 
@@ -562,7 +565,7 @@ void FISHPACKHPSMethod::createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alph
 
     IS_omega_beta_ = I_S;
     IS_omega_gamma_ = I_W;
-    IS_gamma_tau_ = concatenate({I_E, I_N});
+    IS_omega_tau_ = concatenate({I_E, I_N});
 
     return;
 
@@ -576,48 +579,174 @@ void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& a
     Matrix<double>& T_omega = omega.T;
 
     // Blocks for X_tau
-    T_ag_ag = T_alpha.getFromIndexSet(IS_alpha_gamma_, IS_alpha_gamma_);
-    T_ga_ga = T_gamma.getFromIndexSet(IS_gamma_alpha_, IS_gamma_alpha_);
-    T_ag_gb = T_alpha.getFromIndexSet(IS_alpha_gamma_, IS_gamma_beta_);
-    T_ga_go = T_gamma.getFromIndexSet(IS_gamma_alpha_, IS_gamma_omega_);
-    T_bo_bo = T_beta.getFromIndexSet(IS_beta_omega_, IS_beta_omega_);
-    T_ob_ob = T_omega.getFromIndexSet(IS_omega_beta_, IS_omega_beta_);
-    T_bo_bg = T_beta.getFromIndexSet(IS_beta_omega_, IS_beta_gamma_);
-    T_ob_og = T_omega.getFromIndexSet(IS_omega_beta_, IS_omega_gamma_);
-    T_ab_ag = T_alpha.getFromIndexSet(IS_alpha_beta_, IS_alpha_gamma_);
-    T_ba_bo = T_beta.getFromIndexSet(IS_beta_alpha_, IS_beta_omega_);
-    T_ab_ab = T_alpha.getFromIndexSet(IS_alpha_beta_, IS_alpha_beta_);
-    T_ba_ba = T_beta.getFromIndexSet(IS_beta_alpha_, IS_beta_alpha_);
-    T_go_ga = T_gamma.getFromIndexSet(IS_gamma_omega_, IS_gamma_alpha_);
-    T_og_ob = T_omega.getFromIndexSet(IS_omega_gamma_, IS_omega_beta_);
-    T_go_go = T_gamma.getFromIndexSet(IS_gamma_omega_, IS_gamma_omega_);
-    T_og_og = T_omega.getFromIndexSet(IS_omega_gamma_, IS_omega_gamma_);
+    T_ag_ag = T_alpha(IS_alpha_gamma_, IS_alpha_gamma_);
+    T_ga_ga = T_gamma(IS_gamma_alpha_, IS_gamma_alpha_);
+    T_ag_gb = T_alpha(IS_alpha_gamma_, IS_gamma_beta_);
+    T_ga_go = T_gamma(IS_gamma_alpha_, IS_gamma_omega_);
+    T_bo_bo = T_beta(IS_beta_omega_, IS_beta_omega_);
+    T_ob_ob = T_omega(IS_omega_beta_, IS_omega_beta_);
+    T_bo_bg = T_beta(IS_beta_omega_, IS_beta_gamma_);
+    T_ob_og = T_omega(IS_omega_beta_, IS_omega_gamma_);
+    T_ab_ag = T_alpha(IS_alpha_beta_, IS_alpha_gamma_);
+    T_ba_bo = T_beta(IS_beta_alpha_, IS_beta_omega_);
+    T_ab_ab = T_alpha(IS_alpha_beta_, IS_alpha_beta_);
+    T_ba_ba = T_beta(IS_beta_alpha_, IS_beta_alpha_);
+    T_go_ga = T_gamma(IS_gamma_omega_, IS_gamma_alpha_);
+    T_og_ob = T_omega(IS_omega_gamma_, IS_omega_beta_);
+    T_go_go = T_gamma(IS_gamma_omega_, IS_gamma_omega_);
+    T_og_og = T_omega(IS_omega_gamma_, IS_omega_gamma_);
 
     // Blocks for S_tau
-    T_ag_at = T_alpha.getFromIndexSet(IS_alpha_gamma_, IS_alpha_tau_);
-    T_ga_gt = T_gamma.getFromIndexSet(IS_gamma_alpha_, IS_gamma_tau_);
-    T_bo_bt = T_beta.getFromIndexSet(IS_beta_omega_, IS_beta_tau_);
-    T_ob_ot = T_omega.getFromIndexSet(IS_omega_beta_, IS_omega_tau_);
-    T_ab_at = T_alpha.getFromIndexSet(IS_alpha_beta_, IS_alpha_tau_);
-    T_ba_bt = T_beta.getFromIndexSet(IS_beta_alpha_, IS_beta_tau_);
-    T_go_gt = T_gamma.getFromIndexSet(IS_gamma_omega_, IS_gamma_tau_);
-    T_og_ot = T_omega.getFromIndexSet(IS_omega_gamma_, IS_omega_tau_);
+    T_ag_at = T_alpha(IS_alpha_gamma_, IS_alpha_tau_);
+    T_ga_gt = T_gamma(IS_gamma_alpha_, IS_gamma_tau_);
+    T_bo_bt = T_beta(IS_beta_omega_, IS_beta_tau_);
+    T_ob_ot = T_omega(IS_omega_beta_, IS_omega_tau_);
+    T_ab_at = T_alpha(IS_alpha_beta_, IS_alpha_tau_);
+    T_ba_bt = T_beta(IS_beta_alpha_, IS_beta_tau_);
+    T_go_gt = T_gamma(IS_gamma_omega_, IS_gamma_tau_);
+    T_og_ot = T_omega(IS_omega_gamma_, IS_omega_tau_);
 
     // Blocks for T_tau
-    T_at_at = T_alpha.getFromIndexSet(IS_alpha_tau_, IS_alpha_tau_);
-    T_bt_bt = T_beta.getFromIndexSet(IS_beta_tau_, IS_beta_tau_);
-    T_gt_gt = T_gamma.getFromIndexSet(IS_gamma_tau_, IS_gamma_tau_);
-    T_ot_ot = T_omega.getFromIndexSet(IS_omega_tau_, IS_omega_tau_);
-    T_at_ag = T_alpha.getFromIndexSet(IS_alpha_tau_, IS_alpha_gamma_);
-    T_at_ab = T_alpha.getFromIndexSet(IS_alpha_tau_, IS_alpha_beta_);
-    T_bt_bo = T_beta.getFromIndexSet(IS_beta_tau_, IS_beta_omega_);
-    T_bt_ba = T_beta.getFromIndexSet(IS_beta_tau_, IS_beta_alpha_);
-    T_gt_ga = T_gamma.getFromIndexSet(IS_gamma_tau_, IS_gamma_alpha_);
-    T_gt_go = T_gamma.getFromIndexSet(IS_gamma_tau_, IS_gamma_omega_);
-    T_ot_ob = T_omega.getFromIndexSet(IS_omega_tau_, IS_omega_beta_);
-    T_ot_og = T_omega.getFromIndexSet(IS_omega_tau_, IS_omega_gamma_);
+    T_at_at = T_alpha(IS_alpha_tau_, IS_alpha_tau_);
+    T_bt_bt = T_beta(IS_beta_tau_, IS_beta_tau_);
+    T_gt_gt = T_gamma(IS_gamma_tau_, IS_gamma_tau_);
+    T_ot_ot = T_omega(IS_omega_tau_, IS_omega_tau_);
+    T_at_ag = T_alpha(IS_alpha_tau_, IS_alpha_gamma_);
+    T_at_ab = T_alpha(IS_alpha_tau_, IS_alpha_beta_);
+    T_bt_bo = T_beta(IS_beta_tau_, IS_beta_omega_);
+    T_bt_ba = T_beta(IS_beta_tau_, IS_beta_alpha_);
+    T_gt_ga = T_gamma(IS_gamma_tau_, IS_gamma_alpha_);
+    T_gt_go = T_gamma(IS_gamma_tau_, IS_gamma_omega_);
+    T_ot_ob = T_omega(IS_omega_tau_, IS_omega_beta_);
+    T_ot_og = T_omega(IS_omega_tau_, IS_omega_gamma_);
+
+    // Negate blocks that need it
+    T_ga_go = -T_ga_go;
+    T_ob_og = -T_ob_og;
+    T_ba_bo = -T_ba_bo;
+    T_og_ob = -T_og_ob;
+    T_ga_gt = -T_ga_gt;
+    T_ob_ot = -T_ob_ot;
+    T_ba_bt = -T_ba_bt;
+    T_og_ot = -T_og_ot;
 
     return;
+
+}
+
+void FISHPACKHPSMethod::mergeX_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Create diagonals
+    Matrix<double> T_diag1 = T_ag_ag - T_ga_ga;
+    Matrix<double> T_diag2 = T_bo_bo - T_ob_ob;
+    Matrix<double> T_diag3 = T_ab_ab - T_ba_ba;
+    Matrix<double> T_diag4 = T_go_go - T_og_og;
+    std::vector<Matrix<double>> diag = {T_diag1, T_diag2, T_diag3, T_diag4};
+
+    // Create row and column block index starts
+    std::vector<std::size_t> rowStarts = { 0, T_diag1.nRows(), T_diag2.nRows(), T_diag3.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_diag1.nCols(), T_diag2.nCols(), T_diag3.nCols() };
+    
+    // Create matrix and set blocks
+    tau.X = blockDiagonalMatrix(diag);
+    tau.X.setBlock(rowStarts[0], colStarts[2], T_ag_gb);
+    tau.X.setBlock(rowStarts[0], colStarts[3], T_ga_go);
+    tau.X.setBlock(rowStarts[1], colStarts[2], T_bo_bg);
+    tau.X.setBlock(rowStarts[1], colStarts[3], T_ob_og);
+    tau.X.setBlock(rowStarts[2], colStarts[0], T_ab_ag);
+    tau.X.setBlock(rowStarts[2], colStarts[1], T_ba_bo);
+    tau.X.setBlock(rowStarts[3], colStarts[0], T_go_ga);
+    tau.X.setBlock(rowStarts[3], colStarts[1], T_og_ob);
+
+    return;
+
+}
+
+void FISHPACKHPSMethod::mergeS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Create right hand side
+    std::size_t nRows = T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() + T_go_gt.nRows();
+    std::size_t nCols = T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() + T_ob_ot.nCols();
+    Matrix<double> S_RHS(nRows, nCols, 0);
+
+    std::vector<std::size_t> rowStarts = { 0, T_ag_at.nRows(), T_bo_bt.nRows(), T_ab_at.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_ag_at.nCols(), T_bo_bt.nCols(), T_ga_gt.nCols() };
+
+    S_RHS.setBlock(rowStarts[0], colStarts[0], T_ag_at);
+    S_RHS.setBlock(rowStarts[0], colStarts[2], T_ga_gt);
+    S_RHS.setBlock(rowStarts[1], colStarts[1], T_bo_bt);
+    S_RHS.setBlock(rowStarts[1], colStarts[3], T_ob_ot);
+    S_RHS.setBlock(rowStarts[2], colStarts[0], T_ab_at);
+    S_RHS.setBlock(rowStarts[2], colStarts[1], T_ba_bt);
+    S_RHS.setBlock(rowStarts[3], colStarts[2], T_go_gt);
+    S_RHS.setBlock(rowStarts[3], colStarts[3], T_og_ot);
+    
+    // Solve to set S_tau
+    tau.S = solve(tau.X, S_RHS);
+
+    return;
+
+}
+
+void FISHPACKHPSMethod::mergeT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Create left hand side
+    std::vector<Matrix<double>> diag = {T_at_at, T_bt_bt, T_gt_gt, T_ot_ot};
+    Matrix<double> T_LHS = blockDiagonalMatrix(diag);
+
+    // Create right hand side
+    std::size_t nRows = T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() + T_ot_ob.nRows();
+    std::size_t nCols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
+    Matrix<double> T_RHS(nRows, nCols, 0);
+
+    std::vector<std::size_t> rowStarts = { 0, T_at_ag.nRows(), T_bt_bo.nRows(), T_gt_ga.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_at_ag.nCols(), T_bt_bo.nCols(), T_at_ab.nCols() };
+
+    T_RHS.setBlock(rowStarts[0], colStarts[0], T_at_ag);
+    T_RHS.setBlock(rowStarts[0], colStarts[2], T_at_ab);
+    T_RHS.setBlock(rowStarts[1], colStarts[1], T_bt_bo);
+    T_RHS.setBlock(rowStarts[1], colStarts[2], T_bt_ba);
+    T_RHS.setBlock(rowStarts[2], colStarts[0], T_gt_ga);
+    T_RHS.setBlock(rowStarts[2], colStarts[3], T_gt_go);
+    T_RHS.setBlock(rowStarts[3], colStarts[1], T_ot_ob);
+    T_RHS.setBlock(rowStarts[3], colStarts[3], T_ot_og);
+
+    Matrix<double> T_RHS2 = T_RHS * tau.S;
+
+    // Compute and set T_tau
+    tau.T = T_LHS - T_RHS2;
+
+    return;
+
+}
+
+void FISHPACKHPSMethod::reorderOperators_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Form permutation vector and block sizes
+    int nSide = alpha.grid.nPointsX();
+    Vector<int> pi_noChange = {0};
+    Vector<int> pi_WESN = {0, 4, 2, 5, 1, 6, 3, 7};
+    Vector<int> blockSizes(8, nSide);
+
+    // Permute S and T
+    tau.S = tau.S.blockPermute(pi_noChange, pi_WESN, {nSide}, blockSizes);
+    tau.T = tau.T.blockPermute(pi_WESN, pi_WESN, blockSizes, blockSizes);
+
+}
+
+void FISHPACKHPSMethod::mergePatch_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    FISHPACKFVGrid mergedGrid(alpha.grid.nPointsX() + beta.grid.nPointsX(), alpha.grid.nPointsY() + gamma.grid.nPointsY(), alpha.grid.xLower(), beta.grid.xUpper(), alpha.grid.yLower(), gamma.grid.yUpper());
+    tau.grid = mergedGrid;
+    tau.level = alpha.level - 1;
+    tau.isLeaf = false;
+    tau.nPatchSideVector = {
+        alpha.nPatchSideVector[WEST] + gamma.nPatchSideVector[WEST],
+        beta.nPatchSideVector[EAST] + omega.nPatchSideVector[EAST],
+        alpha.nPatchSideVector[SOUTH] + beta.nPatchSideVector[SOUTH],
+        gamma.nPatchSideVector[NORTH] + omega.nPatchSideVector[NORTH]
+    };
+    tau.nCellsLeaf = alpha.nCellsLeaf;
 
 }
 

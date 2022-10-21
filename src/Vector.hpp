@@ -405,6 +405,14 @@ public:
     // Math operations
     // ---=========---
 
+    Vector<NumericalType> operator-() {
+        Vector<NumericalType> res(size_);
+        for (auto i = 0; i < res.size(); i++) {
+            res[i] = -data_[i];
+        }
+        return res;
+    }
+
     Vector<NumericalType>& operator+=(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
             std::string errorMessage = "[EllipticForest::Vector::operator+=] Size of `rhs` is not the same of `this`:\n";
