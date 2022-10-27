@@ -2,6 +2,7 @@
 #include <utility>
 #include <string>
 
+#include <PlotUtils.hpp>
 #include <EllipticForestApp.hpp>
 // #include <HPSAlgorithm.hpp>
 // #include <Quadtree.hpp>
@@ -15,6 +16,7 @@
 #include <p4est_extended.h>
 #include <p4est_vtk.h>
 
+namespace plt = matplotlibcpp;
 using NodePair = std::pair<std::size_t, std::size_t>;
 
 class MyQuadtree : public EllipticForest::Quadtree<NodePair> {
@@ -94,8 +96,15 @@ int main(int argc, char** argv) {
     // });
 
     // Create root grid and patch
-    std::size_t nx = 4;
-    std::size_t ny = 4;
+    std::size_t nx, ny;
+    if (argc > 1) {
+        nx = (std::size_t) atoi(argv[1]);
+        ny = (std::size_t) atoi(argv[1]);
+    }
+    else {
+        nx = 4;
+        ny = 4;
+    }
     double xLower = -1;
     double xUpper = 1;
     double yLower = -1;
@@ -114,7 +123,7 @@ int main(int argc, char** argv) {
         return x*x + y*y;
     });
     pde.setF([](double x, double y){
-        return 2.0;
+        return 4.0;
     });
     pde.setDUDX([](double x, double y){
         return x;
@@ -134,16 +143,31 @@ int main(int argc, char** argv) {
     EllipticForest::FISHPACK::FISHPACKFVGrid fineGrid(nx*2, ny*2, xLower, xUpper, yLower, yUpper);
     EllipticForest::FISHPACK::FISHPACKFVSolver solver;
     EllipticForest::Matrix<double> T_fine = solver.buildD2N(fineGrid);
+    EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
 
+    double maxDiff = 0;
     for (auto i = 0; i < T_merged.nRows(); i++) {
         for (auto j = 0; j < T_merged.nCols(); j++) {
             double diff = T_merged(i,j) - T_fine(i,j);
-            printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff);
+            maxDiff = fmax(maxDiff, fabs(diff));
+            printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e,  maxDiff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff, maxDiff);
         }
     }
 
     double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
     printf("infNorm = %24.16e\n", infNorm);
 
+    plt::matshow(T_fine, 1e-2);
+    plt::title("T_fine");
+
+    plt::matshow(T_merged, 1e-2);
+    plt::title("T_merged");
+
+    plt::matshow(T_diff, 1e-2);
+    plt::title("T_diff");
+
+    std::cout << "T_diff = " << T_diff << std::endl;
+
+    plt::show();
     return EXIT_SUCCESS;
 }

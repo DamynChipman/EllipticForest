@@ -211,7 +211,7 @@ public:
         }
 
         std::size_t colCheck = 0;
-        for (auto c = 0; c < R.size(); c++) colCheck += C[c];
+        for (auto c = 0; c < C.size(); c++) colCheck += C[c];
         if (colCheck != nCols_) {
             std::string errorMessage = "[EllipticForest::Matrix::blockPermute] Rows in `C` do not add up to number of rows in `this`:\n";
             errorMessage += "\tSum of C = " + std::to_string(colCheck) + "\n";
@@ -235,8 +235,8 @@ public:
         for (auto j = 0; j < J.size(); j++) {
             auto J_j = J[j];
             std::size_t c = 0;
-            for (auto jj = 0; jj < J_j; jj++) c += R[jj];
-            for (auto jjj = c; jjj < (c + C[J_j]); jjj++) IGlobal[JCounter++] = jjj;
+            for (auto jj = 0; jj < J_j; jj++) c += C[jj];
+            for (auto jjj = c; jjj < (c + C[J_j]); jjj++) JGlobal[JCounter++] = jjj;
         }
 
         return getFromIndexSet(IGlobal, JGlobal);
@@ -317,7 +317,12 @@ public:
         os << "  [" << A.nRows() << " x " << A.nCols() << "]  " << std::endl;
         for (auto i = 0; i < A.nRows(); i++) {
             for (auto j = 0; j < A.nCols(); j++) {
-                os << std::setprecision(4) << std::setw(10) << A(i,j);
+                if (fabs(A(i,j)) < 1e-14) {
+                    os << std::setprecision(4) << std::setw(12) << 0;    
+                }
+                else {
+                    os << std::setprecision(4) << std::setw(12) << A(i,j);
+                }
             }
             os << std::endl;
         }
@@ -620,7 +625,7 @@ Matrix<NumericalType> blockDiagonalMatrix(std::vector<Matrix<NumericalType>> dia
 }
 
 template<typename NumericalType>
-NumericalType matrixInfNorm(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
+double matrixInfNorm(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
     if (A.nRows() != B.nRows()) {
         std::string errorMessage = "[EllipticForest::Matrix::matrixInfNorm] Number of rows in `A` is not equal to number of rows in `B`:";
         errorMessage += "\tA.nRows = " + std::to_string(A.nRows()) + "\n";

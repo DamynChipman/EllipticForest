@@ -118,9 +118,12 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 	hstcrtt_(&A, &B, &M, &MBDCND, BDA, BDB,
 			&C, &D, &N, &NBDCND, BDC, BDD,
 			&ELMBDA, F, &IDIMF, &PERTRB, &IERROR, W);
-	if (IERROR) {
-		std::cerr << "[EllipticForest::FISHPACK::FISHPACKFVSolver::solve] WARNING: call to hstcrt_ returned non-zero error value: IERROR = " << IERROR << std::endl;
-	}
+    // hstcrt_(&A, &B, &M, &MBDCND, BDA, BDB,
+	// 		&C, &D, &N, &NBDCND, BDC, BDD,
+	// 		&ELMBDA, F, &IDIMF, &PERTRB, &IERROR);
+	// if (IERROR) {
+	// 	std::cerr << "[EllipticForest::FISHPACK::FISHPACKFVSolver::solve] WARNING: call to hstcrt_ returned non-zero error value: IERROR = " << IERROR << std::endl;
+	// }
 
 	// Move FISHPACK solution into Vector for output
 	Vector<double> solution(grid.nPointsX() * grid.nPointsY());
@@ -129,6 +132,8 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 			solution[j + i*nSide] = F[i + j*nSide];
 		}
 	}
+
+    free(W);
 
 	return solution; // return rhsData;
 
@@ -499,10 +504,13 @@ void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
 
     // Perform the merge
     createIndexSets_(tau, alpha, beta, gamma, omega);
+    // reorderT_(tau, alpha, beta, gamma, omega);
     createMatrixBlocks_(tau, alpha, beta, gamma, omega);
     mergeX_(tau, alpha, beta, gamma, omega);
     mergeS_(tau, alpha, beta, gamma, omega);
     mergeT_(tau, alpha, beta, gamma, omega);
+    reorderOperators_(tau, alpha, beta, gamma, omega);
+    mergePatch_(tau, alpha, beta, gamma, omega);
 
 }
 
@@ -571,6 +579,22 @@ void FISHPACKHPSMethod::createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alph
 
 }
 
+void FISHPACKHPSMethod::reorderT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    int nSide = alpha.grid.nPointsX();
+    Vector<int> pi_alpha = {0, 2, 3, 1};
+    Vector<int> pi_beta = {1, 2, 3, 0};
+    Vector<int> pi_gamma = {0, 3, 2, 1};
+    Vector<int> pi_omega = {1, 3, 2, 0};
+    Vector<int> blockSizes(4, nSide);
+
+    alpha.T = alpha.T.blockPermute(pi_alpha, pi_alpha, blockSizes, blockSizes);
+    beta.T = beta.T.blockPermute(pi_beta, pi_beta, blockSizes, blockSizes);
+    gamma.T = gamma.T.blockPermute(pi_gamma, pi_gamma, blockSizes, blockSizes);
+    omega.T = omega.T.blockPermute(pi_omega, pi_omega, blockSizes, blockSizes);
+
+}
+
 void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
     Matrix<double>& T_alpha = alpha.T;
@@ -581,11 +605,11 @@ void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& a
     // Blocks for X_tau
     T_ag_ag = T_alpha(IS_alpha_gamma_, IS_alpha_gamma_);
     T_ga_ga = T_gamma(IS_gamma_alpha_, IS_gamma_alpha_);
-    T_ag_gb = T_alpha(IS_alpha_gamma_, IS_gamma_beta_);
+    T_ag_ab = T_alpha(IS_alpha_gamma_, IS_alpha_beta_);
     T_ga_go = T_gamma(IS_gamma_alpha_, IS_gamma_omega_);
     T_bo_bo = T_beta(IS_beta_omega_, IS_beta_omega_);
     T_ob_ob = T_omega(IS_omega_beta_, IS_omega_beta_);
-    T_bo_bg = T_beta(IS_beta_omega_, IS_beta_gamma_);
+    T_bo_ba = T_beta(IS_beta_omega_, IS_beta_alpha_);
     T_ob_og = T_omega(IS_omega_beta_, IS_omega_gamma_);
     T_ab_ag = T_alpha(IS_alpha_beta_, IS_alpha_gamma_);
     T_ba_bo = T_beta(IS_beta_alpha_, IS_beta_omega_);
@@ -595,6 +619,8 @@ void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& a
     T_og_ob = T_omega(IS_omega_gamma_, IS_omega_beta_);
     T_go_go = T_gamma(IS_gamma_omega_, IS_gamma_omega_);
     T_og_og = T_omega(IS_omega_gamma_, IS_omega_gamma_);
+
+    // std::cout << "T_ag_ag = " << T_ag_ag << std::endl;
 
     // Blocks for S_tau
     T_ag_at = T_alpha(IS_alpha_gamma_, IS_alpha_tau_);
@@ -630,6 +656,9 @@ void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& a
     T_ba_bt = -T_ba_bt;
     T_og_ot = -T_og_ot;
 
+    // T_bt_bo = -T_bt_bo;
+    // T_bt_bt = -T_bt_bt;
+
     return;
 
 }
@@ -644,19 +673,22 @@ void FISHPACKHPSMethod::mergeX_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     std::vector<Matrix<double>> diag = {T_diag1, T_diag2, T_diag3, T_diag4};
 
     // Create row and column block index starts
-    std::vector<std::size_t> rowStarts = { 0, T_diag1.nRows(), T_diag2.nRows(), T_diag3.nRows() };
-    std::vector<std::size_t> colStarts = { 0, T_diag1.nCols(), T_diag2.nCols(), T_diag3.nCols() };
+    std::vector<std::size_t> rowStarts = { 0, T_diag1.nRows(), T_diag1.nRows() + T_diag2.nRows(), T_diag1.nRows() + T_diag2.nRows() + T_diag3.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_diag1.nCols(), T_diag1.nCols() + T_diag2.nCols(), T_diag1.nCols() + T_diag2.nCols() + T_diag3.nCols() };
     
     // Create matrix and set blocks
     tau.X = blockDiagonalMatrix(diag);
-    tau.X.setBlock(rowStarts[0], colStarts[2], T_ag_gb);
+    tau.X.setBlock(rowStarts[0], colStarts[2], T_ag_ab);
     tau.X.setBlock(rowStarts[0], colStarts[3], T_ga_go);
-    tau.X.setBlock(rowStarts[1], colStarts[2], T_bo_bg);
+    tau.X.setBlock(rowStarts[1], colStarts[2], T_bo_ba);
     tau.X.setBlock(rowStarts[1], colStarts[3], T_ob_og);
     tau.X.setBlock(rowStarts[2], colStarts[0], T_ab_ag);
     tau.X.setBlock(rowStarts[2], colStarts[1], T_ba_bo);
     tau.X.setBlock(rowStarts[3], colStarts[0], T_go_ga);
     tau.X.setBlock(rowStarts[3], colStarts[1], T_og_ob);
+
+    std::cout << "alpha.T = " << alpha.T << std::endl;
+    std::cout << "tau.X = " << tau.X << std::endl;
 
     return;
 
@@ -669,8 +701,8 @@ void FISHPACKHPSMethod::mergeS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     std::size_t nCols = T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() + T_ob_ot.nCols();
     Matrix<double> S_RHS(nRows, nCols, 0);
 
-    std::vector<std::size_t> rowStarts = { 0, T_ag_at.nRows(), T_bo_bt.nRows(), T_ab_at.nRows() };
-    std::vector<std::size_t> colStarts = { 0, T_ag_at.nCols(), T_bo_bt.nCols(), T_ga_gt.nCols() };
+    std::vector<std::size_t> rowStarts = { 0, T_ag_at.nRows(), T_ag_at.nRows() + T_bo_bt.nRows(), T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_ag_at.nCols(), T_ag_at.nCols() + T_bo_bt.nCols(), T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() };
 
     S_RHS.setBlock(rowStarts[0], colStarts[0], T_ag_at);
     S_RHS.setBlock(rowStarts[0], colStarts[2], T_ga_gt);
@@ -683,6 +715,9 @@ void FISHPACKHPSMethod::mergeS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     
     // Solve to set S_tau
     tau.S = solve(tau.X, S_RHS);
+
+    std::cout << "S_RHS = " << S_RHS << std::endl;
+    std::cout << "tau.S = " << tau.S << std::endl;
 
     return;
 
@@ -699,8 +734,8 @@ void FISHPACKHPSMethod::mergeT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     std::size_t nCols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
     Matrix<double> T_RHS(nRows, nCols, 0);
 
-    std::vector<std::size_t> rowStarts = { 0, T_at_ag.nRows(), T_bt_bo.nRows(), T_gt_ga.nRows() };
-    std::vector<std::size_t> colStarts = { 0, T_at_ag.nCols(), T_bt_bo.nCols(), T_at_ab.nCols() };
+    std::vector<std::size_t> rowStarts = { 0, T_at_ag.nRows(), T_at_ag.nRows() + T_bt_bo.nRows(), T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_at_ag.nCols(), T_at_ag.nCols() + T_bt_bo.nCols(), T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() };
 
     T_RHS.setBlock(rowStarts[0], colStarts[0], T_at_ag);
     T_RHS.setBlock(rowStarts[0], colStarts[2], T_at_ab);
@@ -716,6 +751,11 @@ void FISHPACKHPSMethod::mergeT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     // Compute and set T_tau
     tau.T = T_LHS - T_RHS2;
 
+    std::cout << "T_LHS = " << T_LHS << std::endl;
+    std::cout << "T_RHS = " << T_RHS << std::endl;
+    std::cout << "T_RHS2 = " << T_RHS2 << std::endl;
+    std::cout << "tau.T = " << tau.T << std::endl;
+
     return;
 
 }
@@ -724,13 +764,18 @@ void FISHPACKHPSMethod::reorderOperators_(FISHPACKPatch& tau, FISHPACKPatch& alp
 
     // Form permutation vector and block sizes
     int nSide = alpha.grid.nPointsX();
-    Vector<int> pi_noChange = {0};
-    Vector<int> pi_WESN = {0, 4, 2, 5, 1, 6, 3, 7};
-    Vector<int> blockSizes(8, nSide);
+    Vector<int> pi_noChange = {0, 1, 2, 3};
+    // Vector<int> pi_WESN = {0, 4, 2, 5, 1, 6, 3, 7};
+    Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
+    Vector<int> blockSizes1(4, nSide);
+    Vector<int> blockSizes2(8, nSide);
 
     // Permute S and T
-    tau.S = tau.S.blockPermute(pi_noChange, pi_WESN, {nSide}, blockSizes);
-    tau.T = tau.T.blockPermute(pi_WESN, pi_WESN, blockSizes, blockSizes);
+    tau.S = tau.S.blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
+    tau.T = tau.T.blockPermute(pi_WESN, pi_WESN, blockSizes2, blockSizes2);
+
+    std::cout << "tau.S PERMUTED = " << tau.S << std::endl;
+    std::cout << "tau.T PERMUTED = " << tau.T << std::endl;
 
 }
 

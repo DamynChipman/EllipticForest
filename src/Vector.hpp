@@ -207,7 +207,7 @@ public:
      * 
      * @return std::vector<NumericalType> Data
      */
-    std::vector<NumericalType> data() const { return data_; }
+    const std::vector<NumericalType>& data() const { return data_; }
 
     /**
      * @brief Return the pointer of the data array of the std::vector
@@ -589,6 +589,24 @@ template<typename NumericalType>
 Vector<NumericalType> concatenate(std::initializer_list<Vector<NumericalType>> vectors) {
     std::vector<Vector<NumericalType>> v(vectors);
     return concatenate(v);
+}
+
+template<typename NumericalType>
+double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
+    if (a.size() != b.size()) {
+        std::string errorMessage = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
+        errorMessage += "\ta.size = " + std::to_string(a.size()) + "\n";
+        errorMessage += "\tb.size = " + std::to_string(b.size()) + "\n";
+        std::cerr << errorMessage << std::endl;
+        throw std::invalid_argument(errorMessage);
+    }
+
+    double maxDiff = 0;
+    for (auto i = 0; i < a.size(); i++) {
+        maxDiff = fmax(maxDiff, fabs(a[i] - b[i]));
+    }
+    return maxDiff;
+
 }
 
 // template<typename NumericalType>

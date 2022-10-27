@@ -5,6 +5,7 @@
 #include <functional>
 #include <vector>
 
+// #include <matplotlibcpp.h>
 #include "PatchGrid.hpp"
 #include "PatchSolver.hpp"
 #include "Patch.hpp"
@@ -12,6 +13,9 @@
 #include "Quadtree.hpp"
 #include "HPSAlgorithm.hpp"
 #include "SpecialMatrices.hpp"
+#include "PlotUtils.hpp"
+
+namespace plt = matplotlibcpp;
 
 namespace EllipticForest {
 
@@ -215,11 +219,13 @@ private:
     // Blocks for X_tau
     Matrix<double> T_ag_ag;
     Matrix<double> T_ga_ga;
-    Matrix<double> T_ag_gb;
+    // Matrix<double> T_ag_gb;
+    Matrix<double> T_ag_ab;
     Matrix<double> T_ga_go;
     Matrix<double> T_bo_bo;
     Matrix<double> T_ob_ob;
-    Matrix<double> T_bo_bg;
+    // Matrix<double> T_bo_bg;
+    Matrix<double> T_bo_ba;
     Matrix<double> T_ob_og;
     Matrix<double> T_ab_ag;
     Matrix<double> T_ba_bo;
@@ -256,6 +262,7 @@ private:
 
     Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void reorderT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void mergeX_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void mergeS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
