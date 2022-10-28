@@ -439,7 +439,7 @@ FISHPACKPatch FISHPACKQuadtree::initData(FISHPACKPatch& parentData, std::size_t 
 // FISHPACK Finite Volume HPS Method
 // ---===========================---
 
-FISHPACKHPSMethod::FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch rootPatch, p4est_t* p4est) :
+FISHPACKHPSMethod::FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch& rootPatch, p4est_t* p4est) :
     pde_(PDE),
     rootPatch_(rootPatch),
     p4est_(p4est)
@@ -478,6 +478,39 @@ void FISHPACKHPSMethod::setupStage() {
         }
     });
 
+    // // Set Dirichlet data on root patch
+    // FISHPACKFVGrid& grid = this->quadtree->data()[0].grid;
+    // std::size_t nBoundary = 2*grid.nPointsX() + 2*grid.nPointsY();
+    // this->quadtree->data()[0].g = Vector<double>(nBoundary);
+    // Vector<int> IS_West = vectorRange(0, grid.nPointsY() - 1);
+    // Vector<int> IS_East = vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
+    // Vector<int> IS_South = vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
+    // Vector<int> IS_North = vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
+    // // Vector<int> IS_WESN = concatenate({IS_West, IS_East, IS_South, IS_North});
+    // for (auto i = 0; i < nBoundary; i++) {
+    //     std::size_t iSide = i % grid.nPointsX();
+    //     if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+    //         double x = grid.xLower();
+    //         double y = grid(YDIM, iSide);
+    //         this->quadtree->data()[0].g[i] = pde_.u(x, y);
+    //     }
+    //     if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+    //         double x = grid.xUpper();
+    //         double y = grid(YDIM, iSide);
+    //         this->quadtree->data()[0].g[i] = pde_.u(x, y);
+    //     }
+    //     if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+    //         double x = grid(XDIM, iSide);
+    //         double y = grid.yLower();
+    //         this->quadtree->data()[0].g[i] = pde_.u(x, y);
+    //     }
+    //     if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+    //         double x = grid(XDIM, iSide);
+    //         double y = grid.yUpper();
+    //         this->quadtree->data()[0].g[i] = pde_.u(x, y);
+    //     }
+    // }
+
     app.log("End FISHPACK-HPS Setup Stage");
 
 }
@@ -491,20 +524,9 @@ void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     app.log("gamma = %i", gamma.ID);
     app.log("omega = %i", omega.ID);
 
-    // Check for adaptivity
-    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega};
-    Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
-
-    for (auto i = 0; i < 4; i++) {
-        while (tags[i]-- > 0) {
-            patches[i]->coarsen();
-            patches[i] = patches[i]->coarser;
-        }
-    }
-
-    // Perform the merge
+    // Steps for the merge (private member functions)
+    coarsen_(tau, alpha, beta, gamma, omega);
     createIndexSets_(tau, alpha, beta, gamma, omega);
-    // reorderT_(tau, alpha, beta, gamma, omega);
     createMatrixBlocks_(tau, alpha, beta, gamma, omega);
     mergeX_(tau, alpha, beta, gamma, omega);
     mergeS_(tau, alpha, beta, gamma, omega);
@@ -534,6 +556,62 @@ void FISHPACKHPSMethod::split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     app.log("gamma = %i", gamma.ID);
     app.log("omega = %i", omega.ID);
 
+    // Steps for the split (private member functions)
+    uncoarsen_(tau, alpha, beta, gamma, omega);
+    applyS_(tau, alpha, beta, gamma, omega);
+
+}
+
+void FISHPACKHPSMethod::preSolveHook() {
+
+    // Set Dirichlet data on root patch
+    FISHPACKFVGrid& grid = this->quadtree->data()[0].grid;
+    std::size_t nBoundary = 2*grid.nPointsX() + 2*grid.nPointsY();
+    this->quadtree->data()[0].g = Vector<double>(nBoundary);
+    Vector<int> IS_West = vectorRange(0, grid.nPointsY() - 1);
+    Vector<int> IS_East = vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
+    Vector<int> IS_South = vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
+    Vector<int> IS_North = vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
+    // Vector<int> IS_WESN = concatenate({IS_West, IS_East, IS_South, IS_North});
+    for (auto i = 0; i < nBoundary; i++) {
+        std::size_t iSide = i % grid.nPointsX();
+        if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+            double x = grid.xLower();
+            double y = grid(YDIM, iSide);
+            this->quadtree->data()[0].g[i] = pde_.u(x, y);
+        }
+        if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+            double x = grid.xUpper();
+            double y = grid(YDIM, iSide);
+            this->quadtree->data()[0].g[i] = pde_.u(x, y);
+        }
+        if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+            double x = grid(XDIM, iSide);
+            double y = grid.yLower();
+            this->quadtree->data()[0].g[i] = pde_.u(x, y);
+        }
+        if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+            double x = grid(XDIM, iSide);
+            double y = grid.yUpper();
+            this->quadtree->data()[0].g[i] = pde_.u(x, y);
+        }
+    }
+
+}
+
+void FISHPACKHPSMethod::leafSolve(FISHPACKPatch& patch) {
+
+    EllipticForestApp& app = EllipticForestApp::getInstance();
+    if (patch.isLeaf) {
+        FISHPACKFVSolver solver;
+        // if (std::get<bool>(app.options["homogeneous-rhs"])) {
+        if (true) {
+            // Need to set RHS to zeros for patch solver b/c it won't be set already
+            patch.f = Vector<double>(patch.grid.nPointsX() * patch.grid.nPointsY(), 0);
+        }
+        patch.u = solver.solve(patch.grid, patch.g, patch.f);
+    }
+        
 }
 
 Vector<int> FISHPACKHPSMethod::tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
@@ -547,6 +625,22 @@ Vector<int> FISHPACKHPSMethod::tagPatchesForCoarsening_(FISHPACKPatch& tau, FISH
     for (auto i = 0; i < 4; i++) tags[i] = gens[i] - minGens;
 
     return {tags};
+
+}
+
+void FISHPACKHPSMethod::coarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Check for adaptivity
+    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega};
+    Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+
+    for (auto i = 0; i < 4; i++) {
+        while (tags[i]-- > 0) {
+            patches[i]->coarsen();
+            patches[i] = patches[i]->coarser;
+        }
+    }
+    return;
 
 }
 
@@ -579,22 +673,6 @@ void FISHPACKHPSMethod::createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alph
 
 }
 
-void FISHPACKHPSMethod::reorderT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
-
-    int nSide = alpha.grid.nPointsX();
-    Vector<int> pi_alpha = {0, 2, 3, 1};
-    Vector<int> pi_beta = {1, 2, 3, 0};
-    Vector<int> pi_gamma = {0, 3, 2, 1};
-    Vector<int> pi_omega = {1, 3, 2, 0};
-    Vector<int> blockSizes(4, nSide);
-
-    alpha.T = alpha.T.blockPermute(pi_alpha, pi_alpha, blockSizes, blockSizes);
-    beta.T = beta.T.blockPermute(pi_beta, pi_beta, blockSizes, blockSizes);
-    gamma.T = gamma.T.blockPermute(pi_gamma, pi_gamma, blockSizes, blockSizes);
-    omega.T = omega.T.blockPermute(pi_omega, pi_omega, blockSizes, blockSizes);
-
-}
-
 void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
     Matrix<double>& T_alpha = alpha.T;
@@ -619,8 +697,6 @@ void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& a
     T_og_ob = T_omega(IS_omega_gamma_, IS_omega_beta_);
     T_go_go = T_gamma(IS_gamma_omega_, IS_gamma_omega_);
     T_og_og = T_omega(IS_omega_gamma_, IS_omega_gamma_);
-
-    // std::cout << "T_ag_ag = " << T_ag_ag << std::endl;
 
     // Blocks for S_tau
     T_ag_at = T_alpha(IS_alpha_gamma_, IS_alpha_tau_);
@@ -687,9 +763,6 @@ void FISHPACKHPSMethod::mergeX_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     tau.X.setBlock(rowStarts[3], colStarts[0], T_go_ga);
     tau.X.setBlock(rowStarts[3], colStarts[1], T_og_ob);
 
-    std::cout << "alpha.T = " << alpha.T << std::endl;
-    std::cout << "tau.X = " << tau.X << std::endl;
-
     return;
 
 }
@@ -715,9 +788,6 @@ void FISHPACKHPSMethod::mergeS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     
     // Solve to set S_tau
     tau.S = solve(tau.X, S_RHS);
-
-    std::cout << "S_RHS = " << S_RHS << std::endl;
-    std::cout << "tau.S = " << tau.S << std::endl;
 
     return;
 
@@ -751,11 +821,6 @@ void FISHPACKHPSMethod::mergeT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     // Compute and set T_tau
     tau.T = T_LHS - T_RHS2;
 
-    std::cout << "T_LHS = " << T_LHS << std::endl;
-    std::cout << "T_RHS = " << T_RHS << std::endl;
-    std::cout << "T_RHS2 = " << T_RHS2 << std::endl;
-    std::cout << "tau.T = " << tau.T << std::endl;
-
     return;
 
 }
@@ -765,7 +830,6 @@ void FISHPACKHPSMethod::reorderOperators_(FISHPACKPatch& tau, FISHPACKPatch& alp
     // Form permutation vector and block sizes
     int nSide = alpha.grid.nPointsX();
     Vector<int> pi_noChange = {0, 1, 2, 3};
-    // Vector<int> pi_WESN = {0, 4, 2, 5, 1, 6, 3, 7};
     Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
     Vector<int> blockSizes1(4, nSide);
     Vector<int> blockSizes2(8, nSide);
@@ -774,8 +838,7 @@ void FISHPACKHPSMethod::reorderOperators_(FISHPACKPatch& tau, FISHPACKPatch& alp
     tau.S = tau.S.blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
     tau.T = tau.T.blockPermute(pi_WESN, pi_WESN, blockSizes2, blockSizes2);
 
-    std::cout << "tau.S PERMUTED = " << tau.S << std::endl;
-    std::cout << "tau.T PERMUTED = " << tau.T << std::endl;
+    return;
 
 }
 
@@ -792,6 +855,59 @@ void FISHPACKHPSMethod::mergePatch_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FI
         gamma.nPatchSideVector[NORTH] + omega.nPatchSideVector[NORTH]
     };
     tau.nCellsLeaf = alpha.nCellsLeaf;
+
+    return;
+
+}
+
+void FISHPACKHPSMethod::uncoarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Get patches to uncoarsen
+    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega, &tau};
+    std::vector<FISHPACKPatch*> toUncoarsen;
+    while (patches[4]->hasCoarsened) {
+        toUncoarsen.push_back(patches[4]);
+        patches[4] = patches[4]->coarser;
+    }
+
+    // Do the uncoarsening
+    // @TODO
+
+}
+
+void FISHPACKHPSMethod::applyS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
+
+    // Apply solution operator to get interior of tau
+    Vector<double> u_tau_interior = tau.S * tau.g;
+
+    // Apply non-homogeneous contribution
+    EllipticForestApp& app = EllipticForestApp::getInstance();
+    // if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+    //     u_tau_interior += tau.w;
+    // }
+
+    // Extract components of interior of tau
+    std::size_t nSide = alpha.grid.nPointsX();
+    Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nSide, nSide);
+    Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nSide, nSide);
+    Vector<double> g_alpha_beta = u_tau_interior.getSegment(2*nSide, nSide);
+    Vector<double> g_gamma_omega = u_tau_interior.getSegment(3*nSide, nSide);
+
+    // Extract components of exterior of tau
+    Vector<double> g_alpha_W = tau.g.getSegment(0*nSide, nSide);
+    Vector<double> g_gamma_W = tau.g.getSegment(1*nSide, nSide);
+    Vector<double> g_beta_E = tau.g.getSegment(2*nSide, nSide);
+    Vector<double> g_omega_E = tau.g.getSegment(3*nSide, nSide);
+    Vector<double> g_alpha_S = tau.g.getSegment(4*nSide, nSide);
+    Vector<double> g_beta_S = tau.g.getSegment(5*nSide, nSide);
+    Vector<double> g_gamma_N = tau.g.getSegment(6*nSide, nSide);
+    Vector<double> g_omega_N = tau.g.getSegment(7*nSide, nSide);
+
+    // Set child patch Dirichlet data
+    alpha.g = concatenate({g_alpha_W, g_alpha_beta, g_alpha_S, g_alpha_gamma});
+    beta.g = concatenate({g_alpha_beta, g_beta_E, g_beta_S, g_beta_omega});
+    gamma.g = concatenate({g_gamma_W, g_gamma_omega, g_alpha_gamma, g_gamma_N});
+    omega.g = concatenate({g_gamma_omega, g_omega_E, g_beta_omega, g_omega_N});
 
 }
 

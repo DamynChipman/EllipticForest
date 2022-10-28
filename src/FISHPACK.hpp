@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <vector>
+#include <string>
 
 // #include <matplotlibcpp.h>
 #include "PatchGrid.hpp"
@@ -181,7 +182,7 @@ class FISHPACKHPSMethod : public HPSAlgorithmBase<FISHPACKPatch, double> {
 
 public:
 
-    FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch rootPatch, p4est_t* p4est);
+    FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch& rootPatch, p4est_t* p4est);
 
 protected:
 
@@ -189,13 +190,16 @@ protected:
     virtual void merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     virtual void upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     virtual void split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    virtual void preSolveHook();
+    virtual void leafSolve(FISHPACKPatch& patch);
 
 private:
 
     FISHPACKProblem pde_;
-    FISHPACKPatch rootPatch_;
+    FISHPACKPatch& rootPatch_;
     p4est_t* p4est_;
 
+    // Index sets
     Vector<int> IS_alpha_beta_;
     Vector<int> IS_alpha_gamma_;
     Vector<int> IS_alpha_omega_;
@@ -219,12 +223,10 @@ private:
     // Blocks for X_tau
     Matrix<double> T_ag_ag;
     Matrix<double> T_ga_ga;
-    // Matrix<double> T_ag_gb;
     Matrix<double> T_ag_ab;
     Matrix<double> T_ga_go;
     Matrix<double> T_bo_bo;
     Matrix<double> T_ob_ob;
-    // Matrix<double> T_bo_bg;
     Matrix<double> T_bo_ba;
     Matrix<double> T_ob_og;
     Matrix<double> T_ab_ag;
@@ -260,9 +262,10 @@ private:
     Matrix<double> T_ot_ob;
     Matrix<double> T_ot_og;
 
+    // Steps for the merge
     Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void coarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void createIndexSets_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
-    void reorderT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void mergeX_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void mergeS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
@@ -270,6 +273,9 @@ private:
     void reorderOperators_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void mergePatch_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
 
+    // Steps for the split
+    void uncoarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void applyS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
 
 };
 

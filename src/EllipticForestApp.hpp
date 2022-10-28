@@ -39,7 +39,9 @@ struct Options {
     std::map<std::string, OptionTypes> optionsMap;
 
     Options() {}
-    Options(std::map<std::string, OptionTypes> map) : optionsMap(map) {}
+    Options(std::map<std::string, OptionTypes> map) : optionsMap(map) {
+        setDefaultOptions();
+    }
 
     OptionTypes operator[](std::string const key) {
         return optionsMap[key];
@@ -51,6 +53,11 @@ struct Options {
 
     void setFromFile(std::string filename) {
 
+    }
+
+    void setDefaultOptions() {
+        optionsMap["cache-operators"] = true;
+        optionsMap["homogeneous-rhs"] = true;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Options& options) {

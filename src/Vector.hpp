@@ -40,9 +40,9 @@ public:
      * @param size Size of vector
      * @param dataArray Pointer of beginning of memory block
      */
-    Vector(std::size_t size, NumericalType* dataArray) : size_(size) {
-        data_.assign(dataArray, dataArray + size);
-    }
+    // Vector(std::size_t size, NumericalType* dataArray) : size_(size) {
+    //     data_.assign(dataArray, dataArray + size);
+    // }
 
     /**
      * @brief Create a vector of a given size, setting all elements to `value`

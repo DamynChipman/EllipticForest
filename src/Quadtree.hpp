@@ -68,7 +68,7 @@ public:
 	LevelArray globalIndices() const { return globalIndices_; }
 	LevelArray parentIndices() const { return parentIndices_; }
 	LevelArray childIndices() const { return childIndices_; }
-	std::vector<T> data() const { return data_; }
+	std::vector<T>& data() { return data_; }
 
 	/**
 	 * @brief User derived function for data initialization given the node's level and index
@@ -279,7 +279,7 @@ private:
 
     }
 
-    void buildData_(T rootData) {
+    void buildData_(T& rootData) {
 
 		// Count total number of nodes
 		int nodeCounter = 0;

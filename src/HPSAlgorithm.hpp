@@ -87,6 +87,8 @@ protected:
 
     virtual void split1to4(QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega) = 0;
 
+    virtual void leafSolve(QuadtreeNodeType& patch) = 0;
+
     virtual void preSolveHook() {}
 
     virtual void solveStage() {
@@ -96,6 +98,10 @@ protected:
 
         quadtree->split([&](QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega){
             split1to4(tau, alpha, beta, gamma, omega);
+        });
+
+        quadtree->traversePreOrder([&](QuadtreeNodeType& patch){
+            leafSolve(patch);
         });
 
         app.log("End HPS Solve Stage");

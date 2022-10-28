@@ -133,7 +133,6 @@ int main(int argc, char** argv) {
     });
 
     EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, rootPatch, p4est);
-    // EllipticForest::FISHPACK::FISHPACKQuadtree& quadtree = *HPS.quadtree;
     HPS.run();
 
     // Get merged root T
@@ -150,23 +149,23 @@ int main(int argc, char** argv) {
         for (auto j = 0; j < T_merged.nCols(); j++) {
             double diff = T_merged(i,j) - T_fine(i,j);
             maxDiff = fmax(maxDiff, fabs(diff));
-            printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e,  maxDiff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff, maxDiff);
+            // printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e,  maxDiff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff, maxDiff);
         }
     }
 
     double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
     printf("infNorm = %24.16e\n", infNorm);
 
-    plt::matshow(T_fine, 1e-2);
-    plt::title("T_fine");
+    // plt::matshow(T_fine, 1e-2);
+    // plt::title("T_fine");
 
-    plt::matshow(T_merged, 1e-2);
-    plt::title("T_merged");
+    // plt::matshow(T_merged, 1e-2);
+    // plt::title("T_merged");
 
-    plt::matshow(T_diff, 1e-2);
-    plt::title("T_diff");
+    // plt::matshow(T_diff, 1e-2);
+    // plt::title("T_diff");
 
-    std::cout << "T_diff = " << T_diff << std::endl;
+    // std::cout << "T_diff = " << T_diff << std::endl;
 
     plt::show();
     return EXIT_SUCCESS;
