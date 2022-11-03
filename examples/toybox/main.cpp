@@ -62,6 +62,16 @@ int main(int argc, char** argv) {
     app.options.setOption("cache-operators", true);
     app.options.setOption("homogeneous-rhs", false);
 
+    // CML options
+    std::size_t nx = 4;
+    std::size_t ny = 4;
+    int minLevel = 2;
+    if (argc > 1) {
+        minLevel = atoi(argv[1]);
+        nx = (std::size_t) atoi(argv[2]);
+        ny = (std::size_t) atoi(argv[2]);
+    }
+
     // int nCoarse = 4;
     // int nFine = 8;
     // EllipticForest::InterpolationMatrixFine2Coarse<double> L21(nCoarse);
@@ -71,7 +81,6 @@ int main(int argc, char** argv) {
     // std::cout << "L12 = " << L12 << std::endl;
 
     // Create uniform p4est
-    int minLevel = 1;
     int fillUniform = 1;
     p4est_connectivity_t* conn = p4est_connectivity_new_unitsquare();
     p4est_t* p4est = p4est_new_ext(MPI_COMM_WORLD, conn, 0, minLevel, fillUniform, 0, NULL, NULL);
@@ -97,15 +106,6 @@ int main(int argc, char** argv) {
     // });
 
     // Create root grid and patch
-    std::size_t nx, ny;
-    if (argc > 1) {
-        nx = (std::size_t) atoi(argv[1]);
-        ny = (std::size_t) atoi(argv[1]);
-    }
-    else {
-        nx = 4;
-        ny = 4;
-    }
     double xLower = -1;
     double xUpper = 1;
     double yLower = -1;
@@ -150,26 +150,26 @@ int main(int argc, char** argv) {
     HPS.run();
 
     // Get merged root T
-    EllipticForest::Matrix<double> T_merged = HPS.quadtree->data()[HPS.quadtree->globalIndices()[0][0]].T;
+    // EllipticForest::Matrix<double> T_merged = HPS.quadtree->root().T;
 
-    // Create refined T
-    EllipticForest::FISHPACK::FISHPACKFVGrid fineGrid(nx*2, ny*2, xLower, xUpper, yLower, yUpper);
-    EllipticForest::FISHPACK::FISHPACKFVSolver solver;
-    EllipticForest::Matrix<double> T_fine = solver.buildD2N(fineGrid);
-    EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
+    // // // Create refined T
+    // EllipticForest::FISHPACK::FISHPACKFVGrid fineGrid(nx*4, ny*4, xLower, xUpper, yLower, yUpper);
+    // EllipticForest::FISHPACK::FISHPACKFVSolver solver;
+    // EllipticForest::Matrix<double> T_fine = solver.buildD2N(fineGrid);
+    // EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
 
-    double maxDiff = 0;
-    for (auto i = 0; i < T_merged.nRows(); i++) {
-        for (auto j = 0; j < T_merged.nCols(); j++) {
-            double diff = T_merged(i,j) - T_fine(i,j);
-            maxDiff = fmax(maxDiff, fabs(diff));
-            // printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e,  maxDiff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff, maxDiff);
-        }
-    }
+    // double maxDiff = 0;
+    // for (auto i = 0; i < T_merged.nRows(); i++) {
+    //     for (auto j = 0; j < T_merged.nCols(); j++) {
+    //         double diff = T_merged(i,j) - T_fine(i,j);
+    //         maxDiff = fmax(maxDiff, fabs(diff));
+    //         // printf("i = %4i,  j = %4i,  T_merged(i,j) = %12.4e,  T_fine(i,j) = %12.4e,  diff = %12.4e,  maxDiff = %12.4e\n", i, j, T_merged(i,j), T_fine(i,j), diff, maxDiff);
+    //     }
+    // }
 
-    double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
-    printf("Effective Resolution: [%i x %i]\n", HPS.quadtree->data()[0].grid.nPointsX(), HPS.quadtree->data()[0].grid.nPointsY());
-    printf("infNorm D2N Map = %24.16e\n", infNorm);
+    // double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
+    // printf("Effective Resolution: [%i x %i]\n", HPS.quadtree->data()[0].grid.nPointsX(), HPS.quadtree->data()[0].grid.nPointsY());
+    // printf("infNorm D2N Map = %24.16e\n", infNorm);
 
     // plt::matshow(T_fine, 1e-2);
     // plt::title("T_fine");

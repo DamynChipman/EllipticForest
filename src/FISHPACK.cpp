@@ -564,6 +564,8 @@ void FISHPACKHPSMethod::upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FI
 
         // Steps for the upwards stage (private member functions)
         coarsenUpwards_(tau, alpha, beta, gamma, omega);
+        createIndexSets_(tau, alpha, beta, gamma, omega);
+        createMatrixBlocks_(tau, alpha, beta, gamma, omega);
         mergeW_(tau, alpha, beta, gamma, omega);
         mergeH_(tau, alpha, beta, gamma, omega);
         reorderOperatorsUpwards_(tau, alpha, beta, gamma, omega);
@@ -581,7 +583,7 @@ void FISHPACKHPSMethod::split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     app.log("omega = %i", omega.ID);
 
     // Steps for the split (private member functions)
-    // uncoarsen_(tau, alpha, beta, gamma, omega);
+    uncoarsen_(tau, alpha, beta, gamma, omega);
     applyS_(tau, alpha, beta, gamma, omega);
 
 }
@@ -863,22 +865,22 @@ void FISHPACKHPSMethod::mergeT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     // Create right hand side
     std::size_t nRows = T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() + T_ot_ob.nRows();
     std::size_t nCols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
-    systemB = Matrix<double>(nRows, nCols, 0);
-    // Matrix<double> T_RHS(nRows, nCols, 0);
+    // systemB = Matrix<double>(nRows, nCols, 0);
+    Matrix<double> T_RHS(nRows, nCols, 0);
 
     std::vector<std::size_t> rowStarts = { 0, T_at_ag.nRows(), T_at_ag.nRows() + T_bt_bo.nRows(), T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() };
     std::vector<std::size_t> colStarts = { 0, T_at_ag.nCols(), T_at_ag.nCols() + T_bt_bo.nCols(), T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() };
 
-    systemB.setBlock(rowStarts[0], colStarts[0], T_at_ag);
-    systemB.setBlock(rowStarts[0], colStarts[2], T_at_ab);
-    systemB.setBlock(rowStarts[1], colStarts[1], T_bt_bo);
-    systemB.setBlock(rowStarts[1], colStarts[2], T_bt_ba);
-    systemB.setBlock(rowStarts[2], colStarts[0], T_gt_ga);
-    systemB.setBlock(rowStarts[2], colStarts[3], T_gt_go);
-    systemB.setBlock(rowStarts[3], colStarts[1], T_ot_ob);
-    systemB.setBlock(rowStarts[3], colStarts[3], T_ot_og);
+    T_RHS.setBlock(rowStarts[0], colStarts[0], T_at_ag);
+    T_RHS.setBlock(rowStarts[0], colStarts[2], T_at_ab);
+    T_RHS.setBlock(rowStarts[1], colStarts[1], T_bt_bo);
+    T_RHS.setBlock(rowStarts[1], colStarts[2], T_bt_ba);
+    T_RHS.setBlock(rowStarts[2], colStarts[0], T_gt_ga);
+    T_RHS.setBlock(rowStarts[2], colStarts[3], T_gt_go);
+    T_RHS.setBlock(rowStarts[3], colStarts[1], T_ot_ob);
+    T_RHS.setBlock(rowStarts[3], colStarts[3], T_ot_og);
 
-    Matrix<double> T_RHS2 = systemB * tau.S;
+    Matrix<double> T_RHS2 = T_RHS * tau.S;
 
     // Compute and set T_tau
     tau.T = T_LHS + T_RHS2;
@@ -969,9 +971,39 @@ void FISHPACKHPSMethod::mergeW_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
 
 void FISHPACKHPSMethod::mergeH_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
     
-    // Compute and set h_tau
-    tau.h = systemB * tau.w;
+    // Create right hand side
+    std::size_t nRows = T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() + T_ot_ob.nRows();
+    std::size_t nCols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
+    Matrix<double> T_RHS(nRows, nCols, 0);
 
+    std::vector<std::size_t> rowStarts = { 0, T_at_ag.nRows(), T_at_ag.nRows() + T_bt_bo.nRows(), T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() };
+    std::vector<std::size_t> colStarts = { 0, T_at_ag.nCols(), T_at_ag.nCols() + T_bt_bo.nCols(), T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() };
+
+    T_RHS.setBlock(rowStarts[0], colStarts[0], T_at_ag);
+    T_RHS.setBlock(rowStarts[0], colStarts[2], T_at_ab);
+    T_RHS.setBlock(rowStarts[1], colStarts[1], T_bt_bo);
+    T_RHS.setBlock(rowStarts[1], colStarts[2], T_bt_ba);
+    T_RHS.setBlock(rowStarts[2], colStarts[0], T_gt_ga);
+    T_RHS.setBlock(rowStarts[2], colStarts[3], T_gt_go);
+    T_RHS.setBlock(rowStarts[3], colStarts[1], T_ot_ob);
+    T_RHS.setBlock(rowStarts[3], colStarts[3], T_ot_og);
+
+    // Compute and set h_tau
+    tau.h = T_RHS * tau.w;
+
+    // Update with boundary h
+    Vector<double> h_alpha_tau = alpha.h(IS_alpha_tau_);
+    Vector<double> h_beta_tau = beta.h(IS_beta_tau_);
+    Vector<double> h_gamma_tau = beta.h(IS_gamma_tau_);
+    Vector<double> h_omega_tau = beta.h(IS_omega_tau_);
+    Vector<double> hUpdate = concatenate({
+        h_alpha_tau,
+        h_beta_tau,
+        h_gamma_tau,
+        h_omega_tau
+    });
+    tau.h += hUpdate;
+    
 }
 
 void FISHPACKHPSMethod::reorderOperatorsUpwards_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
@@ -1011,6 +1043,7 @@ void FISHPACKHPSMethod::applyS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     // Apply non-homogeneous contribution
     EllipticForestApp& app = EllipticForestApp::getInstance();
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+        Vector<double>& w_tau = tau.w;
         u_tau_interior += tau.w;
     }
 
