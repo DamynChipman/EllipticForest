@@ -68,6 +68,8 @@ public:
 	LevelArray globalIndices() const { return globalIndices_; }
 	LevelArray parentIndices() const { return parentIndices_; }
 	LevelArray childIndices() const { return childIndices_; }
+	T& root() { return data_[0]; }
+	const T& root() const { return data_[0]; }
 	std::vector<T>& data() { return data_; }
 
 	/**

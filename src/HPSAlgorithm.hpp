@@ -25,9 +25,12 @@ public:
         this->buildStage();
         this->postBuildHook();
 
-        this->preUpwardsHook();
-        this->upwardsStage();
-        this->postUpwardsHook();
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+            this->preUpwardsHook();
+            this->upwardsStage();
+            this->postUpwardsHook();
+        }
 
         this->preSolveHook();
         this->solveStage();
@@ -66,6 +69,8 @@ protected:
 
     virtual void postBuildHook() {}
 
+    virtual void setParticularData(QuadtreeNodeType& patch) = 0;
+
     virtual void upwards4to1(QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega) = 0;
 
     virtual void preUpwardsHook() {}
@@ -74,6 +79,10 @@ protected:
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.log("Begin HPS Upwards Stage");
+
+        quadtree->traversePostOrder([&](QuadtreeNodeType& patch){
+            setParticularData(patch);
+        });
 
         quadtree->merge([&](QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega){
             upwards4to1(tau, alpha, beta, gamma, omega);

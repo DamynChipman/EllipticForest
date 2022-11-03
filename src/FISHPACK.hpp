@@ -99,9 +99,7 @@ struct FISHPACKPatch : public PatchBase<double> {
 
 	// Data matrices
 	Matrix<double> T{};						// DtN Matrix
-	Matrix<double> T_prime{};	    		// Horizontal Merge DtN Matrix
 	Matrix<double> S{};						// Solution Matrix
-	Matrix<double> S_prime{};		    	// Horizontal Merge Solution Matrix
 	Matrix<double> X{};						// Body Load Matrix
 	
 	// Solution data
@@ -115,7 +113,6 @@ struct FISHPACKPatch : public PatchBase<double> {
 	// Particular data
 	Vector<double> h{};						// Particular Neumann Vector
 	Vector<double> w{};						// Particular Solution Vector
-	Vector<double> w_prime{};		    	// Horizontal Particular Solution Vector
 
     // Pointers to finer and coarser versions of itself
     FISHPACKPatch* finer = nullptr;          // Finer version of itself
@@ -128,6 +125,7 @@ struct FISHPACKPatch : public PatchBase<double> {
 
     FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
     void coarsen();
+    void coarsenUpwards();
 
 };
 
@@ -191,6 +189,7 @@ protected:
     virtual void upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     virtual void split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     virtual void preSolveHook();
+    virtual void setParticularData(FISHPACKPatch& patch);
     virtual void leafSolve(FISHPACKPatch& patch);
 
 private:
@@ -262,6 +261,10 @@ private:
     Matrix<double> T_ot_ob;
     Matrix<double> T_ot_og;
 
+    // Blocks for particular problem (non-homogeneous)
+    Matrix<double> systemB;
+    Vector<double> hDiff;
+
     // Steps for the merge
     Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void coarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
@@ -272,6 +275,12 @@ private:
     void mergeT_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void reorderOperators_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     void mergePatch_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+
+    // Steps for the upwards stage
+    void coarsenUpwards_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void mergeW_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void mergeH_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
+    void reorderOperatorsUpwards_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
 
     // Steps for the split
     void uncoarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);

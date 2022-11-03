@@ -38,7 +38,9 @@ struct Options {
     using OptionTypes = std::variant<std::string, bool, int, double>;
     std::map<std::string, OptionTypes> optionsMap;
 
-    Options() {}
+    Options() {
+        setDefaultOptions();
+    }
     Options(std::map<std::string, OptionTypes> map) : optionsMap(map) {
         setDefaultOptions();
     }

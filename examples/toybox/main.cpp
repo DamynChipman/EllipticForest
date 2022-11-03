@@ -60,6 +60,7 @@ int main(int argc, char** argv) {
 
     // Set options
     app.options.setOption("cache-operators", true);
+    app.options.setOption("homogeneous-rhs", false);
 
     // int nCoarse = 4;
     // int nFine = 8;
@@ -126,13 +127,26 @@ int main(int argc, char** argv) {
         return 4.0;
     });
     pde.setDUDX([](double x, double y){
-        return x;
+        return 2*x;
     });
     pde.setDUDY([](double x, double y){
-        return y;
+        return 2*y;
     });
+    // pde.setU([](double x, double y){
+    //     return x + y;
+    // });
+    // pde.setF([](double x, double y){
+    //     return 0.0;
+    // });
+    // pde.setDUDX([](double x, double y){
+    //     return 1.0;
+    // });
+    // pde.setDUDY([](double x, double y){
+    //     return 1.0;
+    // });
 
     EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, rootPatch, p4est);
+    // EllipticForest::FISHPACK::FISHPACKQuadtree& quadtree = *HPS.quadtree;
     HPS.run();
 
     // Get merged root T
@@ -154,7 +168,8 @@ int main(int argc, char** argv) {
     }
 
     double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
-    printf("infNorm = %24.16e\n", infNorm);
+    printf("Effective Resolution: [%i x %i]\n", HPS.quadtree->data()[0].grid.nPointsX(), HPS.quadtree->data()[0].grid.nPointsY());
+    printf("infNorm D2N Map = %24.16e\n", infNorm);
 
     // plt::matshow(T_fine, 1e-2);
     // plt::title("T_fine");
@@ -167,6 +182,29 @@ int main(int argc, char** argv) {
 
     // std::cout << "T_diff = " << T_diff << std::endl;
 
-    plt::show();
+    // plt::show();
+
+    // Compute error of solution
+    double maxError = 0;
+    HPS.quadtree->traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+        if (patch.isLeaf) {
+            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid;
+            // std::cout << "PATCH: " << patch.ID << std::endl;
+            for (auto i = 0; i < grid.nPointsX(); i++) {
+                double x = grid(XDIM, i);
+                for (auto j = 0; j < grid.nPointsY(); j++) {
+                    double y = grid(YDIM, j);
+                    int index = j + i*grid.nPointsY();
+                    double diff = patch.u[index] - pde.u(x, y);
+                    maxError = fmax(maxError, fabs(diff));
+                    // printf("x = %12.4f,  y = %12.4f,  u_hps = %12.4f,  u_exact = %12.4f,  diff = %12.4e maxError = %12.4e\n", x, y, patch.u[index], pde.u(x,y), diff, maxError);
+                }
+                // std::cout << std::endl;
+            }
+        }
+    });
+    printf("infNorm Solution = %24.16e\n", maxError);
+
+
     return EXIT_SUCCESS;
 }
