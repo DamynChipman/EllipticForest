@@ -5,6 +5,7 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <list>
 
 // #include <matplotlibcpp.h>
 #include "PatchGrid.hpp"
@@ -88,11 +89,12 @@ public:
 struct FISHPACKPatch : public PatchBase<double> {
 
     // Metadata
-	int ID = -1;									    // Patch's global ID
+    int leafID = -1;                                    // Leaf level ID (p4est ID)
+    int globalID = -1;                                  // Global ID (Quadtree ID)
 	int level = -1;								    	// Level in tree
 	bool isLeaf = false;					    		// Flag for if patch is a leaf
-	int nCellsLeaf = -1; 					   			// Storage for number of cells on leaf patch side
-	Vector<int> nPatchSideVector = {0, 0, 0, 0};	    // To keep track of patch's side based on children
+	int nCellsLeaf = -1; 					   			// Storage for number of cells on leaf patch side // TODO: Remove and put in options
+	Vector<int> nPatchSideVector = {0, 0, 0, 0};	    // To keep track of patch's side based on children // TODO: Change to single value; rename nLeafSides
 
 	// Patch grid information
 	FISHPACKFVGrid grid;    		  	// Grid information
@@ -115,6 +117,7 @@ struct FISHPACKPatch : public PatchBase<double> {
 	Vector<double> w{};						// Particular Solution Vector
 
     // Pointers to finer and coarser versions of itself
+    std::list<FISHPACKPatch*> versions;
     FISHPACKPatch* finer = nullptr;          // Finer version of itself
     FISHPACKPatch* coarser = nullptr;        // Coarser version of itself
     bool hasFiner = false;                              // Flag for if patch has finer version of itself
@@ -126,6 +129,7 @@ struct FISHPACKPatch : public PatchBase<double> {
     FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
     void coarsen();
     void coarsenUpwards();
+    void uncoarsen();
 
 };
 
@@ -148,7 +152,7 @@ public:
     double dudx(double x, double y) { return dudx_(x,y); }
     double dudy(double x, double y) { return dudy_(x,y); }
 
-private:
+protected:
 
     std::function<double(double, double)> u_;
     std::function<double(double, double)> f_;

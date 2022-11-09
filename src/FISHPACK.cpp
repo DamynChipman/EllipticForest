@@ -303,7 +303,8 @@ Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 FISHPACKPatch& FISHPACKPatch::operator=(const FISHPACKPatch& rhs) {
 
     if (&rhs != this) {
-        ID = rhs.ID;
+        leafID = rhs.leafID;
+        globalID = rhs.globalID;
         level = rhs.level;
         isLeaf = rhs.isLeaf;
         nCellsLeaf = rhs.nCellsLeaf;
@@ -331,7 +332,8 @@ void FISHPACKPatch::coarsen() {
 
     // Copy metadata
     coarser = new FISHPACKPatch;
-    coarser->ID = ID;
+    coarser->leafID = leafID;
+    coarser->globalID = globalID;
     coarser->level = level + 1;
     coarser->isLeaf = false;
 	coarser->nCellsLeaf = nCellsLeaf;
@@ -361,9 +363,11 @@ void FISHPACKPatch::coarsen() {
     // Solution matrix
     coarser->S = S * L12Patch;
 
-    // Set flag
+    // Set flags
     hasCoarsened = true;
     coarser->hasCoarsened = false;
+    coarser->hasFiner = true;
+    coarser->finer = this;
 
 }
 
@@ -382,6 +386,29 @@ void FISHPACKPatch::coarsenUpwards() {
 
     // Particular solution data
     coarser->w = L21Side * w;
+
+}
+
+void FISHPACKPatch::uncoarsen() {
+
+    // Get the app
+    EllipticForestApp& app = EllipticForestApp::getInstance();
+
+    // Build L12
+    int nFine = nCellsLeaf * nPatchSideVector[WEST];
+    int nCoarse = nFine / 2;
+    InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+    std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+    Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+
+    // Interpolate data down to original patch
+    finer->g = L12Patch * g;
+    // g = L12Patch * finer->g;
+    if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+        w = L12Side * finer->w;
+    }
+
+    hasCoarsened = false;
 
 }
 
@@ -436,10 +463,12 @@ FISHPACKPatch FISHPACKQuadtree::initData(FISHPACKPatch& parentData, std::size_t 
     FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
 
     FISHPACKPatch patch;
+    patch.globalID = globalIndices_[level][index];
     patch.grid = grid;
     patch.level = level;
     if (this->childIndices_[level][index] == -1) {
         patch.isLeaf = true;
+        patch.nPatchSideVector = {1, 1, 1, 1};
     }
     else {
         patch.isLeaf = false;
@@ -473,8 +502,8 @@ void FISHPACKHPSMethod::setupStage() {
     // Set p4est ID (leaf level IDs)
     int currentID = 0;
     quadtree->traversePostOrder([&](FISHPACKPatch& patch){
-        if (patch.isLeaf) patch.ID = currentID++;
-        else patch.ID = -1;
+        if (patch.isLeaf) patch.leafID = currentID++;
+        else patch.leafID = -1;
     });
 
     // Set D2N on leaf
@@ -535,10 +564,11 @@ void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
 
     EllipticForestApp& app = EllipticForestApp::getInstance();
     app.log("Merging:");
-    app.log("alpha = %i", alpha.ID);
-    app.log("beta = %i", beta.ID);
-    app.log("gamma = %i", gamma.ID);
-    app.log("omega = %i", omega.ID);
+    app.log("alpha = %i", alpha.globalID);
+    app.log("beta = %i", beta.globalID);
+    app.log("gamma = %i", gamma.globalID);
+    app.log("omega = %i", omega.globalID);
+    app.log("tau = %i", tau.globalID);
 
     // Steps for the merge (private member functions)
     coarsen_(tau, alpha, beta, gamma, omega);
@@ -557,10 +587,11 @@ void FISHPACKHPSMethod::upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FI
     EllipticForestApp& app = EllipticForestApp::getInstance();
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
         app.log("Upwards:");
-        app.log("alpha = %i", alpha.ID);
-        app.log("beta = %i", beta.ID);
-        app.log("gamma = %i", gamma.ID);
-        app.log("omega = %i", omega.ID);
+        app.log("alpha = %i", alpha.globalID);
+        app.log("beta = %i", beta.globalID);
+        app.log("gamma = %i", gamma.globalID);
+        app.log("omega = %i", omega.globalID);
+        app.log("tau = %i", tau.globalID);
 
         // Steps for the upwards stage (private member functions)
         coarsenUpwards_(tau, alpha, beta, gamma, omega);
@@ -577,10 +608,11 @@ void FISHPACKHPSMethod::split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
 
     EllipticForestApp& app = EllipticForestApp::getInstance();
     app.log("Splitting:");
-    app.log("alpha = %i", alpha.ID);
-    app.log("beta = %i", beta.ID);
-    app.log("gamma = %i", gamma.ID);
-    app.log("omega = %i", omega.ID);
+    app.log("tau = %i", tau.globalID);
+    app.log("alpha = %i", alpha.globalID);
+    app.log("beta = %i", beta.globalID);
+    app.log("gamma = %i", gamma.globalID);
+    app.log("omega = %i", omega.globalID);
 
     // Steps for the split (private member functions)
     uncoarsen_(tau, alpha, beta, gamma, omega);
@@ -690,15 +722,32 @@ Vector<int> FISHPACKHPSMethod::tagPatchesForCoarsening_(FISHPACKPatch& tau, FISH
 void FISHPACKHPSMethod::coarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
     // Check for adaptivity
-    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega};
+    std::vector<FISHPACKPatch*> patchPointers = {&alpha, &beta, &gamma, &omega};
     Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+    Vector<int> tagsCopy = tags;
 
     for (auto i = 0; i < 4; i++) {
         while (tags[i]-- > 0) {
-            patches[i]->coarsen();
-            patches[i] = patches[i]->coarser;
+            patchPointers[i]->coarsen();
+            patchPointers[i] = patchPointers[i]->coarser;
         }
     }
+
+    FISHPACKPatch* temp;
+    for (auto i = 0; i < 4; i++) {
+        while (tagsCopy[i]-- > 0) {
+            temp = patchPointers[i]->finer;
+            
+            
+        }
+    }
+
+    // Set patch to operate on
+    alpha = *patchPointers[0];
+    beta = *patchPointers[1];
+    gamma = *patchPointers[2];
+    omega = *patchPointers[3];
+
     return;
 
 }
@@ -790,13 +839,6 @@ void FISHPACKHPSMethod::createMatrixBlocks_(FISHPACKPatch& tau, FISHPACKPatch& a
     T_bo_bt = -T_bo_bt;
     T_ab_at = -T_ab_at;
     T_go_gt = -T_go_gt;
-    // T_ga_gt = -T_ga_gt;
-    // T_ob_ot = -T_ob_ot;
-    // T_ba_bt = -T_ba_bt;
-    // T_og_ot = -T_og_ot;
-
-    // T_bt_bo = -T_bt_bo;
-    // T_bt_bt = -T_bt_bt;
 
     return;
 
@@ -936,6 +978,13 @@ void FISHPACKHPSMethod::coarsenUpwards_(FISHPACKPatch& tau, FISHPACKPatch& alpha
             patches[i] = patches[i]->coarser;
         }
     }
+
+    // Set patch to operate on
+    alpha = *patches[0];
+    beta = *patches[1];
+    gamma = *patches[2];
+    omega = *patches[3];
+
     return;
 
 }
@@ -963,6 +1012,12 @@ void FISHPACKHPSMethod::mergeW_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
         hDiff_beta_alpha,
         hDiff_omega_gamma
     });
+
+    // if (tau.X.nRows() == 0 || tau.X.nCols() == 0) {
+        createIndexSets_(tau, alpha, beta, gamma, omega);
+        createMatrixBlocks_(tau, alpha, beta, gamma, omega);
+        mergeX_(tau, alpha, beta, gamma, omega);
+    // }
 
     // Compute and set w_tau
     tau.w = solve(tau.X, hDiff);
@@ -994,8 +1049,8 @@ void FISHPACKHPSMethod::mergeH_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     // Update with boundary h
     Vector<double> h_alpha_tau = alpha.h(IS_alpha_tau_);
     Vector<double> h_beta_tau = beta.h(IS_beta_tau_);
-    Vector<double> h_gamma_tau = beta.h(IS_gamma_tau_);
-    Vector<double> h_omega_tau = beta.h(IS_omega_tau_);
+    Vector<double> h_gamma_tau = gamma.h(IS_gamma_tau_);
+    Vector<double> h_omega_tau = omega.h(IS_omega_tau_);
     Vector<double> hUpdate = concatenate({
         h_alpha_tau,
         h_beta_tau,
@@ -1025,13 +1080,38 @@ void FISHPACKHPSMethod::uncoarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FIS
     // Get patches to uncoarsen
     std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega, &tau};
     std::vector<FISHPACKPatch*> toUncoarsen;
-    while (patches[4]->hasCoarsened) {
-        toUncoarsen.push_back(patches[4]);
-        patches[4] = patches[4]->coarser;
+    while (patches[4]->hasFiner) {
+        // toUncoarsen.push_back(patches[4]);
+        patches[4]->uncoarsen();
+        patches[4] = patches[4]->finer;
     }
 
-    // Do the uncoarsening
-    // @TODO
+    tau = *patches[4];
+
+    // // Do the uncoarsening
+    // for (auto i = 0; i < toUncoarsen.size(); i++) {
+    //     toUncoarsen[i]->uncoarsen();
+    // }
+
+    
+
+    // // Set based on if patch has coarsened data
+    // for (auto i = 0; i < 4; i++) {
+    //     if (patches[i]->hasCoarsened) {
+    //         patches[i] = patches[i]->coarser;
+    //         while (patches[i]->hasCoarsened) {
+    //             patches[i] = patches[i]->coarser;
+    //         }
+    //     }
+    // }
+
+    // // Set patch to operate on
+    // alpha = *patches[0];
+    // beta = *patches[1];
+    // gamma = *patches[2];
+    // omega = *patches[3];
+
+    return;
 
 }
 

@@ -58,11 +58,14 @@ protected:
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.log("Begin HPS Build Stage");
+        app.addTimer("build-stage");
+        app.timers["build-stage"].start();
 
         quadtree->merge([&](QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega){
             merge4to1(tau, alpha, beta, gamma, omega);
         });
 
+        app.timers["build-stage"].stop();
         app.log("End HPS Build Stage");
 
     }
@@ -79,6 +82,8 @@ protected:
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.log("Begin HPS Upwards Stage");
+        app.addTimer("upwards-stage");
+        app.timers["upwards-stage"].start();
 
         quadtree->traversePostOrder([&](QuadtreeNodeType& patch){
             setParticularData(patch);
@@ -88,6 +93,7 @@ protected:
             upwards4to1(tau, alpha, beta, gamma, omega);
         });
 
+        app.timers["upwards-stage"].stop();
         app.log("End HPS Upwards Stage");
 
     }
@@ -104,6 +110,8 @@ protected:
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.log("Begin HPS Solve Stage");
+        app.addTimer("solve-stage");
+        app.timers["solve-stage"].start();
 
         quadtree->split([&](QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega){
             split1to4(tau, alpha, beta, gamma, omega);
@@ -113,6 +121,7 @@ protected:
             leafSolve(patch);
         });
 
+        app.timers["solve-stage"].stop();
         app.log("End HPS Solve Stage");
 
     }
