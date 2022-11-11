@@ -2,6 +2,7 @@
 #define VECTOR_HPP_
 
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <initializer_list>
 
@@ -399,6 +400,22 @@ public:
 
         return getFromIndexSet(SGlobal);
 
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, Vector<NumericalType>& v) {
+        os << "  [" << v.size() << "]" << std::endl;
+        for (auto i = 0; i < v.size(); i++) {
+            if (fabs(v[i]) < 1e-14) {
+                os << std::setprecision(4) << std::setw(12) << 0;
+            }
+            else {
+                os << std::setprecision(4) << std::setw(12) << v[i];
+            }
+            if (i % 8 == 7) {
+                os << std::endl;
+            }
+        }
+        return os;
     }
 
     // ---=========---

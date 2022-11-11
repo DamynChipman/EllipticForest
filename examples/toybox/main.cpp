@@ -101,17 +101,21 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
 
     p4est_refine(p4est, refineRecursive,
     [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+
+        // Get app context
         auto& pde = *((EllipticForest::FISHPACK::FISHPACKProblem*) p4est->user_pointer);
         auto& app = EllipticForest::EllipticForestApp::getInstance();
         int maxLevel = std::get<int>(app.options["max-level"]);
 
+        // Do not refine if at the max level
         if (quadrant->level >= maxLevel) {
             return 0;
         }
 
-        p4est_qcoord_t xQCoord, yQCoord;
+        // Get midpoint of quadrant
+        p4est_qcoord_t halfQuad = P4EST_QUADRANT_LEN(quadrant->level) / 2;
         double vxyz[3];
-        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, xQCoord, yQCoord, vxyz);
+        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x + halfQuad, quadrant->y + halfQuad, vxyz);
         double x = vxyz[0];
         double y = vxyz[1];
 
@@ -122,15 +126,23 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
         //     return 0;
         // }
 
-        // Lower left corner
-        if (x > 0 && y > 0) {
+        // Refine middle
+        double xRefineLower = 0.25;
+        double xRefineUpper = 0.75;
+        double yRefineLower = 0.25;
+        double yRefineUpper = 0.75;
+        if ((x >= xRefineLower && x <= xRefineUpper) && (y >= yRefineLower && y <= yRefineUpper)) {
             return 1;
         }
         else {
             return 0;
         }
+        return 1;
     },
     NULL);
+
+    // Balance the p4est
+    p4est_balance(p4est, P4EST_CONNECT_FACE, NULL);
 
     if (app.argc() > 1) {
         // Diagonistic mode
@@ -150,7 +162,6 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     leafPatch.globalID = 0;
     leafPatch.level = 0;
     leafPatch.isLeaf = true;
-    leafPatch.nCellsLeaf = nx;
     leafPatch.nPatchSideVector = {1, 1, 1, 1};
 
     // Create and run HPS method
@@ -159,25 +170,25 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     HPS.run();
 
     // Get merged root T
-    // EllipticForest::Matrix<double> T_merged = HPS.quadtree->root().T;
+    EllipticForest::Matrix<double> T_merged = HPS.quadtree->root().T;
 
-    // // Create refined T
-    // EllipticForest::FISHPACK::FISHPACKFVSolver solver;
-    // EllipticForest::Matrix<double> T_fine = solver.buildD2N(HPS.quadtree->root().grid);
-    // EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
+    // Create refined T
+    EllipticForest::FISHPACK::FISHPACKFVSolver solver;
+    EllipticForest::Matrix<double> T_fine = solver.buildD2N(HPS.quadtree->root().grid);
+    EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
 
-    // double maxDiff = 0;
-    // for (auto i = 0; i < T_merged.nRows(); i++) {
-    //     for (auto j = 0; j < T_merged.nCols(); j++) {
-    //         double diff = T_merged(i,j) - T_fine(i,j);
-    //         maxDiff = fmax(maxDiff, fabs(diff));
-    //     }
-    // }
+    double maxDiff = 0;
+    for (auto i = 0; i < T_merged.nRows(); i++) {
+        for (auto j = 0; j < T_merged.nCols(); j++) {
+            double diff = T_merged(i,j) - T_fine(i,j);
+            maxDiff = fmax(maxDiff, fabs(diff));
+        }
+    }
 
-    // double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
+    double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
     int resolution = HPS.quadtree->data()[0].grid.nPointsX();
     // printf("Effective Resolution: [%i x %i]\n", resolution, resolution);
-    // printf("infNorm D2N Map = %24.16e\n", infNorm);
+    printf("infNorm D2N Map = %24.16e\n", infNorm);
 
     // Compute error of solution
     double maxError = 0;
@@ -199,7 +210,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
 
     Errors err;
     err.nDOFs = resolution;
-    // err.D2NError = infNorm;
+    err.D2NError = infNorm;
     err.lIError = maxError;
     return err;
 
@@ -232,30 +243,30 @@ int main(int argc, char** argv) {
 
     // Create PDE to solve
     EllipticForest::FISHPACK::FISHPACKProblem pde;
-    pde.setU([](double x, double y){
-        return (1.0/6.0)*(pow(x,3) + 2.0*pow(y,3));
-    });
-    pde.setF([](double x, double y){
-        return x + 2.0*y;
-    });
-    pde.setDUDX([](double x, double y){
-        return pow(x,2) / 2.0;
-    });
-    pde.setDUDY([](double x, double y){
-        return pow(y,2);
-    });
     // pde.setU([](double x, double y){
-    //     return x*x + y*y;
+    //     return (1.0/6.0)*(pow(x,3) + 2.0*pow(y,3));
     // });
     // pde.setF([](double x, double y){
-    //     return 4.0;
+    //     return x + 2.0*y;
     // });
     // pde.setDUDX([](double x, double y){
-    //     return 2.0*x + 2.0*pow(y,3);
+    //     return pow(x,2) / 2.0;
     // });
     // pde.setDUDY([](double x, double y){
-    //     return 2.0*y + 6.0*x*pow(y,2);
+    //     return pow(y,2);
     // });
+    pde.setU([](double x, double y){
+        return x*x + y*y;
+    });
+    pde.setF([](double x, double y){
+        return 4.0;
+    });
+    pde.setDUDX([](double x, double y){
+        return 2.0*x + 2.0*pow(y,3);
+    });
+    pde.setDUDY([](double x, double y){
+        return 2.0*y + 6.0*x*pow(y,2);
+    });
     // pde.setU([](double x, double y){
     //     return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
     // });

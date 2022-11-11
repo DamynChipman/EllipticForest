@@ -93,8 +93,11 @@ struct FISHPACKPatch : public PatchBase<double> {
     int globalID = -1;                                  // Global ID (Quadtree ID)
 	int level = -1;								    	// Level in tree
 	bool isLeaf = false;					    		// Flag for if patch is a leaf
-	int nCellsLeaf = -1; 					   			// Storage for number of cells on leaf patch side // TODO: Remove and put in options
+	// int nCellsLeaf = -1; 					   			// Storage for number of cells on leaf patch side // TODO: Remove and put in options
 	Vector<int> nPatchSideVector = {0, 0, 0, 0};	    // To keep track of patch's side based on children // TODO: Change to single value; rename nLeafSides
+    // int nLeafSides = -1;
+    int nChildren = 0;
+    int nCoarsens = 0;
 
 	// Patch grid information
 	FISHPACKFVGrid grid;    		  	// Grid information
@@ -126,7 +129,8 @@ struct FISHPACKPatch : public PatchBase<double> {
     FISHPACKPatch() {}
     // FISHPACKPatch(FISHPACKFVGrid& grid, int ID, int level, bool isLeaf);
 
-    FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
+    // FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
+    std::string str();
     void coarsen();
     void coarsenUpwards();
     void uncoarsen();

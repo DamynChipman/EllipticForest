@@ -11,7 +11,7 @@ class InterpolationMatrixFine2Coarse : public Matrix<NumericalType> {
 public:
 
     InterpolationMatrixFine2Coarse(std::size_t nCoarse) :
-        Matrix<NumericalType>(nCoarse, 2*nCoarse) {
+        Matrix<NumericalType>(nCoarse, 2*nCoarse, 0) {
 
         for (auto i = 0; i < this->nRows_; i++) {
             for (auto j = 0; j < this->nCols_; j++) {
@@ -33,7 +33,7 @@ class InterpolationMatrixCoarse2Fine : public Matrix<NumericalType> {
 public:
 
     InterpolationMatrixCoarse2Fine(std::size_t nFine) :
-        Matrix<NumericalType>(nFine, nFine/2) {
+        Matrix<NumericalType>(nFine, nFine/2, 0) {
 
         int k = 3;
         Vector<NumericalType> edgeCoefs = {1.40625, -0.5625, 0.15625};
