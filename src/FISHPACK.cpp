@@ -327,6 +327,10 @@ Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 
 // }
 
+FISHPACKPatch::FISHPACKPatch() {
+    versions.push_front(this);
+}
+
 std::string FISHPACKPatch::str() {
 
     std::string res;
@@ -361,18 +365,46 @@ std::string FISHPACKPatch::str() {
 
 }
 
+Matrix<double>& FISHPACKPatch::getT() {
+
+    if (resolutionFactor == 1) {
+        return T;
+    }
+    else {
+        for (auto i = 0; i < resolutionFactor-1; i++) {
+            // Coarsen T `resolutionFactor - 1` times
+            int nFine = grid.nPointsX();
+            int nCoarse = nFine / 2;
+    
+            InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+            std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+            Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+
+            InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+            std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+            Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+
+            Tprime = L21Patch * T;
+            Tprime = Tprime * L12Patch;
+            return Tprime;
+        }
+    }
+
+}
+
 void FISHPACKPatch::coarsen() {
 
     // Get app instance and options
     EllipticForestApp& app = EllipticForestApp::getInstance();
     int nCellsLeaf = std::get<int>(app.options["nx"]);
 
-    app.log("Coarsening:");
-    app.log("  ID = %i", globalID);
-
-    // Coarsen grid and metadata on patch
-    grid = FISHPACKFVGrid(grid.nPointsX()/2, grid.nPointsY()/2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
-    isLeaf = false;
+    coarser = new FISHPACKPatch;
+    coarser->leafID = leafID;
+    coarser->globalID = globalID;
+    coarser->level = level;
+    coarser->isLeaf = isLeaf;
+    coarser->nChildren = nChildren;
+    coarser->grid = FISHPACKFVGrid(grid.nPointsX()/2, grid.nPointsY()/2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
 
     // Build L21
     int nFine = nCellsLeaf * (nChildren + 1);
@@ -387,37 +419,33 @@ void FISHPACKPatch::coarsen() {
     std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
     Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
 
+    // Interior map matrix
+    // coarser->X = 
+
     // D2N matrix
-    // TODO: Why does this not work??
-    // T = L21Patch * T;
-    // T = T * L12Patch;
-
-    FISHPACKFVSolver solver;
-    T = solver.buildD2N(grid);
-
-    // coarser->T = L21Patch * T;
-    // coarser->T = coarser->T * L12Patch;
+    coarser->T = L21Patch * T;
+    coarser->T = coarser->T * L12Patch;
 
     // Solution matrix
-    // S = S * L12Patch;
     // coarser->S = S * L12Patch;
 
-    nCoarsens++;
+    // Set flags
+    hasCoarsened = true;
+    coarser->hasCoarsened = false;
+    coarser->hasFiner = true;
+    coarser->finer = this;
+    // coarser->hasFiner = true;
+    // coarser->finer = this;
 
-    // // Copy metadata
-    // coarser = new FISHPACKPatch;
-    // coarser->leafID = leafID;
-    // coarser->globalID = globalID;
-    // coarser->level = level + 1;
-    // coarser->isLeaf = false;
-	// coarser->nPatchSideVector[WEST] = nPatchSideVector[WEST] / 2;
-	// coarser->nPatchSideVector[EAST] = nPatchSideVector[EAST] / 2;
-	// coarser->nPatchSideVector[SOUTH] = nPatchSideVector[SOUTH] / 2;
-	// coarser->nPatchSideVector[NORTH] = nPatchSideVector[NORTH] / 2;
-	// coarser->grid = FISHPACKFVGrid(grid.nPointsX()/2, grid.nPointsY()/2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
+    // app.log("Coarsening:");
+    // app.log("  ID = %i", globalID);
+
+    // // Coarsen grid and metadata on patch
+    // grid = FISHPACKFVGrid(grid.nPointsX()/2, grid.nPointsY()/2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
+    // isLeaf = false;
 
     // // Build L21
-    // int nFine = nCellsLeaf * nPatchSideVector[WEST];
+    // int nFine = nCellsLeaf * (nChildren + 1);
     // int nCoarse = nFine / 2;
 
     // InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
@@ -430,17 +458,59 @@ void FISHPACKPatch::coarsen() {
     // Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
 
     // // D2N matrix
-    // coarser->T = L21Patch * T;
-    // coarser->T = coarser->T * L12Patch;
+    // // TODO: Why does this not work??
+    // // T = L21Patch * T;
+    // // T = T * L12Patch;
+
+    // FISHPACKFVSolver solver;
+    // T = solver.buildD2N(grid);
+
+    // // coarser->T = L21Patch * T;
+    // // coarser->T = coarser->T * L12Patch;
 
     // // Solution matrix
-    // coarser->S = S * L12Patch;
+    // // S = S * L12Patch;
+    // // coarser->S = S * L12Patch;
 
-    // // Set flags
-    // hasCoarsened = true;
-    // coarser->hasCoarsened = false;
-    // coarser->hasFiner = true;
-    // coarser->finer = this;
+    // nCoarsens++;
+
+    // // // Copy metadata
+    // // coarser = new FISHPACKPatch;
+    // // coarser->leafID = leafID;
+    // // coarser->globalID = globalID;
+    // // coarser->level = level + 1;
+    // // coarser->isLeaf = false;
+	// // coarser->nPatchSideVector[WEST] = nPatchSideVector[WEST] / 2;
+	// // coarser->nPatchSideVector[EAST] = nPatchSideVector[EAST] / 2;
+	// // coarser->nPatchSideVector[SOUTH] = nPatchSideVector[SOUTH] / 2;
+	// // coarser->nPatchSideVector[NORTH] = nPatchSideVector[NORTH] / 2;
+	// // coarser->grid = FISHPACKFVGrid(grid.nPointsX()/2, grid.nPointsY()/2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
+
+    // // // Build L21
+    // // int nFine = nCellsLeaf * nPatchSideVector[WEST];
+    // // int nCoarse = nFine / 2;
+
+    // // InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+    // // std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+    // // Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+
+    // // // Build L12
+    // // InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+    // // std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+    // // Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+
+    // // // D2N matrix
+    // // coarser->T = L21Patch * T;
+    // // coarser->T = coarser->T * L12Patch;
+
+    // // // Solution matrix
+    // // coarser->S = S * L12Patch;
+
+    // // // Set flags
+    // // hasCoarsened = true;
+    // // coarser->hasCoarsened = false;
+    // // coarser->hasFiner = true;
+    // // coarser->finer = this;
 
 }
 
@@ -466,12 +536,33 @@ void FISHPACKPatch::coarsenUpwards() {
     Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
 
     // // Particular Neumann data
-    // coarser->h = L21Patch * h;
-    h = L21Patch * h;
+    coarser->h = L21Patch * h;
 
-    // // Particular solution data
-    // coarser->w = L21Side * w;
-    w = L21Side * w;
+    InterpolationMatrixFine2Coarse<double> L21SideInterior(grid.nPointsX());
+    std::vector<Matrix<double>> L21InteriorDiagonals = {L21SideInterior, L21SideInterior, L21SideInterior, L21SideInterior};
+    Matrix<double> L21PatchInterior = blockDiagonalMatrix(L21InteriorDiagonals);
+
+    // Particular solution data
+    coarser->w = L21PatchInterior * w;
+
+    // // Create solver
+    // FISHPACKFVSolver solver;
+
+    // // Set RHS data on leaf patches
+    // f = Vector<double>(grid.nPointsX() * grid.nPointsY());
+    // for (auto i = 0; i < grid.nPointsX(); i++) {
+    //     double x = grid(XDIM, i);
+    //     for (auto j = 0; j < grid.nPointsY(); j++) {
+    //         double y = grid(YDIM, j);
+    //         int index = j + i*grid.nPointsY();
+    //         f[index] = pde_.f(x, y);
+    //     }
+    // }
+
+    // // Set Neumann data for particular solution
+    // Vector<double> gZero(2*grid.nPointsX() + 2*grid.nPointsY(), 0);
+    // h = solver.mapD2N(grid, gZero, f);
+
 
 }
 
@@ -484,7 +575,7 @@ void FISHPACKPatch::uncoarsen() {
     app.log("Uncoarsening:");
     app.log("  ID = %i", globalID);
 
-    grid = FISHPACKFVGrid(grid.nPointsX()*2, grid.nPointsY()*2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
+    // grid = FISHPACKFVGrid(grid.nPointsX()*2, grid.nPointsY()*2, grid.xLower(), grid.xUpper(), grid.yLower(), grid.yUpper());
 
     // Build L12
     // int nFine = nCellsLeaf * nPatchSideVector[WEST];
@@ -499,21 +590,26 @@ void FISHPACKPatch::uncoarsen() {
     std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
     Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
 
-    std::cout << "L12Patch = " << L12Patch << std::endl;
-    std::cout << "g = " << g << std::endl;
-    Vector<double> g1 = g;
-    g = L12Patch * g;
-    Vector<double> g2 = g;
-    std::cout << "g = " << g << std::endl;
+    InterpolationMatrixCoarse2Fine<double> L12SideInterior(grid.nPointsX());
+    std::vector<Matrix<double>> L12InteriorDiagonals = {L12SideInterior, L12SideInterior, L12SideInterior, L12SideInterior};
+    Matrix<double> L12PatchInterior = blockDiagonalMatrix(L12InteriorDiagonals);
+
+    // std::cout << "L12Patch = " << L12Patch << std::endl;
+    // std::cout << "g = " << g << std::endl;
+    // Vector<double> g1 = g;
+    finer->g = L12Patch * g;
+    // Vector<double> g2 = g;
+    // std::cout << "g = " << g << std::endl;
     // plt::plot(g1.getRange(0,g1.size()/4-1).data(), "-r.");
     // plt::plot(g2.getRange(0,g2.size()/4-1).data(), "--b");
     // plt::show();
     // S = S * L21Patch;
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-        w = L12Side * w;
+        w = L12PatchInterior * coarser->w;
     }
 
-    nCoarsens--;
+    hasCoarsened = false;
+    // nCoarsens--;
 
     // // Interpolate data down to original patch
     // finer->g = L12Patch * g;
@@ -696,17 +792,17 @@ void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     reorderOperators_(tau, alpha, beta, gamma, omega);
     mergePatch_(tau, alpha, beta, gamma, omega);
 
-    app.log("After merge:");
-    app.log(" alpha patch:");
-    app.log(alpha.str());
-    app.log(" beta patch:");
-    app.log(beta.str());
-    app.log(" gamma patch:");
-    app.log(gamma.str());
-    app.log(" omega patch:");
-    app.log(omega.str());
-    app.log(" tau patch:");
-    app.log(tau.str());
+    // app.log("After merge:");
+    // app.log(" alpha patch:");
+    // app.log(alpha.str());
+    // app.log(" beta patch:");
+    // app.log(beta.str());
+    // app.log(" gamma patch:");
+    // app.log(gamma.str());
+    // app.log(" omega patch:");
+    // app.log(omega.str());
+    // app.log(" tau patch:");
+    // app.log(tau.str());
 
 }
 
@@ -746,65 +842,65 @@ void FISHPACKHPSMethod::split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISH
     uncoarsen_(tau, alpha, beta, gamma, omega);
     applyS_(tau, alpha, beta, gamma, omega);
 
-    app.log("After split:");
-    app.log(" tau patch:");
-    app.log(tau.str());
-    app.log(" alpha patch:");
-    app.log(alpha.str());
-    app.log(" beta patch:");
-    app.log(beta.str());
-    app.log(" gamma patch:");
-    app.log(gamma.str());
-    app.log(" omega patch:");
-    app.log(omega.str());
+    // app.log("After split:");
+    // app.log(" tau patch:");
+    // app.log(tau.str());
+    // app.log(" alpha patch:");
+    // app.log(alpha.str());
+    // app.log(" beta patch:");
+    // app.log(beta.str());
+    // app.log(" gamma patch:");
+    // app.log(gamma.str());
+    // app.log(" omega patch:");
+    // app.log(omega.str());
 
-    app.log("DATA:");
-    std::cout << "alpha.g = " << alpha.g << std::endl;
-    std::cout << "beta.g = " << beta.g << std::endl;
-    std::cout << "gamma.g = " << gamma.g << std::endl;
-    std::cout << "omega.g = " << omega.g << std::endl;
+    // app.log("DATA:");
+    // std::cout << "alpha.g = " << alpha.g << std::endl;
+    // std::cout << "beta.g = " << beta.g << std::endl;
+    // std::cout << "gamma.g = " << gamma.g << std::endl;
+    // std::cout << "omega.g = " << omega.g << std::endl;
 
-    for (auto i = 0; i < alpha.grid.nPointsX(); i++) {
-        for (auto j = 0; j < alpha.grid.nPointsY(); j++) {
-            double x = alpha.grid(XDIM, i);
-            double y = alpha.grid(YDIM, j);
-            app.log("x = %.4f,  y = %.4f,  x+y = %.4f", x, y, x+y);
-        }
-    }
+    // for (auto i = 0; i < alpha.grid.nPointsX(); i++) {
+    //     for (auto j = 0; j < alpha.grid.nPointsY(); j++) {
+    //         double x = alpha.grid(XDIM, i);
+    //         double y = alpha.grid(YDIM, j);
+    //         app.log("x = %.4f,  y = %.4f,  x+y = %.4f", x, y, x+y);
+    //     }
+    // }
 
 
-    int nBoundary = alpha.g.size();
-    auto& grid = alpha.grid;
-    Vector<int> IS_West = vectorRange(0, grid.nPointsY() - 1);
-    Vector<int> IS_East = vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
-    Vector<int> IS_South = vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
-    Vector<int> IS_North = vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
-    Vector<double> v(nBoundary);
-    for (auto i = 0; i < nBoundary; i++) {
-        std::size_t iSide = i % grid.nPointsX();
-        double x, y;
-        if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
-            x = grid.xLower();
-            y = grid(YDIM, iSide);
-            app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
-        }
-        if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
-            x = grid.xUpper();
-            y = grid(YDIM, iSide);
-            app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
-        }
-        if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
-            x = grid(XDIM, iSide);
-            y = grid.yLower();
-            app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
-        }
-        if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
-            x = grid(XDIM, iSide);
-            y = grid.yUpper();
-            app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
-        }
-        v[i] = x+y;
-    }
+    // int nBoundary = alpha.g.size();
+    // auto& grid = alpha.grid;
+    // Vector<int> IS_West = vectorRange(0, grid.nPointsY() - 1);
+    // Vector<int> IS_East = vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
+    // Vector<int> IS_South = vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
+    // Vector<int> IS_North = vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
+    // Vector<double> v(nBoundary);
+    // for (auto i = 0; i < nBoundary; i++) {
+    //     std::size_t iSide = i % grid.nPointsX();
+    //     double x, y;
+    //     if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+    //         x = grid.xLower();
+    //         y = grid(YDIM, iSide);
+    //         app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
+    //     }
+    //     if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+    //         x = grid.xUpper();
+    //         y = grid(YDIM, iSide);
+    //         app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
+    //     }
+    //     if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+    //         x = grid(XDIM, iSide);
+    //         y = grid.yLower();
+    //         app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
+    //     }
+    //     if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+    //         x = grid(XDIM, iSide);
+    //         y = grid.yUpper();
+    //         app.log("x = %.4f,  y = %.4f,  x+y = %.4f,  g[%i] = %.4f, diff = %.4f", x, y, x+y, i, alpha.g[i], (x+y)-alpha.g[i]);
+    //     }
+    //     v[i] = x+y;
+    // }
 
     // plt::plot(alpha.g.data());
     // plt::plot(v.data());
@@ -900,14 +996,20 @@ void FISHPACKHPSMethod::leafSolve(FISHPACKPatch& patch) {
 
 Vector<int> FISHPACKHPSMethod::tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
-    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega};
-    std::vector<int> gens(4);
+    // std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega};
+    std::vector<FISHPACKFVGrid*> grids = {&alpha.grid, &beta.grid, &gamma.grid, &omega.grid};
+    std::vector<int> sides(4);
+    // std::vector<int> gens(4);
     std::vector<int> tags(4);
 
+    for (auto i = 0; i < 4; i++) { sides[i] = grids[i]->nPointsX(); }   // Get vector of side lengths
+    int minSide = *std::min_element(sides.begin(), sides.end());        // Get minimum side length
+    for (auto i = 0; i < 4; i++) { tags[i] = (sides[i] / minSide) - 1; }      // Get tags based on side lengths
+
     // for (auto i = 0; i < 4; i++) gens[i] = static_cast<int>(log2(patches[i]->nPatchSideVector[EAST])); // 1 = EAST
-    for (auto i = 0; i < 4; i++) gens[i] = patches[i]->nChildren;
-    int minGens = *std::min_element(gens.begin(), gens.end());
-    for (auto i = 0; i < 4; i++) tags[i] = gens[i] - minGens;
+    // for (auto i = 0; i < 4; i++) gens[i] = patches[i]->nChildren;
+    // int minGens = *std::min_element(gens.begin(), gens.end());
+    // for (auto i = 0; i < 4; i++) tags[i] = gens[i] - minGens;
 
     return {tags};
 
@@ -918,6 +1020,46 @@ void FISHPACKHPSMethod::coarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHP
     // Check for adaptivity
     std::vector<FISHPACKPatch*> patchPointers = {&alpha, &beta, &gamma, &omega};
     Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+    int maxTag = *std::max_element(tags.data().begin(), tags.data().end());
+    while (maxTag > 0) {
+
+        for (auto i = 0; i < 4; i++) {
+            if (tags[i] > 0) {
+                FISHPACKFVGrid fineGrid = patchPointers[i]->grid;
+                FISHPACKFVGrid coarseGrid = FISHPACKFVGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
+                int nFine = fineGrid.nPointsX();
+                int nCoarse = nFine / 2;
+        
+                InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+                std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+                Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+
+                InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+                std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+                Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+
+                // patchPointers[i]->T = L21Patch * patchPointers[i]->T;
+                // patchPointers[i]->T = patchPointers[i]->T * L12Patch;
+                FISHPACKFVSolver solver;
+                patchPointers[i]->T = solver.buildD2N(coarseGrid);
+
+                patchPointers[i]->grid = coarseGrid;
+                // patchPointers[i]->hasCoarsened = true;
+                patchPointers[i]->nCoarsens++;
+                // coarser->T = L21Patch * T;
+                // coarser->T = coarser->T * L12Patch;
+            }
+        }
+
+        tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+        maxTag = *std::max_element(tags.data().begin(), tags.data().end());
+    }
+
+    // for (auto i = 0; i < 4; i++) {
+    //     patchPointers[i]->resolutionFactor = tags[i];
+    // }
+
+    // std::cout << "tags = " << tags << std::endl;
     // Vector<int> tags = {
     //     alpha.nChildren,
     //     beta.nChildren,
@@ -926,12 +1068,12 @@ void FISHPACKHPSMethod::coarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHP
     // };
     // Vector<int> tagsCopy = tags;
 
-    for (auto i = 0; i < 4; i++) {
-        while (tags[i]-- > 0) {
-            patchPointers[i]->coarsen();
-            // patchPointers[i] = patchPointers[i]->coarser;
-        }
-    }
+    // for (auto i = 0; i < 4; i++) {
+    //     while (tags[i]-- > 0) {
+    //         patchPointers[i]->coarsen();
+    //         patchPointers[i] = patchPointers[i]->coarser;
+    //     }
+    // }
 
     // FISHPACKPatch* temp;
     // for (auto i = 0; i < 4; i++) {
@@ -1169,8 +1311,35 @@ void FISHPACKHPSMethod::mergePatch_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FI
 void FISHPACKHPSMethod::coarsenUpwards_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
     // Check for adaptivity
-    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega};
-    Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+    std::vector<FISHPACKPatch*> patchPointers = {&alpha, &beta, &gamma, &omega};
+
+    for (auto i = 0; i < 4; i++) {
+        int nCoarsens = patchPointers[i]->nCoarsens;
+        for (auto n = 0; n < nCoarsens; n++) {
+            FISHPACKFVGrid coarseGrid = patchPointers[i]->grid;
+            FISHPACKFVGrid fineGrid = FISHPACKFVGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
+            int nFine = fineGrid.nPointsX() * pow(2,nCoarsens-n-1);
+            int nCoarse = coarseGrid.nPointsX() * pow(2,nCoarsens-n-1);
+        
+            InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+            std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+            Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+
+            // InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+            // std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+            // Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+            Vector<double> hBefore = patchPointers[i]->h;
+            patchPointers[i]->h = L21Patch * patchPointers[i]->h;
+            Vector<double> hAfter = patchPointers[i]->h;
+
+            plt::figure();
+            plt::plot(hBefore.data(), "-or");
+            plt::plot(hAfter.data(), "-ob");
+            plt::show();
+        }
+    }
+
+    // Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
     // Vector<int> tags = {
     //     alpha.nChildren,
     //     beta.nChildren,
@@ -1178,13 +1347,14 @@ void FISHPACKHPSMethod::coarsenUpwards_(FISHPACKPatch& tau, FISHPACKPatch& alpha
     //     omega.nChildren
     // };
 
-    for (auto i = 0; i < 4; i++) {
-        while (tags[i]-- > 0) {
-            patches[i]->coarsenUpwards();
-        }
-    }
+    // for (auto i = 0; i < 4; i++) {
+    //     while (tags[i]-- > 0) {
+    //         patches[i]->coarsenUpwards();
+    //         patches[i] = patches[i]->coarser;
+    //     }
+    // }
 
-    // Set patch to operate on
+    // // Set patch to operate on
     // alpha = *patches[0];
     // beta = *patches[1];
     // gamma = *patches[2];
@@ -1218,6 +1388,7 @@ void FISHPACKHPSMethod::mergeW_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
         hDiff_omega_gamma
     });
 
+    // TODO: Can this be optimized?
     if (tau.X.nRows() == 0 || tau.X.nCols() == 0) {
         createIndexSets_(tau, alpha, beta, gamma, omega);
         createMatrixBlocks_(tau, alpha, beta, gamma, omega);
@@ -1282,28 +1453,46 @@ void FISHPACKHPSMethod::reorderOperatorsUpwards_(FISHPACKPatch& tau, FISHPACKPat
 
 void FISHPACKHPSMethod::uncoarsen_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
-    // Get patches to uncoarsen
-    std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega, &tau};
-    // std::vector<FISHPACKPatch*> toUncoarsen;
+    for (auto n = 0; n < tau.nCoarsens; n++) {
+        FISHPACKFVGrid coarseGrid = tau.grid;
+        FISHPACKFVGrid fineGrid = FISHPACKFVGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
 
-    while (patches[4]->nCoarsens > 0) {
-        patches[4]->uncoarsen();
+        int nFine = fineGrid.nPointsX();
+        int nCoarse = coarseGrid.nPointsX();
+
+        // InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+        // std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+        // Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+
+        InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+        std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+        Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+
+        tau.g = L12Patch * tau.g;
+
+        tau.grid = fineGrid;
     }
 
+    // // Get patches to uncoarsen
+    // std::vector<FISHPACKPatch*> patches = {&alpha, &beta, &gamma, &omega, &tau};
+    // std::vector<FISHPACKPatch*> toUncoarsen;
+
+    // // while (patches[4]->hasCoarsened) {
+    // //     patches[4]->uncoarsen();
+    // // }
+
     // while (patches[4]->hasFiner) {
-    //     // toUncoarsen.push_back(patches[4]);
-    //     patches[4]->uncoarsen();
-    //     patches[4] = patches[4]->finer;
+    //     toUncoarsen.push_back(patches[4]);
+    //     // patches[4]->uncoarsen();
+    //     patches[4] = patches[4]->coarser;
     // }
 
-    // tau = *patches[4];
+    // // tau = *patches[4];
 
     // // Do the uncoarsening
     // for (auto i = 0; i < toUncoarsen.size(); i++) {
     //     toUncoarsen[i]->uncoarsen();
     // }
-
-    
 
     // // Set based on if patch has coarsened data
     // for (auto i = 0; i < 4; i++) {
@@ -1333,7 +1522,6 @@ void FISHPACKHPSMethod::applyS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     // Apply non-homogeneous contribution
     EllipticForestApp& app = EllipticForestApp::getInstance();
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-        Vector<double>& w_tau = tau.w;
         u_tau_interior += tau.w;
     }
 

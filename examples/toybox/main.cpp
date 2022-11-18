@@ -19,6 +19,56 @@
 namespace plt = matplotlibcpp;
 using NodePair = std::pair<std::size_t, std::size_t>;
 
+double f(double x) {
+    return sin(4.0*M_PI*x);
+}
+
+void testInterpolationMatrices() {
+
+    // Create interpolation matrices
+    int nFine = 64;
+    int nCoarse = 32;
+    EllipticForest::InterpolationMatrixFine2Coarse<double> L21(nCoarse);
+    EllipticForest::InterpolationMatrixCoarse2Fine<double> L12(nFine);
+
+    // Create grids
+    double xL = -1.0;
+    double xU = 1.0;
+    double yL = -1.0;
+    double yU = 1.0;
+    EllipticForest::FISHPACK::FISHPACKFVGrid fineGrid(nFine, nFine, xL, xU, yL, yU);
+    EllipticForest::FISHPACK::FISHPACKFVGrid coarseGrid(nCoarse, nCoarse, xL, xU, yL, yU);
+
+    EllipticForest::Vector<double> fFine(nFine);
+    EllipticForest::Vector<double> xFine(nFine);
+    for (auto i = 0; i < nFine; i++) {
+        double x = fineGrid(XDIM, i);
+        xFine[i] = x;
+        fFine[i] = f(x);
+    }
+
+    EllipticForest::Vector<double> fCoarse(nCoarse);
+    EllipticForest::Vector<double> xCoarse(nCoarse);
+    for (auto i = 0; i < nCoarse; i++) {
+        double x = coarseGrid(XDIM, i);
+        xCoarse[i] = x;
+        fCoarse[i] = f(x);
+    }
+
+    EllipticForest::Vector<double> fFine2Coarse = L21 * fFine;
+    EllipticForest::Vector<double> fCoarse2Fine = L12 * fCoarse;
+
+    plt::figure();
+    plt::named_plot("fine", xFine.data(), fFine.data(), "-o");
+    plt::named_plot("coarse", xCoarse.data(), fCoarse.data(), "-o");
+    plt::named_plot("fine2coarse", xCoarse.data(), fFine2Coarse.data(), "-o");
+    plt::named_plot("coarse2fine", xFine.data(), fCoarse2Fine.data(), "-o");
+    plt::legend();
+    plt::show();
+
+
+}
+
 // class PolarStarPoissonProblem : public EllipticForest::FISHPACK::FISHPACKProblem {
 
 // public:
@@ -170,25 +220,25 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     HPS.run();
 
     // Get merged root T
-    EllipticForest::Matrix<double> T_merged = HPS.quadtree->root().T;
+    // EllipticForest::Matrix<double> T_merged = HPS.quadtree->root().T;
 
-    // Create refined T
-    EllipticForest::FISHPACK::FISHPACKFVSolver solver;
-    EllipticForest::Matrix<double> T_fine = solver.buildD2N(HPS.quadtree->root().grid);
-    EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
+    // // Create refined T
+    // EllipticForest::FISHPACK::FISHPACKFVSolver solver;
+    // EllipticForest::Matrix<double> T_fine = solver.buildD2N(HPS.quadtree->root().grid);
+    // EllipticForest::Matrix<double> T_diff = T_merged - T_fine;
 
-    double maxDiff = 0;
-    for (auto i = 0; i < T_merged.nRows(); i++) {
-        for (auto j = 0; j < T_merged.nCols(); j++) {
-            double diff = T_merged(i,j) - T_fine(i,j);
-            maxDiff = fmax(maxDiff, fabs(diff));
-        }
-    }
+    // double maxDiff = 0;
+    // for (auto i = 0; i < T_merged.nRows(); i++) {
+    //     for (auto j = 0; j < T_merged.nCols(); j++) {
+    //         double diff = T_merged(i,j) - T_fine(i,j);
+    //         maxDiff = fmax(maxDiff, fabs(diff));
+    //     }
+    // }
 
-    double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
-    int resolution = HPS.quadtree->data()[0].grid.nPointsX();
-    // printf("Effective Resolution: [%i x %i]\n", resolution, resolution);
-    printf("infNorm D2N Map = %24.16e\n", infNorm);
+    // double infNorm = EllipticForest::matrixInfNorm(T_merged, T_fine);
+    // int resolution = HPS.quadtree->data()[0].grid.nPointsX();
+    // // printf("Effective Resolution: [%i x %i]\n", resolution, resolution);
+    // printf("infNorm D2N Map = %24.16e\n", infNorm);
 
     // Compute error of solution
     double maxError = 0;
@@ -206,11 +256,13 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
             }
         }
     });
-    printf("infNorm Solution = %24.16e\n", maxError);
+    int resolution = pow(2,maxLevel)*nx;
+    app.log("infNorm Solution = %24.16e", maxError);
+    app.log("Effective resolution = [%i,%i]", resolution, resolution);
 
     Errors err;
-    err.nDOFs = resolution;
-    err.D2NError = infNorm;
+    // err.nDOFs = resolution;
+    // err.D2NError = infNorm;
     err.lIError = maxError;
     return err;
 
@@ -223,7 +275,9 @@ int main(int argc, char** argv) {
 
     // Set options
     app.options.setOption("cache-operators", true);
-    app.options.setOption("homogeneous-rhs", false);
+    app.options.setOption("homogeneous-rhs", true);
+
+    // testInterpolationMatrices();
 
     // CML options
     std::size_t nx = 4;
@@ -256,10 +310,12 @@ int main(int argc, char** argv) {
     //     return pow(y,2);
     // });
     pde.setU([](double x, double y){
-        return x*x + y*y;
+        // return x + y;
+        double pi23 = M_PI * (2.0/3.0);
+        return sin(pi23*x)*sinh(pi23*y);
     });
     pde.setF([](double x, double y){
-        return 4.0;
+        return 0.0;
     });
     pde.setDUDX([](double x, double y){
         return 2.0*x + 2.0*pow(y,3);

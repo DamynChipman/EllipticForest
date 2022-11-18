@@ -98,12 +98,14 @@ struct FISHPACKPatch : public PatchBase<double> {
     // int nLeafSides = -1;
     int nChildren = 0;
     int nCoarsens = 0;
+    int resolutionFactor;
 
 	// Patch grid information
 	FISHPACKFVGrid grid;    		  	// Grid information
 
 	// Data matrices
 	Matrix<double> T{};						// DtN Matrix
+    Matrix<double> Tprime{};                // Coarser version of T
 	Matrix<double> S{};						// Solution Matrix
 	Matrix<double> X{};						// Body Load Matrix
 	
@@ -125,8 +127,9 @@ struct FISHPACKPatch : public PatchBase<double> {
     FISHPACKPatch* coarser = nullptr;        // Coarser version of itself
     bool hasFiner = false;                              // Flag for if patch has finer version of itself
     bool hasCoarsened = false;                          // Flag for it patch has coarser version of itself
+    FISHPACKPatch* root;
 
-    FISHPACKPatch() {}
+    FISHPACKPatch();
     // FISHPACKPatch(FISHPACKFVGrid& grid, int ID, int level, bool isLeaf);
 
     // FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
@@ -134,6 +137,10 @@ struct FISHPACKPatch : public PatchBase<double> {
     void coarsen();
     void coarsenUpwards();
     void uncoarsen();
+    Matrix<double>& getT();
+    Vector<double>& getH();
+    Vector<double>& getG();
+    Vector<double>& getW();
 
 };
 
