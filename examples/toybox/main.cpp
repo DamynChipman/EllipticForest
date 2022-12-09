@@ -4,6 +4,7 @@
 
 #include <PlotUtils.hpp>
 #include <EllipticForestApp.hpp>
+#include <P4est.hpp>
 // #include <HPSAlgorithm.hpp>
 // #include <Quadtree.hpp>
 // #include <PatchGrid.hpp>
@@ -26,8 +27,8 @@ double f(double x) {
 void testInterpolationMatrices() {
 
     // Create interpolation matrices
-    int nFine = 64;
-    int nCoarse = 32;
+    int nFine = 16;
+    int nCoarse = 8;
     EllipticForest::InterpolationMatrixFine2Coarse<double> L21(nCoarse);
     EllipticForest::InterpolationMatrixCoarse2Fine<double> L12(nFine);
 
@@ -58,13 +59,38 @@ void testInterpolationMatrices() {
     EllipticForest::Vector<double> fFine2Coarse = L21 * fFine;
     EllipticForest::Vector<double> fCoarse2Fine = L12 * fCoarse;
 
-    plt::figure();
+    // plt::figure();
     plt::named_plot("fine", xFine.data(), fFine.data(), "-o");
     plt::named_plot("coarse", xCoarse.data(), fCoarse.data(), "-o");
     plt::named_plot("fine2coarse", xCoarse.data(), fFine2Coarse.data(), "-o");
     plt::named_plot("coarse2fine", xFine.data(), fCoarse2Fine.data(), "-o");
     plt::legend();
     plt::show();
+
+    EllipticForest::Vector<double> xFine4 = EllipticForest::concatenate({xFine, xFine, xFine, xFine});
+    EllipticForest::Vector<double> xCoarse4 = EllipticForest::concatenate({xCoarse, xCoarse, xCoarse, xCoarse});
+    EllipticForest::Vector<double> fFine4 = EllipticForest::concatenate({fFine, fFine, fFine, fFine});
+    EllipticForest::Vector<double> fCoarse4 = EllipticForest::concatenate({fCoarse, fCoarse, fCoarse, fCoarse});
+
+    std::vector<EllipticForest::Matrix<double>> L21Diagonals = {L21, L21, L21, L21};
+    std::vector<EllipticForest::Matrix<double>> L12Diagonals = {L12, L12, L12, L12};
+    EllipticForest::Matrix<double> L21Block = EllipticForest::blockDiagonalMatrix(L21Diagonals);
+    EllipticForest::Matrix<double> L12Block = EllipticForest::blockDiagonalMatrix(L12Diagonals);
+
+    EllipticForest::Vector<double> fFine2Coarse4 = L21Block * fFine4;
+    EllipticForest::Vector<double> fCoarse2Fine4 = L12Block * fCoarse4;
+
+    // plt::figure();
+    plt::named_plot("fine", xFine4.data(), fFine4.data(), "-o");
+    plt::named_plot("coarse", xCoarse4.data(), fCoarse4.data(), "-o");
+    plt::named_plot("fine2coarse", xCoarse4.data(), fFine2Coarse4.data(), "-o");
+    plt::named_plot("coarse2fine", xFine4.data(), fCoarse2Fine4.data(), "-o");
+    plt::legend();
+    plt::show();
+
+    std::cout << "L21Block = " << L21Block << std::endl;
+    std::cout << "L12Block = " << L12Block << std::endl;
+
 
 
 }
@@ -145,7 +171,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     // Create uniform p4est
     int fillUniform = 1;
     int refineRecursive = 1;
-    p4est_connectivity_t* conn = p4est_connectivity_new_unitsquare();
+    p4est_connectivity_t* conn = EllipticForest::p4est::p4est_connectivity_new_square_domain(-1, 1, -1, 1);
     p4est_t* p4est = p4est_new_ext(MPI_COMM_WORLD, conn, 0, minLevel, fillUniform, 0, NULL, NULL);
     p4est->user_pointer = &pde;
 
@@ -169,30 +195,32 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
         double x = vxyz[0];
         double y = vxyz[1];
 
-        // if (fabs(pde.f(x,y)) > 200.0) {
-        //     return 1;
-        // }
-        // else {
-        //     return 0;
-        // }
-
-        // Refine middle
-        double xRefineLower = 0.25;
-        double xRefineUpper = 0.75;
-        double yRefineLower = 0.25;
-        double yRefineUpper = 0.75;
-        if ((x >= xRefineLower && x <= xRefineUpper) && (y >= yRefineLower && y <= yRefineUpper)) {
+        // Refine by RHS value
+        double threshold = 1.0;
+        if (fabs(pde.f(x,y)) > threshold) {
             return 1;
         }
         else {
             return 0;
         }
-        return 1;
+
+        // Refine middle
+        // double xRefineLower = -0.5;
+        // double xRefineUpper = 0.5;
+        // double yRefineLower = -0.5;
+        // double yRefineUpper = 0.5;
+        // if ((x >= xRefineLower && x <= xRefineUpper) && (y >= yRefineLower && y <= yRefineUpper)) {
+        //     return 1;
+        // }
+        // else {
+        //     return 0;
+        // }
+        return 0;
     },
     NULL);
 
     // Balance the p4est
-    p4est_balance(p4est, P4EST_CONNECT_FACE, NULL);
+    p4est_balance(p4est, P4EST_CONNECT_CORNER, NULL);
 
     if (app.argc() > 1) {
         // Diagonistic mode
@@ -212,7 +240,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     leafPatch.globalID = 0;
     leafPatch.level = 0;
     leafPatch.isLeaf = true;
-    leafPatch.nPatchSideVector = {1, 1, 1, 1};
+    // leafPatch.nPatchSideVector = {1, 1, 1, 1};
 
     // Create and run HPS method
     EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, leafPatch, p4est);
@@ -261,7 +289,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     app.log("Effective resolution = [%i,%i]", resolution, resolution);
 
     Errors err;
-    // err.nDOFs = resolution;
+    err.nDOFs = resolution;
     // err.D2NError = infNorm;
     err.lIError = maxError;
     return err;
@@ -275,7 +303,7 @@ int main(int argc, char** argv) {
 
     // Set options
     app.options.setOption("cache-operators", true);
-    app.options.setOption("homogeneous-rhs", true);
+    app.options.setOption("homogeneous-rhs", false);
 
     // testInterpolationMatrices();
 
@@ -298,6 +326,12 @@ int main(int argc, char** argv) {
     // Create PDE to solve
     EllipticForest::FISHPACK::FISHPACKProblem pde;
     // pde.setU([](double x, double y){
+    //     return 0.25*(pow(x,2) + pow(y,2));
+    // });
+    // pde.setF([](double x, double y){
+    //     return 1.0;
+    // });
+    // pde.setU([](double x, double y){
     //     return (1.0/6.0)*(pow(x,3) + 2.0*pow(y,3));
     // });
     // pde.setF([](double x, double y){
@@ -310,19 +344,31 @@ int main(int argc, char** argv) {
     //     return pow(y,2);
     // });
     pde.setU([](double x, double y){
-        // return x + y;
-        double pi23 = M_PI * (2.0/3.0);
-        return sin(pi23*x)*sinh(pi23*y);
+        return exp(-12.5*pow(x,2) - 12.5*pow(y,2));
     });
     pde.setF([](double x, double y){
-        return 0.0;
+        return (-50.0 + 625.0*pow(x,2) + 625.0*pow(y,2))*exp(-12.5*pow(x,2) - 12.5*pow(y,2));
     });
-    pde.setDUDX([](double x, double y){
-        return 2.0*x + 2.0*pow(y,3);
-    });
-    pde.setDUDY([](double x, double y){
-        return 2.0*y + 6.0*x*pow(y,2);
-    });
+    // pde.setDUDX([](double x, double y){
+    //     return 0;
+    // });
+    // pde.setDUDY([](double x, double y){
+    //     return 0;
+    // });
+    // pde.setU([](double x, double y){
+    //     // return x + y;
+    //     double pi23 = M_PI * (2.0/3.0);
+    //     return sin(pi23*x)*sinh(pi23*y);
+    // });
+    // pde.setF([](double x, double y){
+    //     return 0.0;
+    // });
+    // pde.setDUDX([](double x, double y){
+    //     return 2.0*x + 2.0*pow(y,3);
+    // });
+    // pde.setDUDY([](double x, double y){
+    //     return 2.0*y + 6.0*x*pow(y,2);
+    // });
     // pde.setU([](double x, double y){
     //     return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
     // });
@@ -372,8 +418,12 @@ int main(int argc, char** argv) {
             app.timers["build-stage"].restart();
             app.timers["upwards-stage"].restart();
             app.timers["solve-stage"].restart();
+
+            app.log("nDOFs = %i", err.nDOFs);
+            app.log("error = %24.16e", err.lIError);
         }
 
+        for (auto& n : nDOFsVector) std::cout << "n = " << n << std::endl;
         plt::named_loglog("Solution: N = " + std::to_string(leafPatchSize), nDOFsVector, uErrorVector, "-*");
         // plt::named_loglog("D2N Map: N = " + std::to_string(leafPatchSize), nDOFsVector, D2NErrorVector, "--v");
 

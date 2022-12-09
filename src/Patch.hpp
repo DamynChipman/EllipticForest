@@ -12,7 +12,7 @@ namespace EllipticForest {
 template<typename FloatingPointType>
 class PatchBase {
 
-    virtual void coarsen() = 0;
+    // virtual void coarsen() = 0;
 
 };
 
