@@ -142,7 +142,7 @@ public:
             std::cout << options;
             std::cout << "[EllipticForest] Timers: " << std::endl;
             for (auto& [key, value] : timers) {
-                std::cout << "[EllipticForest]   Timer: " << key << " : " << value.time() << " [sec]" << std::endl;
+                std::cout << "[EllipticForest]   " << key << " : " << value.time() << " [sec]" << std::endl;
             }
             std::cout << "[EllipticForest] Done!" << std::endl;
         }

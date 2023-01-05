@@ -182,6 +182,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
         auto& pde = *((EllipticForest::FISHPACK::FISHPACKProblem*) p4est->user_pointer);
         auto& app = EllipticForest::EllipticForestApp::getInstance();
         int maxLevel = std::get<int>(app.options["max-level"]);
+        double threshold = std::get<double>(app.options["refinement-threshold"]);
 
         // Do not refine if at the max level
         if (quadrant->level >= maxLevel) {
@@ -196,7 +197,6 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
         double y = vxyz[1];
 
         // Refine by RHS value
-        double threshold = 1.0;
         if (fabs(pde.f(x,y)) > threshold) {
             return 1;
         }
@@ -215,6 +215,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
         // else {
         //     return 0;
         // }
+
         return 0;
     },
     NULL);
@@ -222,12 +223,8 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     // Balance the p4est
     p4est_balance(p4est, P4EST_CONNECT_CORNER, NULL);
 
-    if (app.argc() > 1) {
-        // Diagonistic mode
-        // Write to VTK file to check
-        std::string VTKFilename = "test_toybox";
-        p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
-    }
+    std::string VTKFilename = "toybox_mesh";
+    p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
 
     // Create leaf level root patch
     double xLower = -1;
@@ -246,6 +243,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, leafPatch, p4est);
     // std::cout << *HPS.quadtree << std::endl;
     HPS.run();
+    HPS.toVTK("toybox");
 
     // Get merged root T
     // EllipticForest::Matrix<double> T_merged = HPS.quadtree->root().T;
@@ -278,7 +276,8 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
                 for (auto j = 0; j < grid.nPointsY(); j++) {
                     double y = grid(YDIM, j);
                     int index = j + i*grid.nPointsY();
-                    double diff = patch.u[index] - pde.u(x, y);
+                    int index_T = i + j*grid.nPointsY();
+                    double diff = patch.u[index_T] - pde.u(x, y);
                     maxError = fmax(maxError, fabs(diff));
                 }
             }
@@ -302,7 +301,7 @@ int main(int argc, char** argv) {
     EllipticForest::EllipticForestApp app(&argc, &argv);
 
     // Set options
-    app.options.setOption("cache-operators", true);
+    app.options.setOption("cache-operators", false);
     app.options.setOption("homogeneous-rhs", false);
 
     // testInterpolationMatrices();
@@ -312,16 +311,19 @@ int main(int argc, char** argv) {
     std::size_t ny = 4;
     int minLevel = 1;
     int maxLevel = 3;
+    double refinementThreshold = 1;
     if (argc > 1) {
         minLevel = atoi(argv[1]);
         maxLevel = atoi(argv[2]);
         nx = (std::size_t) atoi(argv[3]);
         ny = (std::size_t) atoi(argv[3]);
+        refinementThreshold = atof(argv[4]);
     }
     app.options.setOption("min-level", minLevel);
     app.options.setOption("max-level", maxLevel);
     app.options.setOption("nx", (int) nx);
     app.options.setOption("ny", (int) ny);
+    app.options.setOption("refinement-threshold", refinementThreshold);
 
     // Create PDE to solve
     EllipticForest::FISHPACK::FISHPACKProblem pde;
@@ -343,12 +345,20 @@ int main(int argc, char** argv) {
     // pde.setDUDY([](double x, double y){
     //     return pow(y,2);
     // });
-    pde.setU([](double x, double y){
-        return exp(-12.5*pow(x,2) - 12.5*pow(y,2));
+    double x0 = 0.5;
+    double y0 = 0.5;
+    pde.setU([&](double x, double y){
+        return exp(-12.5*pow(x-x0,2) - 12.5*pow(y-y0,2));
     });
-    pde.setF([](double x, double y){
-        return (-50.0 + 625.0*pow(x,2) + 625.0*pow(y,2))*exp(-12.5*pow(x,2) - 12.5*pow(y,2));
+    pde.setF([&](double x, double y){
+        return (-50.0 + 625.0*pow(x-x0,2) + 625.0*pow(y-y0,2))*exp(-12.5*pow(x-x0,2) - 12.5*pow(y-y0,2));
     });
+    // pde.setU([&](double x, double y){
+    //     return exp(-12.5*pow(x-x0,2));
+    // });
+    // pde.setF([&](double x, double y){
+    //     return -25.0*exp(-12.5*pow(x-x0,2)) + 625.0*exp(-12.5*pow(x-x0,2))*pow(x-x0,2);
+    // });
     // pde.setDUDX([](double x, double y){
     //     return 0;
     // });
@@ -397,11 +407,18 @@ int main(int argc, char** argv) {
     std::vector<double> upwardsTimeVector;
     std::vector<double> solveTimeVector;
 
+    std::vector<std::vector<int>> nDOFsPlots;
+    std::vector<std::vector<double>> solutionPlots;
+    std::vector<std::vector<double>> D2NPlots;
+    std::vector<std::vector<double>> buildTimePlots;
+    std::vector<std::vector<double>> upwardsTimePlots;
+    std::vector<std::vector<double>> solveTimePlots;
+
     for (auto& leafPatchSize : leafPatchSizeVector) {
         
         for (auto& level : levelVector) {
             // Set the options
-            app.options.setOption("min-level", level);
+            app.options.setOption("min-level", 1);
             app.options.setOption("max-level", level);
             app.options.setOption("nx", leafPatchSize);
             app.options.setOption("ny", leafPatchSize);
@@ -423,13 +440,19 @@ int main(int argc, char** argv) {
             app.log("error = %24.16e", err.lIError);
         }
 
-        for (auto& n : nDOFsVector) std::cout << "n = " << n << std::endl;
-        plt::named_loglog("Solution: N = " + std::to_string(leafPatchSize), nDOFsVector, uErrorVector, "-*");
+        // plt::named_loglog("Solution: N = " + std::to_string(leafPatchSize), nDOFsVector, uErrorVector, "-*");
         // plt::named_loglog("D2N Map: N = " + std::to_string(leafPatchSize), nDOFsVector, D2NErrorVector, "--v");
 
         // plt::named_loglog("Build Time: N = " + std::to_string(leafPatchSize), nDOFsVector, buildTimeVector, "-*");
-        // plt::named_loglog("Upwards Time: N = " + std::to_string(leafPatchSize), nDOFsVector, upwardsTimeVector, "-*");
+        plt::named_loglog("Upwards Time: N = " + std::to_string(leafPatchSize), nDOFsVector, upwardsTimeVector, "-*");
         // plt::named_loglog("Solve Time: N = " + std::to_string(leafPatchSize), nDOFsVector, solveTimeVector, "-*");
+
+        // nDOFsPlots.push_back(nDOFsVector);
+        // solutionPlots.push_back(uErrorVector);
+        // D2NPlots.push_back(D2NErrorVector);
+        // buildTimePlots.push_back(buildTimeVector);
+        // upwardsTimePlots.push_back(upwardsTimeVector);
+        // solveTimePlots.push_back(solveTimeVector);
 
         nDOFsVector.clear();
         D2NErrorVector.clear();
@@ -444,12 +467,55 @@ int main(int argc, char** argv) {
     std::vector<std::string> xTickLabels;
     for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));
     plt::xlabel("Total Grid Resolution");
-    plt::ylabel("L-Infinity Norm");
-    plt::title("Uniform Grid Convergance");
+    plt::ylabel("Time [sec]");
+    // plt::ylabel("Inf-Norm Error");
+    plt::title("Adaptive Grid - Timing");
     plt::xticks(xTicks, xTickLabels);
     plt::legend();
     plt::grid(true);
-    plt::save("plot_uniform_convergance.pdf");
+    plt::save("plot_adaptive_upwards_time.pdf");
+
+
+    // Create plots
+    // std::vector<std::string> titles = {
+    //     "Adaptive Grid Convergence - Solution",
+    //     "Adaptive Grid Convergence - Dirichlet-to-Neumann Map",
+    //     "Adaptive Grid Convergence - Build Time",
+    //     "Adaptive Grid Convergence - Upwards Time",
+    //     "Adaptive Grid Convergence - Solve Time"
+    // };
+    // std::vector<std::vector<std::vector<double>>> plots = {
+    //     solutionPlots,
+    //     D2NPlots,
+    //     buildTimePlots,
+    //     upwardsTimePlots,
+    //     solutionPlots
+    // };
+    // std::vector<std::string> names = {
+    //     "plot_Adaptive_convergence.pdf",
+    //     "plot_Adaptive_D2N.pdf",
+    //     "plot_Adaptive_build_time.pdf",
+    //     "plot_Adaptive_upwards_time.pdf",
+    //     "plot_Adaptive_solve_time.pdf"
+    // };
+    // for (auto i = 0; i < 5; i++) {
+
+    //     for (auto& p : plots[i]) {
+    //         plt::named_loglog("N = " + std::to_string(leafPatchSizeVector[i]), nDOFsPlots[i], p, "-*");
+    //     }
+
+    //     std::vector<int> xTicks = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
+    //     std::vector<std::string> xTickLabels;
+    //     for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));
+    //     plt::xlabel("Total Grid Resolution");
+    //     plt::ylabel("L-Infinity Norm");
+    //     plt::title(titles[i]);
+    //     plt::xticks(xTicks, xTickLabels);
+    //     plt::legend();
+    //     plt::grid(true);
+    //     plt::save(names[i]);
+
+    // }
 
     // plt::xlabel("Total Grid Resolution");
     // plt::ylabel("Time [sec]");

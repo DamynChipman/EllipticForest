@@ -17,6 +17,7 @@
 #include "HPSAlgorithm.hpp"
 #include "SpecialMatrices.hpp"
 #include "PlotUtils.hpp"
+#include "VTK.hpp"
 
 namespace plt = matplotlibcpp;
 
@@ -28,7 +29,7 @@ namespace FISHPACK {
 // FISHPACK Finite Volume Grid
 // ---=====================---
 
-class FISHPACKFVGrid : public PatchGridBase<double> {
+class FISHPACKFVGrid : public PatchGridBase<double>, public RectilinearGridNodeBase {
 
 protected:
 
@@ -41,6 +42,8 @@ protected:
     double yUpper_;
     double dx_;
     double dy_;
+    Vector<double> xPoints_;
+    Vector<double> yPoints_;
 
 public:
 
@@ -58,6 +61,12 @@ public:
     double dy() { return dy_; }
 
     double operator()(std::size_t DIM, std::size_t index);
+
+    Vector<double>& xPoints();
+    Vector<double>& yPoints();
+
+    std::string getWholeExtent();
+    std::string getExtent();
 
 };
 
@@ -187,6 +196,8 @@ public:
 
     FISHPACKPatch initData(FISHPACKPatch& parentData, std::size_t level, std::size_t index);
 
+    void toVTK(std::string filename);
+
 };
 
 // ---===========================---
@@ -198,6 +209,7 @@ class FISHPACKHPSMethod : public HPSAlgorithmBase<FISHPACKPatch, double> {
 public:
 
     FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch& rootPatch, p4est_t* p4est);
+    void toVTK(std::string filename);
 
 protected:
 

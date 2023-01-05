@@ -81,6 +81,7 @@ public:
 	 * @return T A newly constructed node data
 	 */
 	virtual T initData(T& parentData, std::size_t level, std::size_t index) = 0;
+	virtual void toVTK(std::string filename) = 0;
 
 	void build(T rootData) {
 		buildLevelArrays_();

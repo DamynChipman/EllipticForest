@@ -9,6 +9,7 @@ set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
     FISHPACK.cpp
     P4est.cpp
+    VTK.cpp
 )
 
 target_sources(EllipticForest PRIVATE
