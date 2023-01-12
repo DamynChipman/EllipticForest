@@ -174,6 +174,8 @@ public:
     double dudx(double x, double y) { return dudx_(x,y); }
     double dudy(double x, double y) { return dudy_(x,y); }
 
+    virtual std::string name() { return "FISHPACKPDE"; }
+
 protected:
 
     std::function<double(double, double)> u_;
@@ -208,7 +210,7 @@ class FISHPACKHPSMethod : public HPSAlgorithmBase<FISHPACKPatch, double> {
 
 public:
 
-    FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch& rootPatch, p4est_t* p4est);
+    FISHPACKHPSMethod(FISHPACKProblem& PDE, FISHPACKPatch& rootPatch, p4est_t* p4est);
     void toVTK(std::string filename);
 
 protected:
@@ -223,7 +225,7 @@ protected:
 
 private:
 
-    FISHPACKProblem pde_;
+    FISHPACKProblem& pde_;
     FISHPACKPatch& rootPatch_;
     p4est_t* p4est_;
 

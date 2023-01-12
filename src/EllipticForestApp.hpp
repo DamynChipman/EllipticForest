@@ -3,10 +3,12 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 #include <chrono>
 #include <map>
 #include <variant>
 #include <cstdarg>
+#include <cctype>
 
 #include <mpi.h>
 #include <petsc.h>
@@ -45,7 +47,7 @@ struct Options {
         setDefaultOptions();
     }
 
-    OptionTypes operator[](std::string const key) {
+    OptionTypes& operator[](std::string const key) {
         return optionsMap[key];
     }
 
@@ -58,8 +60,13 @@ struct Options {
     }
 
     void setDefaultOptions() {
+        optionsMap["min-level"] = 0;
+        optionsMap["max-level"] = 1;
+        optionsMap["nx"] = 16;
+        optionsMap["ny"] = 16;
         optionsMap["cache-operators"] = true;
         optionsMap["homogeneous-rhs"] = true;
+        optionsMap["refinement-threshold"] = 0;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Options& options) {
@@ -69,6 +76,77 @@ struct Options {
                 {os << v << std::endl; }, value);
         }
         return os;
+    }
+
+};
+
+class InputParser {
+
+public:
+
+    std::vector<std::string> args;
+
+    InputParser(int& argc, char**& argv) :
+        args{argv+1, argv + argc}
+            {}
+
+    void parse(Options& options) {
+        for (const auto& arg : args) {
+            if (arg[0] == '-') {
+                if (arg[1] == '-') {
+                    // Long option
+                    std::string option = arg.substr(2);
+                    if (option.find('=') != std::string::npos) {
+                        std::string value = option.substr(option.find('=') + 1);
+                        option = option.substr(0, option.find('='));
+                        options[option] = checkValue(value);
+                    }
+                    else {
+                        options[option] = "";
+                    }
+                }
+                else {
+                    // Short option
+                    std::string option = arg.substr(1);
+                    if (option.find('=') != std::string::npos) {
+                        std::string value = option.substr(option.find('=') + 1);
+                        option = option.substr(0, option.find('='));
+                        options[option] = value;
+                    }
+                    else {
+                        options[option] = "";
+                    }
+                }
+            }
+        }
+    }
+
+    Options::OptionTypes checkValue(std::string value) {
+        if (value == "true") {
+            return (bool) true;
+        }
+        else if (value == "false") {
+            return (bool) false;
+        }
+        else if (isDouble(value)) {
+            return (double) std::stod(value);
+        }
+        else if (isInt(value)) {
+            return (int) std::stoi(value);
+        }
+    }
+
+private:
+
+    bool isDouble(std::string& str) {
+        return str.find('.') != std::string::npos;
+    }
+
+    bool isInt(std::string& str) {
+        for (auto c : str) {
+            if (!std::isdigit(c)) return false;
+        }
+        return true;
     }
 
 };
@@ -123,11 +201,17 @@ public:
         timers["app-lifetime"].start();
         MPI_Init(argc_, argv_);
         PetscInitialize(argc_, argv_, NULL, NULL);
+        PetscGetArgs(argc_, argv_);
+
+        // Create options
+        InputParser inputParser(*argc_, *argv_);
+        inputParser.parse(options);
         
         int myRank = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
         if (myRank == 0) {
             std::cout << "[EllipticForest] Welcome to EllipticForest!" << std::endl;
+            std::cout << "[EllipticForest] Options:" << std::endl << options << std::endl;
         }
         this->actualClassPointer_ = this;
     }
@@ -138,8 +222,6 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
         if (myRank == 0) {
             std::cout << "[EllipticForest] End of app life cycle, finalizing..." << std::endl;
-            std::cout << "[EllipticForest] Options: " << std::endl;
-            std::cout << options;
             std::cout << "[EllipticForest] Timers: " << std::endl;
             for (auto& [key, value] : timers) {
                 std::cout << "[EllipticForest]   " << key << " : " << value.time() << " [sec]" << std::endl;

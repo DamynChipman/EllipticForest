@@ -315,7 +315,7 @@ Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 	// Iterate through all points on boundary to form T
 	for (int j = 0; j < M; j++) {
 		e_hat_j[j] = 1.0;
-		col_j = this->dtn(grid, e_hat_j, f_zero);
+		col_j = this->mapD2N(grid, e_hat_j, f_zero);
 		T.setColumn(j, col_j);
 		e_hat_j[j] = 0.0;
 	}
@@ -795,7 +795,7 @@ void FISHPACKQuadtree::toVTK(std::string filename) {
 // FISHPACK Finite Volume HPS Method
 // ---===========================---
 
-FISHPACKHPSMethod::FISHPACKHPSMethod(FISHPACKProblem PDE, FISHPACKPatch& rootPatch, p4est_t* p4est) :
+FISHPACKHPSMethod::FISHPACKHPSMethod(FISHPACKProblem& PDE, FISHPACKPatch& rootPatch, p4est_t* p4est) :
     pde_(PDE),
     rootPatch_(rootPatch),
     p4est_(p4est)
@@ -881,12 +881,12 @@ void FISHPACKHPSMethod::setupStage() {
 void FISHPACKHPSMethod::merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
     EllipticForestApp& app = EllipticForestApp::getInstance();
-    app.log("Merging:");
-    app.log("  alpha = %i", alpha.globalID);
-    app.log("  beta = %i", beta.globalID);
-    app.log("  gamma = %i", gamma.globalID);
-    app.log("  omega = %i", omega.globalID);
-    app.log("  tau = %i", tau.globalID);
+    // app.log("Merging:");
+    // app.log("  alpha = %i", alpha.globalID);
+    // app.log("  beta = %i", beta.globalID);
+    // app.log("  gamma = %i", gamma.globalID);
+    // app.log("  omega = %i", omega.globalID);
+    // app.log("  tau = %i", tau.globalID);
 
     // Steps for the merge (private member functions)
     coarsen_(tau, alpha, beta, gamma, omega);
@@ -916,12 +916,12 @@ void FISHPACKHPSMethod::upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FI
 
     EllipticForestApp& app = EllipticForestApp::getInstance();
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-        app.log("Upwards:");
-        app.log("  alpha = %i", alpha.globalID);
-        app.log("  beta = %i", beta.globalID);
-        app.log("  gamma = %i", gamma.globalID);
-        app.log("  omega = %i", omega.globalID);
-        app.log("  tau = %i", tau.globalID);
+        // app.log("Upwards:");
+        // app.log("  alpha = %i", alpha.globalID);
+        // app.log("  beta = %i", beta.globalID);
+        // app.log("  gamma = %i", gamma.globalID);
+        // app.log("  omega = %i", omega.globalID);
+        // app.log("  tau = %i", tau.globalID);
 
         // Steps for the upwards stage (private member functions)
         coarsenUpwards_(tau, alpha, beta, gamma, omega);
@@ -938,12 +938,12 @@ void FISHPACKHPSMethod::upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FI
 void FISHPACKHPSMethod::split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega) {
 
     EllipticForestApp& app = EllipticForestApp::getInstance();
-    app.log("Splitting:");
-    app.log("  tau = %i", tau.globalID);
-    app.log("  alpha = %i", alpha.globalID);
-    app.log("  beta = %i", beta.globalID);
-    app.log("  gamma = %i", gamma.globalID);
-    app.log("  omega = %i", omega.globalID);
+    // app.log("Splitting:");
+    // app.log("  tau = %i", tau.globalID);
+    // app.log("  alpha = %i", alpha.globalID);
+    // app.log("  beta = %i", beta.globalID);
+    // app.log("  gamma = %i", gamma.globalID);
+    // app.log("  omega = %i", omega.globalID);
 
     // Steps for the split (private member functions)
     uncoarsen_(tau, alpha, beta, gamma, omega);

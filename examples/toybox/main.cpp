@@ -1,3 +1,4 @@
+#include <cmath>
 #include <iostream>
 #include <utility>
 #include <string>
@@ -95,18 +96,128 @@ void testInterpolationMatrices() {
 
 }
 
-// class PolarStarPoissonProblem : public EllipticForest::FISHPACK::FISHPACKProblem {
+class PolarStarPoissonProblem : public EllipticForest::FISHPACK::FISHPACKProblem {
 
-// public:
+public:
 
-//     PolarStarPoissonProblem() {}
+    int nPolar;
+    std::vector<double> x0s;
+    std::vector<double> y0s;
+    std::vector<double> r0s;
+    std::vector<double> r1s;
+    std::vector<double> ns;
+    double eps_disk = 0.015625;
 
-// private:
+    PolarStarPoissonProblem() {
+        nPolar = 1;
+        x0s = {0};
+        y0s = {0};
+        r0s = {0.4};
+        r1s = {0.45};
+        ns = {4};
+    }
 
-//     double hsmooth(int ID, double r, double theta);
-//      hsmoothGrad(int ID, double r, double theta)
+    PolarStarPoissonProblem(int nPolar, std::vector<double> x0s, std::vector<double> y0s, std::vector<double> r0s, std::vector<double> r1s, std::vector<double> ns) :
+        nPolar(nPolar),
+        x0s(x0s),
+        y0s(y0s),
+        r0s(r0s),
+        r1s(r1s),
+        ns(ns)
+            {}
 
-// };
+    double u(double x, double y) override {
+        double res = 0;
+        for (auto i = 0; i < nPolar; i++) {
+            double x0 = x0s[i];
+            double y0 = y0s[i];
+            double r = sqrt(pow(x - x0, 2) + pow(y - y0, 2));
+            double theta = atan2(y - y0, x - x0);
+            res += 1.0 - hsmooth(i, r, theta);
+        }
+        return res;
+    }
+
+    double f(double x, double y) override {
+        double res = 0;
+        for (auto i = 0; i < nPolar; i++) {
+            double x0 = x0s[i];
+            double y0 = y0s[i];
+            double r = sqrt(pow(x - x0, 2) + pow(y - y0, 2));
+            double theta = atan2(y - y0, x - x0);
+            res -= hsmooth_laplacian(i, r, theta);
+        }
+        return res;
+    }
+
+    double dudx(double x, double y) override {
+        return 0;
+    }
+
+    double dudy(double x, double y) override {
+        return 0;
+    }
+
+private:
+
+    double sech(double x) {
+        return 1.0 / cosh(x);
+    }
+
+    void polar_interface_complete(int ID, double theta, double& p, double& dpdtheta, double& d2pdtheta2) {
+        double r0 = r0s[ID];
+        double r1 = r1s[ID];
+        int n = ns[ID];
+
+        p = r0*(1.0 + r1*cos(n*theta));
+        dpdtheta = r0*(-n*r1*sin(n*theta));
+        d2pdtheta2 = r0*(-pow(n,2)*r1*cos(n*theta));
+    }
+
+    double polar_interface(int ID, double theta) {
+        double p = 0;
+        double dpdtheta = 0;
+        double d2pdtheta2 = 0;
+        polar_interface_complete(ID, theta, p, dpdtheta, d2pdtheta2);
+        return p;
+    }
+
+    double hsmooth(int ID, double r, double theta) {
+        double p = polar_interface(ID, theta);
+        return (tanh((r - p)/eps_disk) + 1.0) / 2.0;
+    }
+
+    void hsmooth_grad(int ID, double r, double theta, double& grad_x, double& grad_y) {
+        double p = 0;
+        double dpdtheta = 0;
+        double d2pdtheta2 = 0;
+        polar_interface_complete(ID, theta, p, dpdtheta, d2pdtheta2);
+        
+        double eps_disk2 = pow(eps_disk, 2);
+        double sech2 = pow(sech((r - p)/eps_disk), 2);
+        grad_x = sech2 / eps_disk2;
+        grad_y = -dpdtheta*sech2/(eps_disk2*r);
+
+    }
+
+    double hsmooth_laplacian(int ID, double r, double theta) {
+        double p = 0;
+        double dpdtheta = 0;
+        double d2pdtheta2 = 0;
+        polar_interface_complete(ID, theta, p, dpdtheta, d2pdtheta2);
+
+        double eps_disk2 = pow(eps_disk, 2);
+        double sech2 = pow(sech((r-p)/eps_disk), 2);
+        double t = tanh((r-p)/eps_disk);
+        double st = t*sech2;
+        double s1 = pow(dpdtheta,2)*st/eps_disk2;
+        double s2 = d2pdtheta2*sech2/(2*eps_disk);
+        double s3 = st/eps_disk2;
+        double s4 = sech2/(2*eps_disk*r);
+        return (-s1-s2)/pow(r, 2) - s3 + s4;
+    }
+
+};
 
 // class MyQuadtree : public EllipticForest::Quadtree<NodePair> {
 
@@ -159,7 +270,7 @@ struct Errors {
     double lIError;
 };
 
-Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
+std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
 
     // Get the options
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
@@ -182,6 +293,8 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
         auto& pde = *((EllipticForest::FISHPACK::FISHPACKProblem*) p4est->user_pointer);
         auto& app = EllipticForest::EllipticForestApp::getInstance();
         int maxLevel = std::get<int>(app.options["max-level"]);
+        int nx = std::get<int>(app.options["nx"]);
+        int ny = std::get<int>(app.options["ny"]);
         double threshold = std::get<double>(app.options["refinement-threshold"]);
 
         // Do not refine if at the max level
@@ -189,20 +302,46 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
             return 0;
         }
 
-        // Get midpoint of quadrant
-        p4est_qcoord_t halfQuad = P4EST_QUADRANT_LEN(quadrant->level) / 2;
+        // Get bounds of quadrant
         double vxyz[3];
-        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x + halfQuad, quadrant->y + halfQuad, vxyz);
-        double x = vxyz[0];
-        double y = vxyz[1];
+        double xLower, xUpper, yLower, yUpper;
+        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x, quadrant->y, vxyz);
+        xLower = vxyz[0];
+        yLower = vxyz[1];
 
-        // Refine by RHS value
-        if (fabs(pde.f(x,y)) > threshold) {
-            return 1;
+        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x + P4EST_QUADRANT_LEN(quadrant->level), quadrant->y + P4EST_QUADRANT_LEN(quadrant->level), vxyz);
+        xUpper = vxyz[0];
+        yUpper = vxyz[1];
+
+        // Create quadrant grid
+        EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+
+        // Iterate over grid and check for refinement threshold
+        for (auto i = 0; i < nx; i++) {
+            double x = grid(XDIM, i);
+            for (auto j = 0; j < ny; j++) {
+                double y = grid(YDIM, j);
+                double f = pde.f(x,y);
+                if (fabs(f) > threshold) {
+                    return 1;
+                }
+            }
         }
-        else {
-            return 0;
-        }
+
+        // // Get midpoint of quadrant
+        // p4est_qcoord_t halfQuad = P4EST_QUADRANT_LEN(quadrant->level) / 2;
+        // double vxyz[3];
+        // p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x + halfQuad, quadrant->y + halfQuad, vxyz);
+        // double x = vxyz[0];
+        // double y = vxyz[1];
+
+        // // Refine by RHS value
+        // if (fabs(pde.f(x,y)) > threshold) {
+        //     return 1;
+        // }
+        // else {
+        //     return 0;
+        // }
 
         // Refine middle
         // double xRefineLower = -0.5;
@@ -291,7 +430,7 @@ Errors solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     err.nDOFs = resolution;
     // err.D2NError = infNorm;
     err.lIError = maxError;
-    return err;
+    return {resolution, maxError};
 
 }
 
@@ -325,8 +464,18 @@ int main(int argc, char** argv) {
     app.options.setOption("ny", (int) ny);
     app.options.setOption("refinement-threshold", refinementThreshold);
 
+    return 0;
+
     // Create PDE to solve
-    EllipticForest::FISHPACK::FISHPACKProblem pde;
+    PolarStarPoissonProblem pde(
+        2,
+        {-0.5, 0.5},
+        {-0.5, 0.5},
+        {0.1, 0.2},
+        {0.1, 0.4},
+        {3, 7}
+    );
+    // EllipticForest::FISHPACK::FISHPACKProblem pde;
     // pde.setU([](double x, double y){
     //     return 0.25*(pow(x,2) + pow(y,2));
     // });
@@ -345,14 +494,14 @@ int main(int argc, char** argv) {
     // pde.setDUDY([](double x, double y){
     //     return pow(y,2);
     // });
-    double x0 = 0.5;
-    double y0 = 0.5;
-    pde.setU([&](double x, double y){
-        return exp(-12.5*pow(x-x0,2) - 12.5*pow(y-y0,2));
-    });
-    pde.setF([&](double x, double y){
-        return (-50.0 + 625.0*pow(x-x0,2) + 625.0*pow(y-y0,2))*exp(-12.5*pow(x-x0,2) - 12.5*pow(y-y0,2));
-    });
+    // double x0 = 0.5;
+    // double y0 = 0.5;
+    // pde.setU([&](double x, double y){
+    //     return exp(-12.5*pow(x-x0,2) - 12.5*pow(y-y0,2));
+    // });
+    // pde.setF([&](double x, double y){
+    //     return (-50.0 + 625.0*pow(x-x0,2) + 625.0*pow(y-y0,2))*exp(-12.5*pow(x-x0,2) - 12.5*pow(y-y0,2));
+    // });
     // pde.setU([&](double x, double y){
     //     return exp(-12.5*pow(x-x0,2));
     // });
@@ -401,7 +550,6 @@ int main(int argc, char** argv) {
     // std::vector<int> leafPatchSizeVector = {4, 8, 16, 32};
     std::vector<int> levelVector = {0, 1, 2, 3, 4};
     std::vector<int> nDOFsVector;
-    std::vector<double> D2NErrorVector;
     std::vector<double> uErrorVector;
     std::vector<double> buildTimeVector;
     std::vector<double> upwardsTimeVector;
@@ -418,15 +566,16 @@ int main(int argc, char** argv) {
         
         for (auto& level : levelVector) {
             // Set the options
-            app.options.setOption("min-level", 1);
+            app.options.setOption("min-level", level);
             app.options.setOption("max-level", level);
             app.options.setOption("nx", leafPatchSize);
             app.options.setOption("ny", leafPatchSize);
 
-            Errors err = solvePoissonViaHPS(pde);
-            nDOFsVector.push_back(err.nDOFs);
-            D2NErrorVector.push_back(err.D2NError);
-            uErrorVector.push_back(err.lIError);
+            std::pair<int, double> results = solvePoissonViaHPS(pde);
+            int nDOFs = results.first;
+            double error = results.second;
+            nDOFsVector.push_back(nDOFs);
+            uErrorVector.push_back(error);
 
             buildTimeVector.push_back(app.timers["build-stage"].time());
             upwardsTimeVector.push_back(app.timers["upwards-stage"].time());
@@ -436,15 +585,15 @@ int main(int argc, char** argv) {
             app.timers["upwards-stage"].restart();
             app.timers["solve-stage"].restart();
 
-            app.log("nDOFs = %i", err.nDOFs);
-            app.log("error = %24.16e", err.lIError);
+            app.log("nDOFs = %i", nDOFs);
+            app.log("error = %24.16e", error);
         }
 
         // plt::named_loglog("Solution: N = " + std::to_string(leafPatchSize), nDOFsVector, uErrorVector, "-*");
         // plt::named_loglog("D2N Map: N = " + std::to_string(leafPatchSize), nDOFsVector, D2NErrorVector, "--v");
 
-        // plt::named_loglog("Build Time: N = " + std::to_string(leafPatchSize), nDOFsVector, buildTimeVector, "-*");
-        plt::named_loglog("Upwards Time: N = " + std::to_string(leafPatchSize), nDOFsVector, upwardsTimeVector, "-*");
+        plt::named_loglog("Build Time: N = " + std::to_string(leafPatchSize), nDOFsVector, buildTimeVector, "-*");
+        // plt::named_loglog("Upwards Time: N = " + std::to_string(leafPatchSize), nDOFsVector, upwardsTimeVector, "-*");
         // plt::named_loglog("Solve Time: N = " + std::to_string(leafPatchSize), nDOFsVector, solveTimeVector, "-*");
 
         // nDOFsPlots.push_back(nDOFsVector);
@@ -455,7 +604,6 @@ int main(int argc, char** argv) {
         // solveTimePlots.push_back(solveTimeVector);
 
         nDOFsVector.clear();
-        D2NErrorVector.clear();
         uErrorVector.clear();
         buildTimeVector.clear();
         upwardsTimeVector.clear();
@@ -469,11 +617,12 @@ int main(int argc, char** argv) {
     plt::xlabel("Total Grid Resolution");
     plt::ylabel("Time [sec]");
     // plt::ylabel("Inf-Norm Error");
-    plt::title("Adaptive Grid - Timing");
+    plt::title("Uniform Grid - Timing");
+    // plt::title("Adaptive Grid - Convergence Study");
     plt::xticks(xTicks, xTickLabels);
     plt::legend();
     plt::grid(true);
-    plt::save("plot_adaptive_upwards_time.pdf");
+    plt::save("plot_uniform_build_time_polar_star.pdf");
 
 
     // Create plots

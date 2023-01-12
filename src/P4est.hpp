@@ -3,7 +3,9 @@
 
 #include <mpi.h>
 #include <p4est.h>
+#include <p4est_extended.h>
 #include <p4est_connectivity.h>
+#include <p4est_vtk.h>
 
 namespace EllipticForest {
 
