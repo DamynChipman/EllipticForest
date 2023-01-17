@@ -28,9 +28,8 @@ cmake ${ELLIPTIC_FOREST} \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_C_COMPILER=mpicc \
-    -DPYTHON_ENV_PATH=${PYTHON_ENV_PATH} \
-    -DPYTHON_VERSION=${PYTHON_VERSION} \
-    -DPETSC_PATH=${PETSC_PATH} \
-    -DP4EST_PATH=${P4EST_PATH}
+    -DP4EST_PATH=${P4EST_PATH} \
+    -Dpetsc=on \
+    -DPETSC_PATH=${PETSC_PATH}
 
 echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"

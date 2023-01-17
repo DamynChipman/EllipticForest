@@ -5,12 +5,12 @@ set(CMAKE_CXX_STANDARD 20)
 # --=== External Pacakges ===--
 add_subdirectory(external)
 
-# --=== HydroForest Source Code ===--
+# --=== EllipticForest Source Code ===--
 add_subdirectory(src)
 
-# --=== HydroForest Test Suite ===--
+# --=== EllipticForest Test Suite ===--
 add_subdirectory(test)
 enable_testing()
 
-# --=== HydroForest Examples and Math598 Projects ===--
+# --=== EllipticForest Examples ===--
 add_subdirectory(examples)

@@ -61,6 +61,8 @@ target_compile_options(
 
 # set(FISHPACK90_LIB fishpack90)
 set(FISHPACK90_FOUND TRUE CACHE INTERNAL "Flag for FISHPACK90 ready")
+set(FISHPACK90_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE INTERNAL "FISHPACK90 include directory")
+set(FISHPACK90_LIB ${CMAKE_CURRENT_BINARY_DIR} CACHE INTERNAL "FISHPACK90 library directory")
 
 # install(
 # 	TARGETS fishpack90

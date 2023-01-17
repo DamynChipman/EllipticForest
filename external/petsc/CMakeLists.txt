@@ -24,6 +24,7 @@ if(PETSC_PATH)
 
 else()
 
-    message(FATAL_ERROR "PETSC_PATH was not set in configuration!")
+    message(STATUS "PETSC_PATH was not set in configuration, building petsc from scratch...")
+    message(WARNING "Option to build `petsc` not yet implemented...")
     
 endif()

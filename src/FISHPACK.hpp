@@ -19,7 +19,9 @@
 #include "PlotUtils.hpp"
 #include "VTK.hpp"
 
+#if MATPLOTLIBCPP_ENABLED
 namespace plt = matplotlibcpp;
+#endif
 
 namespace EllipticForest {
 

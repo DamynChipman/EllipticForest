@@ -1,6 +1,8 @@
 #ifndef PLOT_UTILS_HPP_
 #define PLOT_UTILS_HPP_
 
+#if MATPLOTLIBCPP_ENABLED
+
 #include <matplotlibcpp.h>
 #include "Vector.hpp"
 #include "Matrix.hpp"
@@ -37,5 +39,7 @@ void matshow(EllipticForest::Matrix<NumericalType>& A, double tolerance = 1e-12)
 }
 
 } // NAMESPACE : matplotlibcpp
+
+#endif
 
 #endif // PLOT_UTILS_HPP_

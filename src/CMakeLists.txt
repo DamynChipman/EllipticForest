@@ -1,5 +1,7 @@
 # --=== External Packages ===--
-FetchContent_GetProperties(matplotlibcpp)
+if (${matplotlibcpp})
+    FetchContent_GetProperties(matplotlibcpp)
+endif()
 
 # --=== Create EllipticForest Library ===--
 add_library(EllipticForest)

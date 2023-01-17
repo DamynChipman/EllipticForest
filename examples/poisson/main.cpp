@@ -7,7 +7,9 @@
 #include <P4est.hpp>
 #include <FISHPACK.hpp>
 
+#if MATPLOTLIBCPP_ENABLED
 namespace plt = matplotlibcpp;
+#endif
 
 using PlotPair = std::pair<std::vector<int>, std::vector<double>>;
 
@@ -27,7 +29,7 @@ struct ResultsData {
     double upwards_time = 0;
     double solve_time = 0;
 
-}
+};
 
 class GaussianPoissonProblem : public EllipticForest::FISHPACK::FISHPACKProblem {
 
@@ -485,6 +487,7 @@ int main(int argc, char** argv) {
     //     }
     // }
 
+    #if MATPLOTLIBCPP_ENABLED
     // Error plot
     int fig1 = plt::figure(1);
     int counter = 0;
@@ -549,6 +552,7 @@ int main(int argc, char** argv) {
     plt::grid(true);
     plt::save("plot_poisson_solve_time_" + pde.name() + "_no_title.pdf");
     // plt::show();
+    #endif
 
     return EXIT_SUCCESS;
 }

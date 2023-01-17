@@ -1,42 +1,66 @@
+# --=== Required packages ===--
 add_subdirectory(fishpack90)
-add_subdirectory(matplotlibcpp)
-add_subdirectory(petsc)
-add_subdirectory(p4est)
-
-FetchContent_GetProperties(matplotlibcpp)
-
-if(
-    ${FISHPACK90_FOUND} AND
-    ${matplotlibcpp_POPULATED} AND
-    ${PETSC_FOUND} AND
-    ${P4EST_FOUND}
-)
-
-    set(EXTERNAL_PKGS_INCLUDE
-        ${PYTHON_INCLUDE_DIR}
-        ${NUMPY_INCLUDE_DIR}
-        ${matplotlibcpp_SOURCE_DIR}
-        ${PETSC_INCLUDE}
-        ${P4EST_INCLUDE}
-        CACHE INTERNAL "HydroForest external pacakges' include directories"
-    )
-
-    set(EXTERNAL_PKGS_LIB
-        ${PYTHON_LIBRARY_DIR}
-        ${PETSC_LIB}
-        ${P4EST_LIB}
-        CACHE INTERNAL "HydroForest external packages' library directories"
-    )
-
-    message(STATUS "External packages ready!")
-
+if (${FISHPACK90_FOUND})
+    list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${FISHPACK90_INCLUDE})
+    list(APPEND LIST_EXTERNAL_PKGS_LIB ${FISHPACK90_LIB})
 else()
-
-    message(STATUS "External packages not ready:")
-    message(STATUS "FISHPACK90_FOUND = " ${FISHPACK90_FOUND})
-    message(STATUS "matplotlibcpp_POPULATED = " ${matplotlibcpp_POPULATED})
-    message(STATUS "PETSC_FOUND = " ${PETSC_FOUND})
-    message(STATUS "P4EST_FOUND = " ${P4EST_FOUND})
-    message(FATAL_ERROR "External packages not ready...")
-
+    message(STATUS "Required external package `FISHPACK90` not ready:")
+    message(STATUS "  FISHPACK90_FOUND = " ${FISHPACK90_FOUND})
+    message(FATAL_ERROR "Required external package `FISHPACK90` not ready...")
 endif()
+
+add_subdirectory(p4est)
+if (${P4EST_FOUND})
+    list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${P4EST_INCLUDE})
+    list(APPEND LIST_EXTERNAL_PKGS_LIB ${P4EST_LIB})
+else()
+    message(STATUS "Required external package `p4est` not ready:")
+    message(STATUS "  P4EST_FOUND = " ${P4EST_FOUND})
+    message(FATAL_ERROR "Required external package `p4est` not ready...")
+endif()
+
+# --=== Optional packages ===--
+if (${matplotlibcpp})
+    add_subdirectory(matplotlibcpp)
+    FetchContent_GetProperties(matplotlibcpp)
+    if (${matplotlibcpp_POPULATED})
+        list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${matplotlibcpp_SOURCE_DIR})
+        list(APPEND LIST_EXTERNAL_PKGS_LIB ${PYTHON_LIBRARY_DIR})
+        add_compile_definitions(MATPLOTLIBCPP_ENABLED)
+    else()
+        message(WARNING "Optional package `matplotlibcpp` is set to build but was not found or was unable to configure:")
+        message(WARNING "  matplotlibcpp_POPULATED = " ${matplotlibcpp_POPULATED})
+        message(WARNING "  PYTHON_ENV_PATH = " ${PYTHON_ENV_PATH})
+        message(WARNING "  PYTHON_INCLUDE_DIR = " ${PYTHON_INCLUDE_DIR})
+        message(WARNING "  PYTHON_LIBRARY_DIR = " ${PYTHON_LIBRARY_DIR})
+        message(WARNING "  NUMPY_INCLUDE_DIR = " ${NUMPY_INCLUDE_DIR})
+    endif()
+endif()
+
+if (${petsc})
+    add_subdirectory(petsc)
+    if (${PETSC_FOUND})
+        list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${PETSC_INCLUDE})
+        list(APPEND LIST_EXTERNAL_PKGS_LIB ${PETSC_LIB})
+        add_compile_definitions(PETSC_ENABLED)
+    else()
+        message(WARNING "Optional package `petsc` is set to build but was not found or was unable to configure:")
+        message(WARNING "  PETSC_FOUND = " ${PETSC_FOUND})
+        message(WARNING "  PETSC_PATH = " ${PETSC_PATH})
+        message(WARNING "  PETSC_INCLUDE = " ${PETSC_INCLUDE})
+        message(WARNING "  PETSC_LIB = " ${PETSC_LIB})
+    endif()
+endif()
+
+set(EXTERNAL_PKGS_INCLUDE ${LIST_EXTERNAL_PKGS_INCLUDE} CACHE INTERNAL "EllipticForest external packages' include directories")
+set(EXTERNAL_PKGS_LIB ${LIST_EXTERNAL_PKGS_LIB} CACHE INTERNAL "EllipticForest external packages' library directories")
+
+message(STATUS "Done with external packages:")
+message(STATUS "  EXTERNAL_PKGS_INCLUDE = ")
+foreach(X ${EXTERNAL_PKGS_INCLUDE})
+    message(STATUS "    " ${X})
+endforeach()
+message(STATUS "  EXTERNAL_PKGS_LIB = ")
+foreach(X ${EXTERNAL_PKGS_LIB})
+    message(STATUS "    " ${X})
+endforeach()

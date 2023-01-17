@@ -18,7 +18,10 @@
 #include <p4est_extended.h>
 #include <p4est_vtk.h>
 
+#if MATPLOTLIBCPP_ENABLED
 namespace plt = matplotlibcpp;
+#endif
+
 using NodePair = std::pair<std::size_t, std::size_t>;
 
 double f(double x) {
@@ -60,6 +63,7 @@ void testInterpolationMatrices() {
     EllipticForest::Vector<double> fFine2Coarse = L21 * fFine;
     EllipticForest::Vector<double> fCoarse2Fine = L12 * fCoarse;
 
+    #if MATPLOTLIBCPP_ENABLED
     // plt::figure();
     plt::named_plot("fine", xFine.data(), fFine.data(), "-o");
     plt::named_plot("coarse", xCoarse.data(), fCoarse.data(), "-o");
@@ -67,6 +71,7 @@ void testInterpolationMatrices() {
     plt::named_plot("coarse2fine", xFine.data(), fCoarse2Fine.data(), "-o");
     plt::legend();
     plt::show();
+    #endif
 
     EllipticForest::Vector<double> xFine4 = EllipticForest::concatenate({xFine, xFine, xFine, xFine});
     EllipticForest::Vector<double> xCoarse4 = EllipticForest::concatenate({xCoarse, xCoarse, xCoarse, xCoarse});
@@ -81,6 +86,7 @@ void testInterpolationMatrices() {
     EllipticForest::Vector<double> fFine2Coarse4 = L21Block * fFine4;
     EllipticForest::Vector<double> fCoarse2Fine4 = L12Block * fCoarse4;
 
+    #if MATPLOTLIBCPP_ENABLED
     // plt::figure();
     plt::named_plot("fine", xFine4.data(), fFine4.data(), "-o");
     plt::named_plot("coarse", xCoarse4.data(), fCoarse4.data(), "-o");
@@ -88,6 +94,7 @@ void testInterpolationMatrices() {
     plt::named_plot("coarse2fine", xFine4.data(), fCoarse2Fine4.data(), "-o");
     plt::legend();
     plt::show();
+    #endif
 
     std::cout << "L21Block = " << L21Block << std::endl;
     std::cout << "L12Block = " << L12Block << std::endl;
@@ -589,12 +596,14 @@ int main(int argc, char** argv) {
             app.log("error = %24.16e", error);
         }
 
+        #if MATPLOTLIBCPP_ENABLED
         // plt::named_loglog("Solution: N = " + std::to_string(leafPatchSize), nDOFsVector, uErrorVector, "-*");
         // plt::named_loglog("D2N Map: N = " + std::to_string(leafPatchSize), nDOFsVector, D2NErrorVector, "--v");
 
         plt::named_loglog("Build Time: N = " + std::to_string(leafPatchSize), nDOFsVector, buildTimeVector, "-*");
         // plt::named_loglog("Upwards Time: N = " + std::to_string(leafPatchSize), nDOFsVector, upwardsTimeVector, "-*");
         // plt::named_loglog("Solve Time: N = " + std::to_string(leafPatchSize), nDOFsVector, solveTimeVector, "-*");
+        #endif
 
         // nDOFsPlots.push_back(nDOFsVector);
         // solutionPlots.push_back(uErrorVector);
@@ -611,6 +620,7 @@ int main(int argc, char** argv) {
 
     }
 
+    #if MATPLOTLIBCPP_ENABLED
     std::vector<int> xTicks = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
     std::vector<std::string> xTickLabels;
     for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));
@@ -623,6 +633,7 @@ int main(int argc, char** argv) {
     plt::legend();
     plt::grid(true);
     plt::save("plot_uniform_build_time_polar_star.pdf");
+    #endif
 
 
     // Create plots
