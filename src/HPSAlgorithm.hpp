@@ -89,7 +89,6 @@ public:
 
         quadtree->merge([&](QuadtreeNodeType& tau, QuadtreeNodeType& alpha, QuadtreeNodeType& beta, QuadtreeNodeType& gamma, QuadtreeNodeType& omega){
             upwards4to1(tau, alpha, beta, gamma, omega);
-            // app.log(tau.str());
         });
 
         app.timers["upwards-stage"].stop();

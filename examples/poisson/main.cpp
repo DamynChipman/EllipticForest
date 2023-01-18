@@ -7,7 +7,7 @@
 #include <P4est.hpp>
 #include <FISHPACK.hpp>
 
-#if USE_MATPLOTLIBCPP
+#ifdef USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
 #endif
 
@@ -283,7 +283,14 @@ std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProb
 
     // Create and run HPS method
     EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, leafPatch, p4est);
-    HPS.run();
+    HPS.setupStage();
+    HPS.buildStage();
+    if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+        HPS.upwardsStage();
+    }
+    HPS.preSolveHook();
+    HPS.solveStage();
+    // HPS.run();
 
     // Output mesh and solution
     if (vtkFlag) {
@@ -344,10 +351,10 @@ int main(int argc, char** argv) {
     );
 
     // Convergence parameters
-    std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
-    std::vector<int> levelVector {0, 1, 2, 3, 4};
-    // std::vector<int> patchSizeVector = {4, 8, 32};
-    // std::vector<int> levelVector {0, 1, 3};
+    // std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
+    // std::vector<int> levelVector {0, 1, 2, 3, 4};
+    std::vector<int> patchSizeVector = {4, 8, 32};
+    std::vector<int> levelVector {0, 1, 3};
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
@@ -487,7 +494,7 @@ int main(int argc, char** argv) {
     //     }
     // }
 
-    #if USE_MATPLOTLIBCPP
+    #ifdef USE_MATPLOTLIBCPP
     // Error plot
     int fig1 = plt::figure(1);
     int counter = 0;
@@ -506,12 +513,13 @@ int main(int argc, char** argv) {
     for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));
     plt::xlabel("Effective Resolution");
     plt::ylabel("Inf-Norm Error");
-    // plt::title("Convergence Study - Uniform vs. Adaptive Mesh");
     plt::xticks(xTicks, xTickLabels);
     plt::legend({{"loc", "upper right"}});
     plt::grid(true);
     plt::save("plot_poisson_error_" + pde.name() + "_no_title.pdf");
-    // plt::show();
+    plt::title("Convergence Study - Uniform vs. Adaptive Mesh");
+    plt::save("plot_poisson_error_" + pde.name() + ".pdf");
+    plt::show();
 
     int fig2 = plt::figure(2);
     counter = 0;
@@ -526,12 +534,13 @@ int main(int argc, char** argv) {
     }
     plt::xlabel("Effective Resolution");
     plt::ylabel("Time [sec]");
-    // plt::title("Timing Study - Uniform vs. Adaptive Mesh - Build Stage");
     plt::xticks(xTicks, xTickLabels);
     plt::legend({{"loc", "lower right"}});
     plt::grid(true);
     plt::save("plot_poisson_build_time_" + pde.name() + "_no_title.pdf");
-    // plt::show();
+    plt::title("Timing Study - Uniform vs. Adaptive Mesh - Build Stage");
+    plt::save("plot_poisson_build_time_" + pde.name() + ".pdf");
+    plt::show();
 
     int fig3 = plt::figure(3);
     counter = 0;
@@ -546,12 +555,13 @@ int main(int argc, char** argv) {
     }
     plt::xlabel("Effective Resolution");
     plt::ylabel("Time [sec]");
-    // plt::title("Timing Study - Uniform vs. Adaptive Mesh - Solve Stage");
     plt::xticks(xTicks, xTickLabels);
     plt::legend({{"loc", "lower right"}});
     plt::grid(true);
     plt::save("plot_poisson_solve_time_" + pde.name() + "_no_title.pdf");
-    // plt::show();
+    plt::title("Timing Study - Uniform vs. Adaptive Mesh - Solve Stage");
+    plt::save("plot_poisson_solve_time_" + pde.name() + ".pdf");
+    plt::show();
     #endif
 
     return EXIT_SUCCESS;

@@ -214,14 +214,14 @@ public:
 
     FISHPACKHPSMethod(FISHPACKProblem& PDE, FISHPACKPatch& rootPatch, p4est_t* p4est);
     void toVTK(std::string filename);
+    virtual void setupStage();
+    virtual void preSolveHook();
 
 protected:
 
-    virtual void setupStage();
     virtual void merge4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     virtual void upwards4to1(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
     virtual void split1to4(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
-    virtual void preSolveHook();
     virtual void setParticularData(FISHPACKPatch& patch);
     virtual void leafSolve(FISHPACKPatch& patch);
 
