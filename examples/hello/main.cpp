@@ -1,7 +1,4 @@
-#include <cmath>
 #include <iostream>
-#include <utility>
-#include <string>
 
 #include <PlotUtils.hpp>
 #include <EllipticForestApp.hpp>
@@ -14,6 +11,7 @@ int main(int argc, char** argv) {
 
     EllipticForest::EllipticForestApp app(&argc, &argv);
     app.log("Hello, there!");
+
 #ifdef USE_MATPLOTLIBCPP
     app.log("matplotlibcpp enabled!");
 #else
