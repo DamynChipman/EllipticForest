@@ -105,12 +105,7 @@ struct FISHPACKPatch : public PatchBase<double> {
     int globalID = -1;                                  // Global ID (Quadtree ID)
 	int level = -1;								    	// Level in tree
 	bool isLeaf = false;					    		// Flag for if patch is a leaf
-	// int nCellsLeaf = -1; 					   			// Storage for number of cells on leaf patch side // TODO: Remove and put in options
-	// Vector<int> nPatchSideVector = {0, 0, 0, 0};	    // To keep track of patch's side based on children // TODO: Change to single value; rename nLeafSides
-    // int nLeafSides = -1;
-    // int nChildren = 0;
     int nCoarsens = 0;
-    // int resolutionFactor;
 
 	// Patch grid information
 	FISHPACKFVGrid grid;    		  	// Grid information
@@ -118,7 +113,6 @@ struct FISHPACKPatch : public PatchBase<double> {
 	// Data matrices
 	Matrix<double> T{};						// DtN Matrix
     Matrix<double> H{};
-    // Matrix<double> Tprime{};                // Coarser version of T
 	Matrix<double> S{};						// Solution Matrix
 	Matrix<double> X{};						// Body Load Matrix
 	
@@ -134,26 +128,8 @@ struct FISHPACKPatch : public PatchBase<double> {
 	Vector<double> h{};						// Particular Neumann Vector
 	Vector<double> w{};						// Particular Solution Vector
 
-    // Pointers to finer and coarser versions of itself
-    // std::list<FISHPACKPatch*> versions;
-    // FISHPACKPatch* finer = nullptr;          // Finer version of itself
-    // FISHPACKPatch* coarser = nullptr;        // Coarser version of itself
-    // bool hasFiner = false;                              // Flag for if patch has finer version of itself
-    // bool hasCoarsened = false;                          // Flag for it patch has coarser version of itself
-    // FISHPACKPatch* root;
-
     FISHPACKPatch();
-    // FISHPACKPatch(FISHPACKFVGrid& grid, int ID, int level, bool isLeaf);
-
-    // FISHPACKPatch& operator=(const FISHPACKPatch& rhs);
     std::string str();
-    // void coarsen();
-    // void coarsenUpwards();
-    // void uncoarsen();
-    // Matrix<double>& getT();
-    // Vector<double>& getH();
-    // Vector<double>& getG();
-    // Vector<double>& getW();
 
 };
 
@@ -293,10 +269,6 @@ private:
     Matrix<double> T_gt_go;
     Matrix<double> T_ot_ob;
     Matrix<double> T_ot_og;
-
-    // Blocks for particular problem (non-homogeneous)
-    // Matrix<double> systemB;
-    // Vector<double> hDiff;
 
     // Steps for the merge
     Vector<int> tagPatchesForCoarsening_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPACKPatch& beta, FISHPACKPatch& gamma, FISHPACKPatch& omega);
