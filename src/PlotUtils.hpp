@@ -1,7 +1,7 @@
 #ifndef PLOT_UTILS_HPP_
 #define PLOT_UTILS_HPP_
 
-#if MATPLOTLIBCPP_ENABLED
+#if USE_MATPLOTLIBCPP
 
 #include <matplotlibcpp.h>
 #include "Vector.hpp"

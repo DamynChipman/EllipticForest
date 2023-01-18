@@ -7,7 +7,7 @@
 #include <P4est.hpp>
 #include <FISHPACK.hpp>
 
-#if MATPLOTLIBCPP_ENABLED
+#if USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
 #endif
 
@@ -487,7 +487,7 @@ int main(int argc, char** argv) {
     //     }
     // }
 
-    #if MATPLOTLIBCPP_ENABLED
+    #if USE_MATPLOTLIBCPP
     // Error plot
     int fig1 = plt::figure(1);
     int counter = 0;

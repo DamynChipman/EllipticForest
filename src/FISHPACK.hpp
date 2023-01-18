@@ -19,7 +19,7 @@
 #include "PlotUtils.hpp"
 #include "VTK.hpp"
 
-#if MATPLOTLIBCPP_ENABLED
+#if USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
 #endif
 

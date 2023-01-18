@@ -7,6 +7,8 @@ endif()
 add_library(EllipticForest)
 set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
 
+target_link_libraries(EllipticForest PUBLIC common)
+
 set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
     FISHPACK.cpp

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.21)
 project("EllipticForest" LANGUAGES CXX Fortran)
 set(CMAKE_CXX_STANDARD 20)
 
+# Create common library for properties and project wide compiler stuff
+add_library(common INTERFACE)
+
 # --=== External Pacakges ===--
 add_subdirectory(external)
 

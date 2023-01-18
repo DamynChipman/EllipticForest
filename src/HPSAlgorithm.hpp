@@ -42,8 +42,6 @@ public:
     DataCache<Vector<NumericalType>> vectorCache;
     DataCache<Matrix<NumericalType>> matrixCache;
 
-protected:
-
     virtual void preSetupHook() {}
 
     virtual void setupStage() = 0;
