@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <fstream>
 
 #include <EllipticForestApp.hpp>
 #include <P4est.hpp>
@@ -28,6 +29,60 @@ struct ResultsData {
     double build_time = 0;
     double upwards_time = 0;
     double solve_time = 0;
+
+    std::string csv() {
+        std::string res = "";
+        res += mode + ",";
+        res += std::to_string(min_level) + ",";
+        res += std::to_string(max_level) + ",";
+        res += std::to_string(nx) + ",";
+        res += std::to_string(ny) + ",";
+        res += std::to_string(effective_resolution) + ",";
+        res += std::to_string(nDOFs) + ",";
+        res += std::to_string(lI_error) + ",";
+        res += std::to_string(l1_error) + ",";
+        res += std::to_string(l2_error) + ",";
+        res += std::to_string(build_time) + ",";
+        res += std::to_string(upwards_time) + ",";
+        res += std::to_string(solve_time) + ",";
+        return res;
+    }
+
+    std::string str() {
+        std::string res = "";
+        res += mode + "  ";
+        res += std::to_string(min_level) + "  ";
+        res += std::to_string(max_level) + "  ";
+        res += std::to_string(nx) + "  ";
+        res += std::to_string(ny) + "  ";
+        res += std::to_string(effective_resolution) + "  ";
+        res += std::to_string(nDOFs) + "  ";
+        res += std::to_string(lI_error) + "  ";
+        res += std::to_string(l1_error) + "  ";
+        res += std::to_string(l2_error) + "  ";
+        res += std::to_string(build_time) + "  ";
+        res += std::to_string(upwards_time) + "  ";
+        res += std::to_string(solve_time) + "  ";
+        return res;
+    }
+
+    static std::string headers() {
+        std::string res = "";
+        res += "mode,";
+        res += "min_level,";
+        res += "max_level,";
+        res += "nx,";
+        res += "ny,";
+        res += "effective_resolution,";
+        res += "nDOFs,";
+        res += "lI_error,";
+        res += "l1_error,";
+        res += "l2_error,";
+        res += "build_time,";
+        res += "upwards_time,";
+        res += "solve_time,";
+        return res;
+    }
 
 };
 
@@ -91,13 +146,14 @@ public:
         ns = {4};
     }
 
-    PolarStarPoissonProblem(int nPolar, std::vector<double> x0s, std::vector<double> y0s, std::vector<double> r0s, std::vector<double> r1s, std::vector<double> ns) :
+    PolarStarPoissonProblem(int nPolar, std::vector<double> x0s, std::vector<double> y0s, std::vector<double> r0s, std::vector<double> r1s, std::vector<double> ns, double epsilon) :
         nPolar(nPolar),
         x0s(x0s),
         y0s(y0s),
         r0s(r0s),
         r1s(r1s),
-        ns(ns)
+        ns(ns),
+        eps_disk(epsilon)
             {}
 
     std::string name() override { return "polar_star"; }
@@ -195,7 +251,7 @@ private:
 
 };
 
-std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, bool vtkFlag) {
+ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, bool vtkFlag) {
 
     // Get the options
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
@@ -203,6 +259,7 @@ std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProb
     int maxLevel = std::get<int>(app.options["max-level"]);
     int nx = std::get<int>(app.options["nx"]);
     int ny = std::get<int>(app.options["ny"]);
+    std::string mode = minLevel == maxLevel ? "uniform" : "adaptive";
 
     // Create uniform p4est
     int fillUniform = 1;
@@ -262,9 +319,6 @@ std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProb
 
     // Save initial mesh
     if (vtkFlag) {
-        std::string mode;
-        if (minLevel == maxLevel) mode = "uniform";
-        else mode = "adaptive";
         std::string VTKFilename = "poisson_mesh_" + mode + "_" + pde.name();
         p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
     }
@@ -294,14 +348,14 @@ std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProb
 
     // Output mesh and solution
     if (vtkFlag) {
-        std::string mode;
-        if (minLevel == maxLevel) mode = "uniform";
-        else mode = "adaptive";
         HPS.toVTK("poisson_" + mode + "_" + pde.name());
     }
 
     // Compute error of solution
-    double maxError = 0;
+    double l1_error = 0;
+    double l2_error = 0;
+    double lI_error = 0;
+    int nLeafPatches = 0;
     HPS.quadtree->traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
         if (patch.isLeaf) {
             EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid;
@@ -312,14 +366,34 @@ std::pair<int, double> solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProb
                     int index = j + i*grid.nPointsY();
                     int index_T = i + j*grid.nPointsY();
                     double diff = patch.u[index_T] - pde.u(x, y);
-                    maxError = fmax(maxError, fabs(diff));
+                    l1_error += (grid.dx()*grid.dy())*fabs(diff);
+                    l2_error += (grid.dx()*grid.dy())*pow(fabs(diff), 2);
+                    lI_error = fmax(lI_error, fabs(diff));
                 }
             }
+            nLeafPatches++;
         }
     });
+    l2_error = sqrt(l2_error);
     int resolution = pow(2,maxLevel)*nx;
+    int nDOFs = nLeafPatches * (nx * ny);
 
-    return {resolution, maxError};
+    ResultsData results;
+    results.mode = mode;
+    results.min_level = minLevel;
+    results.max_level = maxLevel;
+    results.nx = nx;
+    results.ny = ny;
+    results.effective_resolution = resolution;
+    results.nDOFs = nDOFs;
+    results.l1_error = l1_error;
+    results.l2_error = l2_error;
+    results.lI_error = lI_error;
+    results.build_time = app.timers["build-stage"].time();
+    results.upwards_time = app.timers["upwards-stage"].time();
+    results.solve_time = app.timers["solve-stage"].time();
+
+    return results;
 
 }
 
@@ -333,28 +407,29 @@ int main(int argc, char** argv) {
     app.options.setOption("homogeneous-rhs", false);
 
     // Create PDE to solve
-    // app.options.setOption("refinement-threshold", 0.1);
-    // PolarStarPoissonProblem pde(
-    //     2,              // Number of polar stars
-    //     {-0.5, 0.5},    // x0
-    //     {-0.5, 0.5},    // y0
-    //     {0.1, 0.2},     // r0
-    //     {0.1, 0.2},     // r1
-    //     {4, 7}          // n
-    // );
-    app.options.setOption("refinement-threshold", 1.0);
-    GaussianPoissonProblem pde(
-        0.2,            // x0
-        0.2,            // y0
-        10,              // sigma_x
-        40               // sigma_y
+    app.options.setOption("refinement-threshold", 0.1);
+    PolarStarPoissonProblem pde(
+        2,              // Number of polar stars
+        {-0.5, 0.5},    // x0
+        {-0.5, 0.5},    // y0
+        {0.1, 0.2},     // r0
+        {0.1, 0.2},     // r1
+        {4, 7},         // n
+        0.01            // epsilon
     );
+    // app.options.setOption("refinement-threshold", 1.0);
+    // GaussianPoissonProblem pde(
+    //     0.2,            // x0
+    //     0.2,            // y0
+    //     10,              // sigma_x
+    //     40               // sigma_y
+    // );
 
     // Convergence parameters
-    // std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
-    // std::vector<int> levelVector {0, 1, 2, 3, 4};
-    std::vector<int> patchSizeVector = {4, 8, 32};
-    std::vector<int> levelVector {0, 1, 3};
+    std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
+    std::vector<int> levelVector {0, 1, 2, 3, 4};
+    // std::vector<int> patchSizeVector = {4, 8, 32};
+    // std::vector<int> levelVector {0, 1, 3};
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
@@ -363,6 +438,9 @@ int main(int argc, char** argv) {
     std::vector<PlotPair> adaptiveErrorPlots;
     std::vector<PlotPair> adaptiveBuildTimingPlots;
     std::vector<PlotPair> adaptiveSolveTimingPlots;
+
+    // Vector of results
+    std::vector<ResultsData> resultsVector;
 
     // Run uniform parameter sweep
     bool vtkFlag = false;
@@ -383,16 +461,19 @@ int main(int argc, char** argv) {
             // Solve via HPS
             if (M == 128 && l == 4) vtkFlag = true;
             else vtkFlag = false;
-            auto [nDOFs, error] = solvePoissonViaHPS(pde, vtkFlag);
+            ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+            int nDOFs = results.effective_resolution;
+            double error = results.lI_error;
+            resultsVector.push_back(results);
 
             // Output to console
-            app.log("M = %i", M);
-            app.log("l = %i", l);
-            app.log("nDOFs = %i", nDOFs);
-            app.log("error = %24.16e", error);
-            app.log("build-time = %f sec", app.timers["build-stage"].time());
-            app.log("upwards-time = %f sec", app.timers["upwards-stage"].time());
-            app.log("solve-time = %f sec", app.timers["solve-stage"].time());
+            // app.log("M = %i", M);
+            // app.log("l = %i", l);
+            // app.log("nDOFs = %i", nDOFs);
+            // app.log("error = %24.16e", error);
+            // app.log("build-time = %f sec", app.timers["build-stage"].time());
+            // app.log("upwards-time = %f sec", app.timers["upwards-stage"].time());
+            // app.log("solve-time = %f sec", app.timers["solve-stage"].time());
 
             // Save info to plot
             errorPair.first.push_back(nDOFs);
@@ -433,16 +514,19 @@ int main(int argc, char** argv) {
             // Solve via HPS
             if (M == 128 && l == 4) vtkFlag = true;
             else vtkFlag = false;
-            auto [nDOFs, error] = solvePoissonViaHPS(pde, vtkFlag);
+            ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+            int nDOFs = results.effective_resolution;
+            double error = results.lI_error;
+            resultsVector.push_back(results);
 
             // Output to console
-            app.log("M = %i", M);
-            app.log("l = %i", l);
-            app.log("nDOFs = %i", nDOFs);
-            app.log("error = %24.16e", error);
-            app.log("build-time = %f sec", app.timers["build-stage"].time());
-            app.log("upwards-time = %f sec", app.timers["upwards-stage"].time());
-            app.log("solve-time = %f sec", app.timers["solve-stage"].time());
+            // app.log("M = %i", M);
+            // app.log("l = %i", l);
+            // app.log("nDOFs = %i", nDOFs);
+            // app.log("error = %24.16e", error);
+            // app.log("build-time = %f sec", app.timers["build-stage"].time());
+            // app.log("upwards-time = %f sec", app.timers["upwards-stage"].time());
+            // app.log("solve-time = %f sec", app.timers["solve-stage"].time());
 
             // Save info to plot
             errorPair.first.push_back(nDOFs);
@@ -493,6 +577,21 @@ int main(int argc, char** argv) {
     //         app.timers["solve-stage"].restart();
     //     }
     // }
+
+    // Write results to console
+    app.log(ResultsData::headers());
+    for (auto& results : resultsVector) {
+        app.log(results.str());
+    }
+
+    // Write results to file
+    std::ofstream csvFile;
+    csvFile.open("poisson_results.csv");
+    csvFile << ResultsData::headers() << std::endl;
+    for (auto& results : resultsVector) {
+        csvFile << results.csv() << std::endl;
+    }
+    csvFile.close();
 
     #ifdef USE_MATPLOTLIBCPP
     // Error plot
