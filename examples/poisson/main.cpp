@@ -374,7 +374,9 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
             nLeafPatches++;
         }
     });
-    l2_error = sqrt(l2_error);
+    double area = (xUpper - xLower) * (yUpper - yLower);
+    l1_error = l1_error / area;
+    l2_error = sqrt(l2_error / area);
     int resolution = pow(2,maxLevel)*nx;
     int nDOFs = nLeafPatches * (nx * ny);
 
