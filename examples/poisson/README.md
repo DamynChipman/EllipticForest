@@ -1,10 +1,11 @@
-# Poisson
+# EllipticForest Examples
 
-Solves a user define Poisson problem.
+## Poisson
+
+Solves a user defined Poisson problem (implemented by deriving from the base `EllipticForest::EllipticProblemBase` class). Runs a convergence analysis and generates error and timing plots.
 
 ## Usage
 
 ```Bash
-make
 ./poisson
 ```

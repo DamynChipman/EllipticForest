@@ -1,6 +1,5 @@
 #include <iostream>
 
-#include <PlotUtils.hpp>
 #include <EllipticForestApp.hpp>
 
 #if USE_MATPLOTLIBCPP

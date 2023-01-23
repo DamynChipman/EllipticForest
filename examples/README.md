@@ -1,8 +1,8 @@
 # EllipticForest Examples
 
-## Toybox
+## Hello
 
-A toybox for testing features.
+A "Hello World" test that imports the `EllipticForestApp` header, creates the app, checks for `matplotlibcpp`, then ends.
 
 ## Poisson
 
