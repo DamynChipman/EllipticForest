@@ -1,3 +1,4 @@
+option(MPI_PATH "Path to MPI headers (i.e. MPI_PATH/include)" "")
 if(PETSC_PATH)
 
     if(EXISTS ${PETSC_PATH}/include/petsc.h)
@@ -25,6 +26,22 @@ if(PETSC_PATH)
 else()
 
     message(STATUS "PETSC_PATH was not set in configuration, building petsc from scratch...")
-    message(WARNING "Option to build `petsc` not yet implemented...")
+    
+    include(ExternalProject)
+    ExternalProject_Add(
+        petsc-download
+        GIT_REPOSITORY https://gitlab.com/petsc/petsc.git
+        GIT_TAG release
+        GIT_PROGRESS true
+        PREFIX ${CMAKE_BINARY_DIR}/_deps/petsc-src
+        BUILD_IN_SOURCE true
+        CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/_deps/petsc-build --with-mpi-dir=${MPI_PATH} --download-zlib --with-p4est-dir=${P4EST_PATH} --with-p4est=1
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
+    )
+
+    set(PETSC_INCLUDE ${CMAKE_BINARY_DIR}/_deps/petsc-build/include CACHE INTERNAL "PETSc include directory")
+    set(PETSC_LIB ${CMAKE_BINARY_DIR}/_deps/petsc-build/lib CACHE INTERNAL "PETSc library directory")
+    set(PETSC_FOUND TRUE CACHE INTERNAL "Flag for if PETSc was found")
     
 endif()

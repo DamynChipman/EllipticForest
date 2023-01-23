@@ -12,6 +12,9 @@ PYTHON_VERSION=python3.9
 # P4EST_PATH : Path to p4est install (i.e., ${P4EST_PATH}/include, ${P4EST_PATH}/lib, ...)
 P4EST_PATH=${HOME}/packages/p4est/p4est_source_git/build/local
 
+# MPI_PATH : Directory with MPI headers (i.e. ${MPI_PATH}/include)
+MPI_PATH=/opt/homebrew
+
 # PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
 PETSC_PATH=${HOME}/packages/petsc/petsc-build
 
@@ -28,11 +31,12 @@ cmake ${ELLIPTIC_FOREST} \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_C_COMPILER=mpicc \
+    -DMPI_PATH=${MPI_PATH} \
     -DP4EST_PATH=${P4EST_PATH} \
-    -DWITH_PETSC=ON \
     -DPETSC_PATH=${PETSC_PATH} \
-    -DWITH_MATPLOTLIBCPP=ON \
+    -DWITH_MATPLOTLIBCPP=true \
     -DPYTHON_ENV_PATH=${PYTHON_ENV_PATH} \
     -DPYTHON_VERSION=${PYTHON_VERSION}
+
 
 echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"

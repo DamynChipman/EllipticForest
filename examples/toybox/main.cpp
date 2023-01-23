@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
 #ifdef USE_PETSC
     app.log("PETSc enabled!");
 #else
-    app.log("PETSc not enabled...")
+    app.log("PETSc not enabled...");
 #endif
 
     return EXIT_SUCCESS;
