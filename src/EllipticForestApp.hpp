@@ -199,7 +199,10 @@ public:
     EllipticForestApp(int* argc, char*** argv) : argc_(argc), argv_(argv) {
         addTimer("app-lifetime");
         timers["app-lifetime"].start();
-        MPI_Init(argc_, argv_);
+
+        int isMPIIntialized;
+        MPI_Initialized(&isMPIIntialized);
+        if (!isMPIIntialized) MPI_Init(argc_, argv_);
         PetscInitialize(argc_, argv_, NULL, NULL);
         PetscGetArgs(argc_, argv_);
 
