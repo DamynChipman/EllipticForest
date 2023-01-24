@@ -34,6 +34,7 @@ cd ${BUILD_DIR}
 
 # --=== CMake Configure ===--
 cmake ${ELLIPTIC_FOREST} \
+    -DCMAKE_INSTALL_PREFIX=local \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_C_COMPILER=mpicc \

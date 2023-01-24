@@ -32,3 +32,31 @@ target_link_directories(EllipticForest PUBLIC
 target_link_libraries(EllipticForest PUBLIC
     fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas
 )
+
+install(FILES
+    DataCache.hpp
+    EllipticForestApp.hpp
+    EllipticProblem.hpp
+    FISHPACK.hpp
+    GenericSingleton.hpp
+    HPSAlgorithm.hpp
+    Matrix.hpp
+    P4est.hpp
+    Patch.hpp
+    PatchGrid.hpp
+    PatchSolver.hpp
+    PlotUtils.hpp
+    Quadtree.hpp
+    SpecialMatrices.hpp
+    VTK.hpp
+    Vector.hpp
+    XMLTree.hpp
+    DESTINATION include
+)
+
+install(TARGETS EllipticForest
+    EXPORT ${PROJECT_NAME}-targets
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
