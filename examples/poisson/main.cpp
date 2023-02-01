@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <utility>
 #include <fstream>
@@ -13,6 +14,12 @@ namespace plt = matplotlibcpp;
 #endif
 
 using PlotPair = std::pair<std::vector<int>, std::vector<double>>;
+
+std::string number2string(double x, std::string format="%.4f") {
+    char buffer[32];
+    sprintf(buffer, format.c_str(), x);
+    return std::string(buffer);
+}
 
 struct ResultsData {
 
@@ -29,6 +36,7 @@ struct ResultsData {
     double build_time = 0;
     double upwards_time = 0;
     double solve_time = 0;
+    double size_MB = 0;
 
     std::string csv() {
         std::string res = "";
@@ -39,12 +47,13 @@ struct ResultsData {
         res += std::to_string(ny) + ",";
         res += std::to_string(effective_resolution) + ",";
         res += std::to_string(nDOFs) + ",";
-        res += std::to_string(lI_error) + ",";
-        res += std::to_string(l1_error) + ",";
-        res += std::to_string(l2_error) + ",";
-        res += std::to_string(build_time) + ",";
-        res += std::to_string(upwards_time) + ",";
-        res += std::to_string(solve_time) + ",";
+        res += number2string(lI_error, "%.16e") + ",";
+        res += number2string(l1_error, "%.16e") + ",";
+        res += number2string(l2_error, "%.16e") + ",";
+        res += number2string(build_time, "%.16e") + ",";
+        res += number2string(upwards_time, "%.16e") + ",";
+        res += number2string(solve_time, "%.16e") + ",";
+        res += number2string(size_MB, "%.16e") + ",";
         return res;
     }
 
@@ -63,6 +72,7 @@ struct ResultsData {
         res += std::to_string(build_time) + "  ";
         res += std::to_string(upwards_time) + "  ";
         res += std::to_string(solve_time) + "  ";
+        res += std::to_string(size_MB) + "  ";
         return res;
     }
 
@@ -81,6 +91,7 @@ struct ResultsData {
         res += "build_time,";
         res += "upwards_time,";
         res += "solve_time,";
+        res += "size_MB,";
         return res;
     }
 
@@ -380,6 +391,12 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     int resolution = pow(2,maxLevel)*nx;
     int nDOFs = nLeafPatches * (nx * ny);
 
+    // Compute size of quadtree and data
+    double size_MB = 0;
+    HPS.quadtree->traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+        size_MB += patch.dataSize();
+    });
+
     ResultsData results;
     results.mode = mode;
     results.min_level = minLevel;
@@ -394,6 +411,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     results.build_time = app.timers["build-stage"].time();
     results.upwards_time = app.timers["upwards-stage"].time();
     results.solve_time = app.timers["solve-stage"].time();
+    results.size_MB = size_MB;
 
     return results;
 
