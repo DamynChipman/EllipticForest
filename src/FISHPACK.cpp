@@ -364,6 +364,27 @@ std::string FISHPACKPatch::str() {
 
 }
 
+double FISHPACKPatch::dataSize() {
+
+    double BYTE_2_MEGABYTE = 1024*1024;
+    double size_MB = (4*sizeof(int) + sizeof(bool)) / BYTE_2_MEGABYTE;
+
+    size_MB += (T.nRows() * T.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (H.nRows() * H.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (S.nRows() * S.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (X.nRows() * X.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+
+    size_MB += (u.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (g.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (v.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (f.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (h.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (w.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+
+    return size_MB;
+
+}
+
 // ---=========================---
 // FISHPACK Finite Volume Quadtree
 // ---=========================---

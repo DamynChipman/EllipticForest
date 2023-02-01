@@ -130,6 +130,7 @@ struct FISHPACKPatch : public PatchBase<double> {
 
     FISHPACKPatch();
     std::string str();
+    double dataSize();
 
 };
 
