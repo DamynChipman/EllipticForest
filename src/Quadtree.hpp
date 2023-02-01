@@ -11,13 +11,6 @@
 
 namespace EllipticForest {
 
-#define ELLIPTIC_FOREST_QUADTREE_NUMBER_CHILDREN    4
-#define ELLIPTIC_FOREST_QUADTREE_LOWER_LEFT 	    0
-#define ELLIPTIC_FOREST_QUADTREE_LOWER_RIGHT 	    1
-#define ELLIPTIC_FOREST_QUADTREE_UPPER_LEFT 	    2
-#define ELLIPTIC_FOREST_QUADTREE_UPPER_RIGHT 	    3
-#define ELLIPTIC_FOREST_QUADTREE_MAX_HEIGHT         40 // Arbitrary right now, change if needed
-
 template<typename T>
 class Quadtree {
 
@@ -80,12 +73,12 @@ public:
 	 * @param index Node's index in level
 	 * @return T A newly constructed node data
 	 */
-	virtual T initData(T& parentData, std::size_t level, std::size_t index) = 0;
-	virtual void toVTK(std::string filename) = 0;
+	// virtual T initData(T& parentData, std::size_t level, std::size_t index) = 0;
+	// virtual void toVTK(std::string filename) = 0;
 
-	void build(T rootData) {
+	void build(T rootData, std::function<T(T&, std::size_t, std::size_t)> initDataFunction) {
 		buildLevelArrays_();
-		buildData_(rootData);
+		buildData_(rootData, initDataFunction);
 	}
 
 	void traversePreOrder(std::function<void(T&)> visit) {
@@ -282,7 +275,7 @@ private:
 
     }
 
-    void buildData_(T& rootData) {
+    void buildData_(T& rootData, std::function<T(T&, std::size_t, std::size_t)> initDataFunction) {
 
 		// Count total number of nodes
 		int nodeCounter = 0;
@@ -304,7 +297,7 @@ private:
 					// Get parent data
 					int pID = parentIndices_[l][i];
 					T& parentData = data_[pID];
-					data_[globalIndices_[l][i]] = initData(parentData, l, i);
+					data_[globalIndices_[l][i]] = initDataFunction(parentData, l, i);
 				}
 			}
 		}

@@ -132,6 +132,38 @@ struct FISHPACKPatch : public PatchBase<double> {
     std::string str();
     double dataSize();
 
+    virtual Matrix<double>& matrixX() {
+        return X;
+    }
+    virtual Matrix<double>& matrixH() {
+        return H;
+    }
+    virtual Matrix<double>& matrixS() {
+        return S;
+    }
+    virtual Matrix<double>& matrixT() {
+        return T;
+    }
+
+    virtual Vector<double>& vectorU() {
+        return u;
+    }
+    virtual Vector<double>& vectorG() {
+        return g;
+    }
+    virtual Vector<double>& vectorV() {
+        return v;
+    }
+    virtual Vector<double>& vectorF() {
+        return f;
+    }
+    virtual Vector<double>& vectorH() {
+        return h;
+    }
+    virtual Vector<double>& vectorW() {
+        return w;
+    }
+
 };
 
 // ---==============---
@@ -185,7 +217,7 @@ public:
 // FISHPACK Finite Volume HPS Method
 // ---===========================---
 
-class FISHPACKHPSMethod : public HPSAlgorithmBase<FISHPACKPatch, double> {
+class FISHPACKHPSMethod : public HPSAlgorithm<FISHPACKPatch, double> {
 
 public:
 
