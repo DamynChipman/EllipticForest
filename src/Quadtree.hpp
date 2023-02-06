@@ -76,7 +76,7 @@ public:
 	// virtual T initData(T& parentData, std::size_t level, std::size_t index) = 0;
 	// virtual void toVTK(std::string filename) = 0;
 
-	void build(T rootData, std::function<T(T&, std::size_t, std::size_t)> initDataFunction) {
+	void build(T rootData, std::function<T(T& parentNode, std::size_t childIndex)> initDataFunction) {
 		buildLevelArrays_();
 		buildData_(rootData, initDataFunction);
 	}
@@ -275,7 +275,7 @@ private:
 
     }
 
-    void buildData_(T& rootData, std::function<T(T&, std::size_t, std::size_t)> initDataFunction) {
+    void buildData_(T& rootData, std::function<T(T& parentNode, std::size_t childIndex)> initDataFunction) {
 
 		// Count total number of nodes
 		int nodeCounter = 0;
@@ -297,7 +297,9 @@ private:
 					// Get parent data
 					int pID = parentIndices_[l][i];
 					T& parentData = data_[pID];
-					data_[globalIndices_[l][i]] = initDataFunction(parentData, l, i);
+
+					std::size_t childIndex = i % 4;
+					data_[globalIndices_[l][i]] = initDataFunction(parentData, childIndex);
 				}
 			}
 		}

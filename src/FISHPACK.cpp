@@ -6,13 +6,6 @@ namespace FISHPACK {
 
 #define DTN_OPTIMIZE 1
 
-enum FISHPACK_BOUNDARY_SIDE {
-    WEST,
-    EAST,
-    SOUTH,
-    NORTH
-};
-
 // ---=====================---
 // FISHPACK Finite Volume Grid
 // ---=====================---
@@ -38,7 +31,7 @@ FISHPACKFVGrid::FISHPACKFVGrid(std::size_t nPointsX, std::size_t nPointsY, doubl
         dx_((xUpper - xLower) / nPointsX),
         dy_((yUpper - yLower) / nPointsY),
         xPoints_(nPointsX_),
-        yPoints_(nPointsY_)  {
+        yPoints_(nPointsY_) {
 
         for (auto i = 0; i < nPointsX_; i++) {
             xPoints_[i] = operator()(XDIM, i);
@@ -48,6 +41,24 @@ FISHPACKFVGrid::FISHPACKFVGrid(std::size_t nPointsX, std::size_t nPointsY, doubl
         }
 
     }
+
+std::string FISHPACKFVGrid::name() { return name_; }
+
+std::size_t FISHPACKFVGrid::nPointsX() { return nPointsX_; }
+
+std::size_t FISHPACKFVGrid::nPointsY() { return nPointsY_; }
+
+double FISHPACKFVGrid::xLower() { return xLower_; }
+
+double FISHPACKFVGrid::xUpper() { return xUpper_; }
+
+double FISHPACKFVGrid::yLower() { return yLower_; }
+
+double FISHPACKFVGrid::yUpper() { return yUpper_; }
+
+double FISHPACKFVGrid::dx() { return dx_; }
+
+double FISHPACKFVGrid::dy() { return dy_; }
 
 double FISHPACKFVGrid::operator()(std::size_t DIM, std::size_t index)  {
     if (DIM == XDIM) {
@@ -92,6 +103,10 @@ std::string FISHPACKFVGrid::getExtent() {
 // ---=============================---
 // FISHPACK Finite Volume Patch Solver
 // ---=============================---
+
+FISHPACKFVSolver::FISHPACKFVSolver(FISHPACKProblem& pde) :
+    pde(pde)
+        {}
 
 std::string FISHPACKFVSolver::name() {
     return "FISHPACK90Solver";
@@ -323,13 +338,97 @@ Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 
 }
 
+Vector<double> FISHPACKFVSolver::rhsData(PatchGridBase<double>& grid) {
+    Vector<double> f(grid.nPointsX() * grid.nPointsY());
+    for (auto i = 0; i < grid.nPointsX(); i++) {
+        double x = grid(XDIM, i);
+        for (auto j = 0; j < grid.nPointsY(); j++) {
+            double y = grid(YDIM, j);
+            int index = j + i*grid.nPointsY();
+            f[index] = pde.f(x, y);
+        }
+    }
+    return f;
+}
+
 // ---======================---
 // FISHPACK Finite Volume Patch
 // ---======================---
 
-FISHPACKPatch::FISHPACKPatch() {
-    // versions.push_front(this);
+FISHPACKPatch::FISHPACKPatch() {}
+
+FISHPACKPatch::FISHPACKPatch(FISHPACKFVGrid grid) :
+    grid_(grid)
+        {}
+
+FISHPACKPatch::~FISHPACKPatch() {}
+
+std::string FISHPACKPatch::name() { return "FISHPACKPatch"; }
+
+FISHPACKFVGrid& FISHPACKPatch::grid() { return grid_; }
+
+FISHPACKPatch FISHPACKPatch::buildChild(std::size_t childIndex) {
+
+    std::size_t nx = grid_.nPointsX();
+    std::size_t ny = grid_.nPointsY();
+    double xMid = (grid_.xLower() + grid_.xUpper()) / 2.0;
+    double yMid = (grid_.yLower() + grid_.yUpper()) / 2.0;
+    double xLower, xUpper, yLower, yUpper;
+    switch (childIndex) {
+        case 0:
+            xLower = grid_.xLower();
+            xUpper = xMid;
+            yLower = grid_.yLower();
+            yUpper = yMid;
+            break;
+        case 1:
+            xLower = xMid;
+            xUpper = grid_.xUpper();
+            yLower = grid_.yLower();
+            yUpper = yMid;
+            break;
+        case 2:
+            xLower = grid_.xLower();
+            xUpper = xMid;
+            yLower = yMid;
+            yUpper = grid_.yUpper();
+            break;
+        case 3:
+            xLower = xMid;
+            xUpper = grid_.xUpper();
+            yLower = yMid;
+            yUpper = grid_.yUpper();
+            break;
+    }
+    FISHPACKFVGrid childGrid(nx, ny, xLower, xUpper, yLower, yUpper);
+
+    FISHPACKPatch childPatch(childGrid);
+    childPatch.level = level - 1;
+    childPatch.isLeaf = true;
+    isLeaf = false;
+
+    return childPatch;
 }
+
+Matrix<double>& FISHPACKPatch::matrixX() { return X; }
+
+Matrix<double>& FISHPACKPatch::matrixH() { return H; }
+
+Matrix<double>& FISHPACKPatch::matrixS() { return S; }
+
+Matrix<double>& FISHPACKPatch::matrixT() { return T; }
+
+Vector<double>& FISHPACKPatch::vectorU() { return u; }
+
+Vector<double>& FISHPACKPatch::vectorG() { return g; }
+
+Vector<double>& FISHPACKPatch::vectorV() { return v; }
+
+Vector<double>& FISHPACKPatch::vectorF() { return f; }
+
+Vector<double>& FISHPACKPatch::vectorH() { return h; }
+
+Vector<double>& FISHPACKPatch::vectorW() { return w; }
 
 std::string FISHPACKPatch::str() {
 
@@ -342,23 +441,23 @@ std::string FISHPACKPatch::str() {
     res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
 
     res += "grid:\n";
-    res += "  nx = " + std::to_string(grid.nPointsX()) + "\n";
-    res += "  ny = " + std::to_string(grid.nPointsY()) + "\n";
-    res += "  xLower = " + std::to_string(grid.xLower()) + "\n";
-    res += "  xUpper = " + std::to_string(grid.xUpper()) + "\n";
-    res += "  yLower = " + std::to_string(grid.yLower()) + "\n";
-    res += "  yUpper = " + std::to_string(grid.yUpper()) + "\n";
+    res += "  nx = " + std::to_string(grid().nPointsX()) + "\n";
+    res += "  ny = " + std::to_string(grid().nPointsY()) + "\n";
+    res += "  xLower = " + std::to_string(grid().xLower()) + "\n";
+    res += "  xUpper = " + std::to_string(grid().xUpper()) + "\n";
+    res += "  yLower = " + std::to_string(grid().yLower()) + "\n";
+    res += "  yUpper = " + std::to_string(grid().yUpper()) + "\n";
 
     res += "data:\n";
-    res += "  X = [" + std::to_string(X.nRows()) + ", " + std::to_string(X.nCols()) + "]\n";
-    res += "  S = [" + std::to_string(S.nRows()) + ", " + std::to_string(S.nCols()) + "]\n";
-    res += "  T = [" + std::to_string(T.nRows()) + ", " + std::to_string(T.nCols()) + "]\n";
-    res += "  u = [" + std::to_string(u.size()) + "]\n";
-    res += "  g = [" + std::to_string(g.size()) + "]\n";
-    res += "  v = [" + std::to_string(v.size()) + "]\n";
-    res += "  f = [" + std::to_string(f.size()) + "]\n";
-    res += "  h = [" + std::to_string(h.size()) + "]\n";
-    res += "  w = [" + std::to_string(w.size()) + "]\n";
+    res += "  X = [" + std::to_string(matrixX().nRows()) + ", " + std::to_string(matrixX().nCols()) + "]\n";
+    res += "  S = [" + std::to_string(matrixS().nRows()) + ", " + std::to_string(matrixS().nCols()) + "]\n";
+    res += "  T = [" + std::to_string(matrixT().nRows()) + ", " + std::to_string(matrixT().nCols()) + "]\n";
+    res += "  u = [" + std::to_string(vectorU().size()) + "]\n";
+    res += "  g = [" + std::to_string(vectorG().size()) + "]\n";
+    res += "  v = [" + std::to_string(vectorV().size()) + "]\n";
+    res += "  f = [" + std::to_string(vectorF().size()) + "]\n";
+    res += "  h = [" + std::to_string(vectorH().size()) + "]\n";
+    res += "  w = [" + std::to_string(vectorW().size()) + "]\n";
 
     return res;
 
@@ -388,7 +487,7 @@ double FISHPACKPatch::dataSize() {
 // ---=========================---
 // FISHPACK Finite Volume Quadtree
 // ---=========================---
-
+#if 0
 FISHPACKQuadtree::FISHPACKQuadtree() {}
 
 FISHPACKQuadtree::FISHPACKQuadtree(p4est_t* p4est) :
@@ -1158,6 +1257,7 @@ void FISHPACKHPSMethod::applyS_(FISHPACKPatch& tau, FISHPACKPatch& alpha, FISHPA
     omega.g = concatenate({g_gamma_omega, g_omega_E, g_beta_omega, g_omega_N});
 
 }
+#endif
 
 } // NAMESPACE : FISHPACK
 

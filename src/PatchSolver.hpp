@@ -60,6 +60,26 @@ public:
      */
     virtual Matrix<FloatingPointType> buildD2N(PatchGridBase<FloatingPointType>& grid) = 0;
 
+    /**
+     * @brief Computes the right-hand side data on the interior of the patch, indexed according to the `grid`
+     * 
+     * @param grid User derived `PatchGridBase` class with the solver discretization
+     * @return Vector<FloatingPointType> 
+     */
+    virtual Vector<FloatingPointType> rhsData(PatchGridBase<FloatingPointType>& grid) = 0;
+
+    /**
+     * @brief Computes the particular Neumann data needed for the non-homogeneous elliptic problem
+     * 
+     * @param grid User derived `PatchGridBase` class with the solver discretization
+     * @param rhsData Vector of non-homogeneous data on the interior of the patch according to the ordering in `grid` 
+     * @return Vector<FloatingPointType> 
+     */
+    virtual Vector<FloatingPointType> particularNeumannData(PatchGridBase<FloatingPointType>& grid, Vector<FloatingPointType>& rhsData) {
+        Vector<FloatingPointType> gZero(2*grid.nPointsX() + 2*grid.nPointsX(), 0);
+        return mapD2N(grid, gZero, rhsData);
+    }
+
 };
 
 } // NAMESPACE : EllipticForest

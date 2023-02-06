@@ -9,8 +9,12 @@
 
 namespace EllipticForest {
 
-template<typename PatchGridType, typename PatchSolverType, typename FloatingPointType>
+template<typename DerivedType, typename PatchGridType, typename PatchSolverType, typename FloatingPointType>
 class PatchBase {
+
+public:
+
+    // virtual ~PatchBase() = default;
 
     // Metadata
     /**
@@ -45,7 +49,13 @@ class PatchBase {
      * @return true 
      * @return false 
      */
-    virtual bool isLeaf() { return leafID == -1 ? false : true; }
+    // virtual bool isLeaf() { return leafID == -1 ? false : true; }
+
+    /**
+     * @brief Flag for if the patch is a leaf or not
+     * 
+     */
+    bool isLeaf = false;
 
     /**
      * @brief Returns the name of the patch
@@ -60,6 +70,15 @@ class PatchBase {
      * @return PatchGridBase<FloatingPointType>& 
      */
     virtual PatchGridBase<FloatingPointType>& grid() = 0;
+
+    /**
+     * @brief Function to construct a patch from a parent patch in a quadtree
+     * 
+     * @param parentPatch 
+     * @param childIndex 
+     * @return DerivedType 
+     */
+    virtual DerivedType buildChild(std::size_t childIndex) = 0;
 
     // Data matrices to be formed by derived class
     /**

@@ -272,7 +272,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     int ny = std::get<int>(app.options["ny"]);
     std::string mode = minLevel == maxLevel ? "uniform" : "adaptive";
 
-    // Create uniform p4est
+    // Create p4est
     int fillUniform = 1;
     int refineRecursive = 1;
     p4est_connectivity_t* conn = EllipticForest::p4est::p4est_connectivity_new_square_domain(-1, 1, -1, 1);
@@ -340,27 +340,93 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double yLower = -1;
     double yUpper = 1;
     EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-    EllipticForest::FISHPACK::FISHPACKPatch leafPatch;
-    leafPatch.grid = grid;
-    leafPatch.globalID = 0;
-    leafPatch.level = 0;
-    leafPatch.isLeaf = true;
+    EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
+    rootPatch.level = 0;
+    rootPatch.isLeaf = true;
+
+    // Create patch solver
+    EllipticForest::FISHPACK::FISHPACKFVSolver solver(pde);
+
+    // Create root patch Dirichlet data
+    // int nBoundary = 2*grid.nPointsX() + 2*grid.nPointsY();
+    // EllipticForest::Vector<double> dirichletData(nBoundary);
+    // EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, grid.nPointsY() - 1);
+    // EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
+    // EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
+    // EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
+    // EllipticForest::Vector<int> IS_WESN = EllipticForest::concatenate({IS_West, IS_East, IS_South, IS_North});
+    // for (auto i = 0; i < nBoundary; i++) {
+    //     std::size_t iSide = i % grid.nPointsX();
+    //     double x, y;
+    //     if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+    //         x = grid.xLower();
+    //         y = grid(YDIM, iSide);
+    //         dirichletData[i] = pde.u(x, y);
+    //     }
+    //     if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+    //         x = grid.xUpper();
+    //         y = grid(YDIM, iSide);
+    //         dirichletData[i] = pde.u(x, y);
+    //     }
+    //     if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+    //         x = grid(XDIM, iSide);
+    //         y = grid.yLower();
+    //         dirichletData[i] = pde.u(x, y);
+    //     }
+    //     if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+    //         x = grid(XDIM, iSide);
+    //         y = grid.yUpper();
+    //         dirichletData[i] = pde.u(x, y);
+    //     }
+    // }
 
     // Create and run HPS method
-    EllipticForest::FISHPACK::FISHPACKHPSMethod HPS(pde, leafPatch, p4est);
-    HPS.setupStage();
+    EllipticForest::HPSAlgorithm<EllipticForest::FISHPACK::FISHPACKFVGrid, EllipticForest::FISHPACK::FISHPACKFVSolver, EllipticForest::FISHPACK::FISHPACKPatch, double> HPS(rootPatch, solver);
+    HPS.setupStage(p4est);
     HPS.buildStage();
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
         HPS.upwardsStage();
     }
-    HPS.preSolveHook();
-    HPS.solveStage();
-    // HPS.run();
+    HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
+        EllipticForest::FISHPACK::FISHPACKFVGrid& rootGrid = rootPatch.grid();
+        int nBoundary = 2*rootGrid.nPointsX() + 2*rootGrid.nPointsY();
+        EllipticForest::Vector<double> dirichletData(nBoundary);
+        EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, rootGrid.nPointsY() - 1);
+        EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(rootGrid.nPointsY(), 2*rootGrid.nPointsY() - 1);
+        EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*rootGrid.nPointsY(), 2*rootGrid.nPointsY() + rootGrid.nPointsX() - 1);
+        EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(2*rootGrid.nPointsY() + rootGrid.nPointsX(), 2*rootGrid.nPointsY() + 2*rootGrid.nPointsX() - 1);
+        EllipticForest::Vector<int> IS_WESN = EllipticForest::concatenate({IS_West, IS_East, IS_South, IS_North});
+        for (auto i = 0; i < nBoundary; i++) {
+            std::size_t iSide = i % rootGrid.nPointsX();
+            double x, y;
+            if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+                x = rootGrid.xLower();
+                y = rootGrid(YDIM, iSide);
+                dirichletData[i] = pde.u(x, y);
+            }
+            if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+                x = rootGrid.xUpper();
+                y = rootGrid(YDIM, iSide);
+                dirichletData[i] = pde.u(x, y);
+            }
+            if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+                x = rootGrid(XDIM, iSide);
+                y = rootGrid.yLower();
+                dirichletData[i] = pde.u(x, y);
+            }
+            if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+                x = rootGrid(XDIM, iSide);
+                y = rootGrid.yUpper();
+                dirichletData[i] = pde.u(x, y);
+            }
+        }
+        return dirichletData;
+    });
 
     // Output mesh and solution
-    if (vtkFlag) {
-        HPS.toVTK("poisson_" + mode + "_" + pde.name());
-    }
+    // if (vtkFlag) {
+    //     HPS.toVTK("poisson_" + mode + "_" + pde.name());
+    // }
 
     // Compute error of solution
     double l1_error = 0;
@@ -369,14 +435,14 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     int nLeafPatches = 0;
     HPS.quadtree->traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
         if (patch.isLeaf) {
-            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid;
+            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
                 double x = grid(XDIM, i);
                 for (auto j = 0; j < grid.nPointsY(); j++) {
                     double y = grid(YDIM, j);
                     int index = j + i*grid.nPointsY();
                     int index_T = i + j*grid.nPointsY();
-                    double diff = patch.u[index_T] - pde.u(x, y);
+                    double diff = patch.vectorU()[index_T] - pde.u(x, y);
                     l1_error += (grid.dx()*grid.dy())*fabs(diff);
                     l2_error += (grid.dx()*grid.dy())*pow(fabs(diff), 2);
                     lI_error = fmax(lI_error, fabs(diff));
@@ -446,10 +512,10 @@ int main(int argc, char** argv) {
     // );
 
     // Convergence parameters
-    std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
-    std::vector<int> levelVector {0, 1, 2, 3, 4};
-    // std::vector<int> patchSizeVector = {4, 8, 32};
-    // std::vector<int> levelVector {0, 1, 3};
+    // std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
+    // std::vector<int> levelVector {0, 1, 2, 3, 4};
+    std::vector<int> patchSizeVector = {4, 8, 32};
+    std::vector<int> levelVector {0, 1, 3};
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
