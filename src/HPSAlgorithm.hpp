@@ -70,6 +70,33 @@ public:
             patch.globalID = currentID++;
         });
 
+        // // Set D2N matrices on leaf
+        // quadtree->traversePostOrder([&](PatchType& patch){
+        //     if (patch.isLeaf) {
+        //         if (std::get<bool>(app.options["cache-operators"])) {
+        //             if (!matrixCache.contains("T_leaf")) {
+        //                 matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
+        //             }
+        //             patch.matrixT() = matrixCache["T_leaf"];
+        //         }
+        //         else {
+        //             patch.matrixT() = patchSolver.buildD2N(patch.grid());
+        //         }
+        //     }
+        // });
+
+        app.timers["setup-stage"].stop();
+        app.log("End HPS Setup Stage");
+
+    }
+
+    virtual void buildStage() {
+
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        app.log("Begin HPS Build Stage");
+        app.addTimer("build-stage");
+        app.timers["build-stage"].start();
+
         // Set D2N matrices on leaf
         quadtree->traversePostOrder([&](PatchType& patch){
             if (patch.isLeaf) {
@@ -84,18 +111,6 @@ public:
                 }
             }
         });
-
-        app.timers["setup-stage"].stop();
-        app.log("End HPS Setup Stage");
-
-    }
-
-    virtual void buildStage() {
-
-        EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Build Stage");
-        app.addTimer("build-stage");
-        app.timers["build-stage"].start();
 
         quadtree->merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
             merge4to1(tau, alpha, beta, gamma, omega);
@@ -578,7 +593,10 @@ private:
 
     void mergePatch_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        // TODO!
+        PatchGridType mergedGrid(alpha.grid().nPointsX() + beta.grid().nPointsX(), alpha.grid().nPointsY() + gamma.grid().nPointsY(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
+        tau.grid() = mergedGrid;
+        tau.level = alpha.level - 1;
+        tau.isLeaf = false;
 
     }
 
