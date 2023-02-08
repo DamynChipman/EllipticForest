@@ -19,11 +19,11 @@ public:
     Quadtree<PatchType>* quadtree = nullptr;
     p4est_t* p4est = nullptr;
     PatchType& rootPatch;
-    PatchSolverType& patchSolver;
+    PatchSolverType* patchSolver;
     DataCache<Vector<NumericalType>> vectorCache{};
     DataCache<Matrix<NumericalType>> matrixCache{};
 
-    HPSAlgorithm(PatchType& rootPatch, PatchSolverType& patchSolver) :
+    HPSAlgorithm(PatchType& rootPatch, PatchSolverType* patchSolver) :
         rootPatch(rootPatch),
         patchSolver(patchSolver)
             {}
@@ -75,12 +75,12 @@ public:
         //     if (patch.isLeaf) {
         //         if (std::get<bool>(app.options["cache-operators"])) {
         //             if (!matrixCache.contains("T_leaf")) {
-        //                 matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
+        //                 matrixCache["T_leaf"] = patchSolver->buildD2N(patch.grid());
         //             }
         //             patch.matrixT() = matrixCache["T_leaf"];
         //         }
         //         else {
-        //             patch.matrixT() = patchSolver.buildD2N(patch.grid());
+        //             patch.matrixT() = patchSolver->buildD2N(patch.grid());
         //         }
         //     }
         // });
@@ -102,12 +102,12 @@ public:
             if (patch.isLeaf) {
                 if (std::get<bool>(app.options["cache-operators"])) {
                     if (!matrixCache.contains("T_leaf")) {
-                        matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
+                        matrixCache["T_leaf"] = patchSolver->buildD2N(patch.grid());
                     }
                     patch.matrixT() = matrixCache["T_leaf"];
                 }
                 else {
-                    patch.matrixT() = patchSolver.buildD2N(patch.grid());
+                    patch.matrixT() = patchSolver->buildD2N(patch.grid());
                 }
             }
         });
@@ -130,8 +130,8 @@ public:
 
         quadtree->traversePostOrder([&](PatchType& patch){
             // setParticularData(patch);
-            patch.vectorF() = patchSolver.rhsData(patch.grid());
-            patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
+            patch.vectorF() = patchSolver->rhsData(patch.grid());
+            patch.vectorH() = patchSolver->particularNeumannData(patch.grid(), patch.vectorF());
         });
 
         quadtree->merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
@@ -263,13 +263,13 @@ public:
                 patch.vectorF() = Vector<double>(patch.grid().nPointsX() * patch.grid().nPointsY(), 0);
             }
             patch.vectorU() = Vector<double>(patch.grid().nPointsX()*patch.grid().nPointsY());
-            Vector<double> u = patchSolver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
+            Vector<double> u = patchSolver->solve(patch.grid(), patch.vectorG(), patch.vectorF());
             for (auto i = 0; i < patch.grid().nPointsX(); i++) {
                 for (auto j = 0; j < patch.grid().nPointsY(); j++) {
                     int index = i + j*patch.grid().nPointsY();
                     int index_T = j + i*patch.grid().nPointsY();
-                    double x = patch.grid()(XDIM, i);
-                    double y = patch.grid()(YDIM, j);
+                    double x = patch.grid()(0, i);
+                    double y = patch.grid()(0, j);
                     patch.vectorU()[index] = u[index_T];
                     // patch.f[index] = pde_.f(x,y);
                 }
@@ -380,7 +380,7 @@ private:
 
                     // patchPointers[i]->T = L21Patch * patchPointers[i]->T;
                     // patchPointers[i]->T = patchPointers[i]->T * L12Patch;
-                    patchPointers[i]->matrixT() = patchSolver.buildD2N(coarseGrid);
+                    patchPointers[i]->matrixT() = patchSolver->buildD2N(coarseGrid);
 
                     patchPointers[i]->grid() = coarseGrid;
                     patchPointers[i]->nCoarsens++;

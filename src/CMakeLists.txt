@@ -54,7 +54,7 @@ install(FILES
     DESTINATION include
 )
 
-install(TARGETS EllipticForest
+install(TARGETS EllipticForest fishpack90
     EXPORT ${PROJECT_NAME}-targets
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
