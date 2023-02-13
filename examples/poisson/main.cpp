@@ -5,9 +5,7 @@
 #include <utility>
 #include <fstream>
 
-#include <EllipticForestApp.hpp>
-#include <P4est.hpp>
-#include <FISHPACK.hpp>
+#include <EllipticForest.hpp>
 
 #ifdef USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
@@ -345,48 +343,36 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     rootPatch.isLeaf = true;
 
     // Create patch solver
-    EllipticForest::FISHPACK::FISHPACKFVSolver solver(pde);
-
-    // Create root patch Dirichlet data
-    // int nBoundary = 2*grid.nPointsX() + 2*grid.nPointsY();
-    // EllipticForest::Vector<double> dirichletData(nBoundary);
-    // EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, grid.nPointsY() - 1);
-    // EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
-    // EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
-    // EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
-    // EllipticForest::Vector<int> IS_WESN = EllipticForest::concatenate({IS_West, IS_East, IS_South, IS_North});
-    // for (auto i = 0; i < nBoundary; i++) {
-    //     std::size_t iSide = i % grid.nPointsX();
-    //     double x, y;
-    //     if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
-    //         x = grid.xLower();
-    //         y = grid(YDIM, iSide);
-    //         dirichletData[i] = pde.u(x, y);
-    //     }
-    //     if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
-    //         x = grid.xUpper();
-    //         y = grid(YDIM, iSide);
-    //         dirichletData[i] = pde.u(x, y);
-    //     }
-    //     if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
-    //         x = grid(XDIM, iSide);
-    //         y = grid.yLower();
-    //         dirichletData[i] = pde.u(x, y);
-    //     }
-    //     if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
-    //         x = grid(XDIM, iSide);
-    //         y = grid.yUpper();
-    //         dirichletData[i] = pde.u(x, y);
-    //     }
-    // }
+    EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
     // Create and run HPS method
-    EllipticForest::HPSAlgorithm<EllipticForest::FISHPACK::FISHPACKFVGrid, EllipticForest::FISHPACK::FISHPACKFVSolver, EllipticForest::FISHPACK::FISHPACKPatch, double> HPS(rootPatch, &solver);
+    // 1. Create the HPSAlgorithm instance
+    EllipticForest::HPSAlgorithm<EllipticForest::FISHPACK::FISHPACKFVGrid, EllipticForest::FISHPACK::FISHPACKFVSolver, EllipticForest::FISHPACK::FISHPACKPatch, double> HPS(rootPatch, solver);
+
+    // 2. Call the setup stage
     HPS.setupStage(p4est);
+
+    // 3. Call the build stage
     HPS.buildStage();
+
+    // 4. Call the upwards stage; provide a callback to set load data on leaf patches
     if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-        HPS.upwardsStage();
+        HPS.upwardsStage([&](EllipticForest::FISHPACK::FISHPACKPatch& leafPatch){
+            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = leafPatch.grid();
+            leafPatch.vectorF() = EllipticForest::Vector<double>(grid.nPointsX() * grid.nPointsY());
+            for (auto i = 0; i < grid.nPointsX(); i++) {
+                double x = grid(0, i);
+                for (auto j = 0; j < grid.nPointsY(); j++) {
+                    double y = grid(1, j);
+                    int index = j + i*grid.nPointsY();
+                    leafPatch.vectorF()[index] = pde.f(x, y);
+                }
+            }
+            return;
+        });
     }
+
+    // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
     HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
         EllipticForest::FISHPACK::FISHPACKFVGrid& rootGrid = rootPatch.grid();
         int nBoundary = 2*rootGrid.nPointsX() + 2*rootGrid.nPointsY();
@@ -420,7 +406,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
                 dirichletData[i] = pde.u(x, y);
             }
         }
-        return dirichletData;
+        rootPatch.vectorG() = dirichletData;
     });
 
     // Output mesh and solution
@@ -433,7 +419,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double l2_error = 0;
     double lI_error = 0;
     int nLeafPatches = 0;
-    HPS.quadtree->traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+    HPS.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
         if (patch.isLeaf) {
             EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
@@ -459,7 +445,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Compute size of quadtree and data
     double size_MB = 0;
-    HPS.quadtree->traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+    HPS.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
         size_MB += patch.dataSize();
     });
 
@@ -634,35 +620,6 @@ int main(int argc, char** argv) {
         adaptiveBuildTimingPlots.push_back(buildPair);
         adaptiveSolveTimingPlots.push_back(solvePair);
     }
-    // for (auto& M : patchSizeVector) {
-    //     for (auto& l : levelVector) {
-
-    //         // Set options
-    //         app.options.setOption("min-level", 0);
-    //         app.options.setOption("max-level", l);
-    //         app.options.setOption("nx", M);
-    //         app.options.setOption("ny", M);
-
-    //         // Solve via HPS
-    //         if (M == 128 && l == 4) vtkFlag = true;
-    //         else vtkFlag = false;
-    //         auto [nDOFs, error] = solvePoissonViaHPS(pde, vtkFlag);
-
-    //         // Output to console
-    //         app.log("M = %i", M);
-    //         app.log("l = %i", l);
-    //         app.log("nDOFs = %i", nDOFs);
-    //         app.log("error = %24.16e", error);
-    //         app.log("build-time = %f sec", app.timers["build-stage"].time());
-    //         app.log("upwards-time = %f sec", app.timers["upwards-stage"].time());
-    //         app.log("solve-time = %f sec", app.timers["solve-stage"].time());
-
-    //         // Restart timers
-    //         app.timers["build-stage"].restart();
-    //         app.timers["upwards-stage"].restart();
-    //         app.timers["solve-stage"].restart();
-    //     }
-    // }
 
     // Write results to console
     app.log(ResultsData::headers());

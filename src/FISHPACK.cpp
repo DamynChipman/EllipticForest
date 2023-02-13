@@ -104,9 +104,7 @@ std::string FISHPACKFVGrid::getExtent() {
 // FISHPACK Finite Volume Patch Solver
 // ---=============================---
 
-FISHPACKFVSolver::FISHPACKFVSolver(FISHPACKProblem& pde) :
-    pde(pde)
-        {}
+FISHPACKFVSolver::FISHPACKFVSolver() {}
 
 std::string FISHPACKFVSolver::name() {
     return "FISHPACK90Solver";
@@ -338,18 +336,18 @@ Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 
 }
 
-Vector<double> FISHPACKFVSolver::rhsData(PatchGridBase<double>& grid) {
-    Vector<double> f(grid.nPointsX() * grid.nPointsY());
-    for (auto i = 0; i < grid.nPointsX(); i++) {
-        double x = grid(XDIM, i);
-        for (auto j = 0; j < grid.nPointsY(); j++) {
-            double y = grid(YDIM, j);
-            int index = j + i*grid.nPointsY();
-            f[index] = pde.f(x, y);
-        }
-    }
-    return f;
-}
+// Vector<double> FISHPACKFVSolver::rhsData(PatchGridBase<double>& grid) {
+//     Vector<double> f(grid.nPointsX() * grid.nPointsY());
+//     for (auto i = 0; i < grid.nPointsX(); i++) {
+//         double x = grid(XDIM, i);
+//         for (auto j = 0; j < grid.nPointsY(); j++) {
+//             double y = grid(YDIM, j);
+//             int index = j + i*grid.nPointsY();
+//             f[index] = pde.f(x, y);
+//         }
+//     }
+//     return f;
+// }
 
 // ---======================---
 // FISHPACK Finite Volume Patch

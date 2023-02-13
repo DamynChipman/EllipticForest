@@ -111,15 +111,15 @@ class FISHPACKFVSolver : public PatchSolverBase<double> {
 
 public:
 
-    FISHPACKProblem& pde;
+    // FISHPACKProblem pde;
 
-    FISHPACKFVSolver(FISHPACKProblem& pde);
+    FISHPACKFVSolver();
 
     virtual std::string name();
     virtual Vector<double> solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
     virtual Vector<double> mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
     virtual Matrix<double> buildD2N(PatchGridBase<double>& grid);
-    virtual Vector<double> rhsData(PatchGridBase<double>& grid);
+    // virtual Vector<double> rhsData(PatchGridBase<double>& grid);
 
 };
 

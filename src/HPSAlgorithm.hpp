@@ -16,22 +16,72 @@ class HPSAlgorithm {
 
 public:
 
-    Quadtree<PatchType>* quadtree = nullptr;
+    /**
+     * @brief Pointer to p4est object
+     * 
+     */
     p4est_t* p4est = nullptr;
-    PatchType& rootPatch;
-    PatchSolverType* patchSolver;
+
+    /**
+     * @brief Quadtree data storage with nodes as `PatchType`
+     * 
+     */
+    Quadtree<PatchType> quadtree;
+
+    /**
+     * @brief A patch representing the entire domain and leaf patch prototypes
+     * 
+     */
+    PatchType rootPatch;
+
+    /**
+     * @brief The elliptic solver for an individual patch
+     * 
+     */
+    PatchSolverType patchSolver;
+
+    /**
+     * @brief Cache storage for vectors
+     * 
+     */
     DataCache<Vector<NumericalType>> vectorCache{};
+
+    /**
+     * @brief Cache storage for matrices
+     * 
+     */
     DataCache<Matrix<NumericalType>> matrixCache{};
 
-    HPSAlgorithm(PatchType& rootPatch, PatchSolverType* patchSolver) :
+    /**
+     * @brief Construct a new HPSAlgorithm object
+     * 
+     * @param rootPatch A patch representing the entire domain and leaf patch prototypes
+     * @param patchSolver The elliptic solver for an individual patch
+     */
+    HPSAlgorithm(PatchType rootPatch, PatchSolverType patchSolver) :
         rootPatch(rootPatch),
         patchSolver(patchSolver)
             {}
 
+    /**
+     * @brief Destroy the HPSAlgorithm object
+     * 
+     */
     ~HPSAlgorithm() {
-        delete quadtree;
+        // delete quadtree;
     }
 
+    /**
+     * @brief Performs the setup stage of the HPS method
+     * 
+     * Given a `p4est` object with the tree topology, constructs the quadtree with the associated storage and data. The data in the `p4est` object is unused, 
+     * just the topology. The child patches are built from the parent patches through calls to the derived Patch class function `buildChild`. Sets the leaf and
+     * global IDs for each patch.
+     * 
+     * @sa PatchBase.buildChild
+     * 
+     * @param p4est The p4est object with the tree topology
+     */
     virtual void setupStage(p4est_t* p4est) {
 
         // Set internal p4est
@@ -45,15 +95,15 @@ public:
         app.timers["setup-stage"].start();
 
         // Build quadtree from p4est_t tree
-        quadtree = new Quadtree<PatchType>(p4est);
-        quadtree->build(rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
+        quadtree = Quadtree<PatchType>(p4est);
+        quadtree.build(rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
             // Function to init patch from parent patch (implemented in derived Patch class)
             return parentPatch.buildChild(childIndex);
         });
 
         // Set p4est ID (leaf level IDs) on patches
         int currentID = 0;
-        quadtree->traversePostOrder([&](PatchType& patch){
+        quadtree.traversePostOrder([&](PatchType& patch){
             // if (patch.isLeaf()) {
             //     patch.leafID = currentID++;
             // }
@@ -66,21 +116,21 @@ public:
 
         // Set global ID on patches
         currentID = 0;
-        quadtree->traversePreOrder([&](PatchType& patch){
+        quadtree.traversePreOrder([&](PatchType& patch){
             patch.globalID = currentID++;
         });
 
         // // Set D2N matrices on leaf
-        // quadtree->traversePostOrder([&](PatchType& patch){
+        // quadtree.traversePostOrder([&](PatchType& patch){
         //     if (patch.isLeaf) {
         //         if (std::get<bool>(app.options["cache-operators"])) {
         //             if (!matrixCache.contains("T_leaf")) {
-        //                 matrixCache["T_leaf"] = patchSolver->buildD2N(patch.grid());
+        //                 matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
         //             }
         //             patch.matrixT() = matrixCache["T_leaf"];
         //         }
         //         else {
-        //             patch.matrixT() = patchSolver->buildD2N(patch.grid());
+        //             patch.matrixT() = patchSolver.buildD2N(patch.grid());
         //         }
         //     }
         // });
@@ -90,6 +140,18 @@ public:
 
     }
 
+    /**
+     * @brief Performs the build stage of the HPS method
+     * 
+     * The build stage just requires the tree topology, the patch solver's `buildD2N` method, and a patch grid. Iterates over the leaf nodes and constructs the
+     * Dirichlet-to-Neumann matrix on each of the leaf nodes by calling the derived PatchSolver class function `buildD2N` and provides the leaf patch's grid.
+     * After the leaf patches have the D2N matrices, recursively merges the patches up the tree (post-order) computing the set of solution matrices required
+     * for the solve stage.
+     * 
+     * @sa PatchSolverBase.buildD2N
+     * @sa merge4to1
+     * 
+     */
     virtual void buildStage() {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
@@ -98,21 +160,21 @@ public:
         app.timers["build-stage"].start();
 
         // Set D2N matrices on leaf
-        quadtree->traversePostOrder([&](PatchType& patch){
+        quadtree.traversePostOrder([&](PatchType& patch){
             if (patch.isLeaf) {
                 if (std::get<bool>(app.options["cache-operators"])) {
                     if (!matrixCache.contains("T_leaf")) {
-                        matrixCache["T_leaf"] = patchSolver->buildD2N(patch.grid());
+                        matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
                     }
                     patch.matrixT() = matrixCache["T_leaf"];
                 }
                 else {
-                    patch.matrixT() = patchSolver->buildD2N(patch.grid());
+                    patch.matrixT() = patchSolver.buildD2N(patch.grid());
                 }
             }
         });
 
-        quadtree->merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
             merge4to1(tau, alpha, beta, gamma, omega);
         });
 
@@ -121,20 +183,39 @@ public:
 
     }
 
-    virtual void upwardsStage() {
+    /**
+     * @brief Performs the upwards stage of the HPS method
+     * 
+     * The user provides a callback function `rhsPatchFunction` that sets the leaf patch's load data (RHS data or non-homogeneous data). The callback function
+     * provides a reference to a leaf patch. The callback function needs to set the `vectorF` data on the provided patch. This is done in post-order fasion for
+     * all leaf patches. Next, the leaf patch's particular Neumann data is set (`vectorH`) through the base PatchSolver class function `particularNeumannData`,
+     * which may or may not be overridden by the derived PatchSolver class.
+     * 
+     * @sa PatchBase.vectorF
+     * @sa PatchBase.vectorH
+     * @sa PatchSolverBase.particularNeumannData
+     * @sa upwards4to1
+     * 
+     * @param rhsPatchFunction rhsPatchFunction(PatchType& leafPatch) -> void : Sets the leaf patch's load data `vectorF`
+     */
+    virtual void upwardsStage(std::function<void(PatchType& leafPatch)> rhsPatchFunction) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.log("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
         app.timers["upwards-stage"].start();
 
-        quadtree->traversePostOrder([&](PatchType& patch){
-            // setParticularData(patch);
-            patch.vectorF() = patchSolver->rhsData(patch.grid());
-            patch.vectorH() = patchSolver->particularNeumannData(patch.grid(), patch.vectorF());
+        quadtree.traversePostOrder([&](PatchType& patch){
+            if (patch.isLeaf) {
+                // Call callback function to set RHS data on patch
+                rhsPatchFunction(patch);
+
+                // Set particular Neumann data using patch solver function
+                patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
+            }
         });
 
-        quadtree->merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
             upwards4to1(tau, alpha, beta, gamma, omega);
         });
 
@@ -143,7 +224,24 @@ public:
 
     }
 
-    virtual void solveStage(std::function<Vector<NumericalType>(PatchType& rootPatch)> boundaryDataFunction) {
+    /**
+     * @brief Performs the solve stage of the HPS method
+     * 
+     * The user provides a callback function `boundaryDataFunction` that sets the boundary condition data (currently just Dirichlet data) on the root patch, or
+     * the physical boundary of the domain spanned by the tree. The callback function provides a reference to the root patch after all merging has been done
+     * (so the grid on the provided root patch may not be the same as a leaf patch). The callback function needs to set the Dirichlet data `vectorG` on the
+     * provided patch. Following the physical boundary data, the split function is called recursively down the tree (pre-order) applying the solution matrices
+     * to the boundary data. This is done until all leaf patches have boundary data. Finally, patch solver is called on all leaf patches and the solution data
+     * is set on the leaf patches (`vectorU`).
+     * 
+     * @sa PatchBase.vectorG
+     * @sa PatchBase.vectorU
+     * @sa PatchSolverBase.solve
+     * @sa split1to4
+     * 
+     * @param boundaryDataFunction 
+     */
+    virtual void solveStage(std::function<void(PatchType& rootPatch)> boundaryDataFunction) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.log("Begin HPS Solve Stage");
@@ -151,13 +249,13 @@ public:
         app.timers["solve-stage"].start();
 
         // Set Dirichlet data on root patch
-        quadtree->root().vectorG() = boundaryDataFunction(quadtree->root());
+        boundaryDataFunction(quadtree.root());
 
-        quadtree->split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
             split1to4(tau, alpha, beta, gamma, omega);
         });
 
-        quadtree->traversePreOrder([&](PatchType& patch){
+        quadtree.traversePreOrder([&](PatchType& patch){
             leafSolve(patch);
         });
 
@@ -263,7 +361,7 @@ public:
                 patch.vectorF() = Vector<double>(patch.grid().nPointsX() * patch.grid().nPointsY(), 0);
             }
             patch.vectorU() = Vector<double>(patch.grid().nPointsX()*patch.grid().nPointsY());
-            Vector<double> u = patchSolver->solve(patch.grid(), patch.vectorG(), patch.vectorF());
+            Vector<double> u = patchSolver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
             for (auto i = 0; i < patch.grid().nPointsX(); i++) {
                 for (auto j = 0; j < patch.grid().nPointsY(); j++) {
                     int index = i + j*patch.grid().nPointsY();
@@ -380,7 +478,7 @@ private:
 
                     // patchPointers[i]->T = L21Patch * patchPointers[i]->T;
                     // patchPointers[i]->T = patchPointers[i]->T * L12Patch;
-                    patchPointers[i]->matrixT() = patchSolver->buildD2N(coarseGrid);
+                    patchPointers[i]->matrixT() = patchSolver.buildD2N(coarseGrid);
 
                     patchPointers[i]->grid() = coarseGrid;
                     patchPointers[i]->nCoarsens++;

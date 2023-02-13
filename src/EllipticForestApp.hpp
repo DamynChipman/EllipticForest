@@ -221,8 +221,14 @@ public:
 
     ~EllipticForestApp() {
         timers["app-lifetime"].stop();
-        int myRank = -1;
-        MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
+        int myRank = 0;
+        int isMPIFinalized;
+        MPI_Finalized(&isMPIFinalized);
+        if (!isMPIFinalized) {
+            MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+        }
+        
         if (myRank == 0) {
             std::cout << "[EllipticForest] End of app life cycle, finalizing..." << std::endl;
             std::cout << "[EllipticForest] Timers: " << std::endl;
@@ -231,8 +237,11 @@ public:
             }
             std::cout << "[EllipticForest] Done!" << std::endl;
         }
-        PetscFinalize();
-        MPI_Finalize();
+
+        if (!isMPIFinalized) {
+            PetscFinalize();
+            MPI_Finalize();
+        }
     }
 
     int argc() { return *argc_; }
