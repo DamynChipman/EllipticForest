@@ -125,7 +125,7 @@ private:
                     stripWhitespace(key);
                     stripWhitespace(value);
 
-                    optionsMap[key] = value;
+                    optionsMap[key] = checkValue(value);
                 }
             }
         }
@@ -135,6 +135,32 @@ private:
 
     void stripWhitespace(std::string& str) {
         str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+    }
+
+    OptionTypes checkValue(std::string value) {
+        if (value == "true") {
+            return (bool) true;
+        }
+        else if (value == "false") {
+            return (bool) false;
+        }
+        else if (isDouble(value)) {
+            return (double) std::stod(value);
+        }
+        else if (isInt(value)) {
+            return (int) std::stoi(value);
+        }
+    }
+
+    bool isDouble(std::string& str) {
+        return str.find('.') != std::string::npos;
+    }
+
+    bool isInt(std::string& str) {
+        for (auto c : str) {
+            if (!std::isdigit(c)) return false;
+        }
+        return true;
     }
 
 };
