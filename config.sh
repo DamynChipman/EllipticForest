@@ -8,7 +8,7 @@ HOME=/Users/damynchipman
 ELLIPTIC_FOREST=${HOME}/packages/EllipticForest
 
 # P4EST_PATH : Path to p4est install (i.e., ${P4EST_PATH}/include, ${P4EST_PATH}/lib, ...)
-P4EST_PATH=${HOME}/packages/p4est/p4est_source_git/build/local
+P4EST_PATH=${HOME}/packages/p4est/p4est/local
 
 # MPI_PATH : Directory with MPI headers (i.e. ${MPI_PATH}/include)
 MPI_PATH=/opt/homebrew
@@ -25,6 +25,9 @@ PYTHON_VERSION=python3.9
 # For pre-installed PETSc:
 # PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
 PETSC_PATH=${HOME}/packages/petsc/petsc-build
+
+# FORESTCLAW_PATH : Path to ForestClaw install (i.e., ${FORESTCLAW_PATH}/include, ${FORESTCLAW}/lib, ...)
+FORESTCLAW_PATH=${HOME}/packages/forestclaw/forestclaw-build/local
 # --=== END User Variables ===--
 
 # --=== Create Build Directory ===--

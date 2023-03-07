@@ -347,7 +347,12 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Create and run HPS method
     // 1. Create the HPSAlgorithm instance
-    EllipticForest::HPSAlgorithm<EllipticForest::FISHPACK::FISHPACKFVGrid, EllipticForest::FISHPACK::FISHPACKFVSolver, EllipticForest::FISHPACK::FISHPACKPatch, double> HPS(rootPatch, solver);
+    EllipticForest::HPSAlgorithm
+        <EllipticForest::FISHPACK::FISHPACKFVGrid,
+        EllipticForest::FISHPACK::FISHPACKFVSolver,
+        EllipticForest::FISHPACK::FISHPACKPatch,
+        double>
+            HPS(rootPatch, solver);
 
     // 2. Call the setup stage
     HPS.setupStage(p4est);

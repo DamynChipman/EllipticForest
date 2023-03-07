@@ -186,6 +186,15 @@ public:
 protected:    
 
     static int p4est_visit_pre(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
+		// Write code that checks which processors have `quadrant`
+		// p4est_comm_find_owner to find owner of lower left corner
+		// p4est_last_descendant
+		// find owner of last descedant
+		// Range of ranks
+		// Check if process has empty quad
+		// p4est_comm_is_empty
+		// Not on leaves
+		// local_num != -1
 
 		// Get access to level arrays
 		quadtree_data_wrapper_t* wrapper = (quadtree_data_wrapper_t*) p4est->user_pointer;

@@ -12,6 +12,7 @@ target_link_libraries(EllipticForest PUBLIC common)
 set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
     FISHPACK.cpp
+    ForestClaw.cpp
     P4est.cpp
     VTK.cpp
 )
@@ -25,6 +26,8 @@ target_include_directories(EllipticForest PUBLIC
     ${EXTERNAL_PKGS_INCLUDE}
 )
 
+set(${PROJECT_NAME}_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR} ${EXTERNAL_PKGS_INCLUDE} CACHE INTERNAL "EllipticForest's include directories" FORCE)
+
 target_link_directories(EllipticForest PUBLIC
     ${EXTERNAL_PKGS_LIB}
 )
@@ -35,9 +38,11 @@ target_link_libraries(EllipticForest PUBLIC
 
 install(FILES
     DataCache.hpp
+    EllipticForest.hpp
     EllipticForestApp.hpp
     EllipticProblem.hpp
     FISHPACK.hpp
+    ForestClaw.hpp
     GenericSingleton.hpp
     HPSAlgorithm.hpp
     Matrix.hpp
@@ -59,4 +64,5 @@ install(TARGETS EllipticForest fishpack90
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
+    PUBLIC_HEADER DESTINATION include
 )
