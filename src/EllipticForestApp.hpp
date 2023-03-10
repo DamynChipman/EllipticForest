@@ -69,6 +69,8 @@ public:
         }
     }
 
+    // TODO: Add set from command line options here
+
     void setDefaultOptions() {
         optionsMap["min-level"] = 0;
         optionsMap["max-level"] = 1;
