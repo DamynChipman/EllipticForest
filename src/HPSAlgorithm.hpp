@@ -11,6 +11,12 @@
 
 namespace EllipticForest {
 
+enum BoundaryConditionType {
+    Dirichlet,
+    Neumann,
+    Robin
+};
+
 template<typename PatchGridType, typename PatchSolverType, typename PatchType, typename NumericalType>
 class HPSAlgorithm {
 

@@ -35,6 +35,7 @@ target_link_libraries(EllipticForest PUBLIC
 
 install(FILES
     DataCache.hpp
+    EllipticForest.hpp
     EllipticForestApp.hpp
     EllipticProblem.hpp
     FISHPACK.hpp

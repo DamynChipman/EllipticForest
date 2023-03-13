@@ -79,6 +79,10 @@ public:
         optionsMap["cache-operators"] = true;
         optionsMap["homogeneous-rhs"] = true;
         optionsMap["refinement-threshold"] = 0;
+        optionsMap["boundary-type-west"] = 0;
+        optionsMap["boundary-type-east"] = 0;
+        optionsMap["boundary-type-south"] = 0;
+        optionsMap["boundary-type-north"] = 0;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Options& options) {
