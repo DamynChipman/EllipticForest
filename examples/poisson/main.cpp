@@ -125,11 +125,11 @@ public:
     }
 
     double dudx(double x, double y) override {
-        return 0;
+        return -2.0*u(x, y)*(x - x0)*sigma_x;
     }
 
     double dudy(double x, double y) override {
-        return 0;
+        return -2.0*u(x, y)*(y - y0)*sigma_y;
     }
 
 };
@@ -373,10 +373,48 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     }
 
     // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
+    // HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
+    //     EllipticForest::FISHPACK::FISHPACKFVGrid& rootGrid = rootPatch.grid();
+    //     int nBoundary = 2*rootGrid.nPointsX() + 2*rootGrid.nPointsY();
+    //     EllipticForest::Vector<double> dirichletData(nBoundary);
+    //     EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, rootGrid.nPointsY() - 1);
+    //     EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(rootGrid.nPointsY(), 2*rootGrid.nPointsY() - 1);
+    //     EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*rootGrid.nPointsY(), 2*rootGrid.nPointsY() + rootGrid.nPointsX() - 1);
+    //     EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(2*rootGrid.nPointsY() + rootGrid.nPointsX(), 2*rootGrid.nPointsY() + 2*rootGrid.nPointsX() - 1);
+    //     EllipticForest::Vector<int> IS_WESN = EllipticForest::concatenate({IS_West, IS_East, IS_South, IS_North});
+    //     for (auto i = 0; i < nBoundary; i++) {
+    //         std::size_t iSide = i % rootGrid.nPointsX();
+    //         double x, y;
+    //         if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+    //             x = rootGrid.xLower();
+    //             y = rootGrid(YDIM, iSide);
+    //             dirichletData[i] = pde.u(x, y);
+    //         }
+    //         if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+    //             x = rootGrid.xUpper();
+    //             y = rootGrid(YDIM, iSide);
+    //             dirichletData[i] = pde.u(x, y);
+    //         }
+    //         if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+    //             x = rootGrid(XDIM, iSide);
+    //             y = rootGrid.yLower();
+    //             dirichletData[i] = pde.u(x, y);
+    //         }
+    //         if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+    //             x = rootGrid(XDIM, iSide);
+    //             y = rootGrid.yUpper();
+    //             dirichletData[i] = pde.u(x, y);
+    //         }
+    //     }
+    //     rootPatch.vectorG() = dirichletData;
+    // });
+
     HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
+        
         EllipticForest::FISHPACK::FISHPACKFVGrid& rootGrid = rootPatch.grid();
         int nBoundary = 2*rootGrid.nPointsX() + 2*rootGrid.nPointsY();
-        EllipticForest::Vector<double> dirichletData(nBoundary);
+        int nSide = rootGrid.nPointsX();
+        EllipticForest::Vector<double> neumannData(nBoundary);
         EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, rootGrid.nPointsY() - 1);
         EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(rootGrid.nPointsY(), 2*rootGrid.nPointsY() - 1);
         EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*rootGrid.nPointsY(), 2*rootGrid.nPointsY() + rootGrid.nPointsX() - 1);
@@ -388,25 +426,41 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
             if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
                 x = rootGrid.xLower();
                 y = rootGrid(YDIM, iSide);
-                dirichletData[i] = pde.u(x, y);
+                neumannData[i] = -pde.dudx(x, y);
             }
             if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
                 x = rootGrid.xUpper();
                 y = rootGrid(YDIM, iSide);
-                dirichletData[i] = pde.u(x, y);
+                neumannData[i] = pde.dudx(x, y);
             }
             if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
                 x = rootGrid(XDIM, iSide);
                 y = rootGrid.yLower();
-                dirichletData[i] = pde.u(x, y);
+                neumannData[i] = -pde.dudy(x, y);
             }
             if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
                 x = rootGrid(XDIM, iSide);
                 y = rootGrid.yUpper();
-                dirichletData[i] = pde.u(x, y);
+                neumannData[i] = pde.dudy(x, y);
             }
         }
-        rootPatch.vectorG() = dirichletData;
+
+        // Create row to enforce integration constant
+        EllipticForest::Vector<double> enforceRow(nBoundary, rootGrid.dx());
+        enforceRow[0*nSide] /= 2.0;
+        enforceRow[1*nSide] /= 2.0;
+        enforceRow[2*nSide] /= 2.0;
+        enforceRow[3*nSide] /= 2.0;
+        enforceRow[1*nSide - 1] /= 2.0;
+        enforceRow[2*nSide - 1] /= 2.0;
+        enforceRow[3*nSide - 1] /= 2.0;
+        enforceRow[4*nSide - 1] /= 2.0;
+        rootPatch.matrixT().setRow(0, enforceRow);
+
+        // Update Neumann data with particular data from non-homogeneous problem
+        neumannData = neumannData - rootPatch.vectorH();
+
+        rootPatch.vectorG() = EllipticForest::solve(rootPatch.matrixT(), neumannData);
     });
 
     // Output mesh and solution
@@ -479,29 +533,29 @@ int main(int argc, char** argv) {
     app.options.setOption("homogeneous-rhs", false);
 
     // Create PDE to solve
-    app.options.setOption("refinement-threshold", 0.1);
-    PolarStarPoissonProblem pde(
-        2,              // Number of polar stars
-        {-0.5, 0.5},    // x0
-        {-0.5, 0.5},    // y0
-        {0.1, 0.2},     // r0
-        {0.1, 0.2},     // r1
-        {4, 7},         // n
-        0.01            // epsilon
-    );
-    // app.options.setOption("refinement-threshold", 1.0);
-    // GaussianPoissonProblem pde(
-    //     0.2,            // x0
-    //     0.2,            // y0
-    //     10,              // sigma_x
-    //     40               // sigma_y
+    // app.options.setOption("refinement-threshold", 0.1);
+    // PolarStarPoissonProblem pde(
+    //     2,              // Number of polar stars
+    //     {-0.5, 0.5},    // x0
+    //     {-0.5, 0.5},    // y0
+    //     {0.1, 0.2},     // r0
+    //     {0.1, 0.2},     // r1
+    //     {4, 7},         // n
+    //     0.01            // epsilon
     // );
+    app.options.setOption("refinement-threshold", 1.0);
+    GaussianPoissonProblem pde(
+        0.2,            // x0
+        0.2,            // y0
+        10,              // sigma_x
+        40               // sigma_y
+    );
 
     // Convergence parameters
-    // std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
-    // std::vector<int> levelVector {0, 1, 2, 3, 4};
-    std::vector<int> patchSizeVector = {4, 8, 32};
-    std::vector<int> levelVector {0, 1, 3};
+    std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
+    std::vector<int> levelVector {0, 1, 2, 3, 4};
+    // std::vector<int> patchSizeVector = {4, 8, 32};
+    // std::vector<int> levelVector {0, 1, 3};
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
