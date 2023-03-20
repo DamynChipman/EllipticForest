@@ -7,38 +7,11 @@
 
 #include <EllipticForestApp.hpp>
 #include <P4est.hpp>
-
-int refine_fn(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant) {
-    if (quadrant->level >= 3) {
-        return 0;
-    }
-
-    // Get bounds of quadrant
-    double vxyz[3];
-    double xLower, xUpper, yLower, yUpper;
-    p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x, quadrant->y, vxyz);
-    xLower = vxyz[0];
-    yLower = vxyz[1];
-
-    p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x + P4EST_QUADRANT_LEN(quadrant->level), quadrant->y + P4EST_QUADRANT_LEN(quadrant->level), vxyz);
-    xUpper = vxyz[0];
-    yUpper = vxyz[1];
-
-    // Refine if middle of domain
-    // Refine if -0.2 < x,y < 0.2
-    double xMiddle = (xLower + xUpper) / 2.0;
-    double yMiddle = (yLower + yUpper) / 2.0;
-    if (xMiddle > -0.6 && xMiddle < 0.6 && yMiddle > -0.6 && yMiddle < 0.6) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
-}
+#include <Quadtree.hpp>
 
 int main(int argc, char** argv) {
 
-    sc_MPI_Init(&argc, &argv);
+    MPI_Init(&argc, &argv);
     EllipticForest::EllipticForestApp app(&argc, &argv);
     int myRank = -1;
     int nRanks = -1;
@@ -88,8 +61,17 @@ int main(int argc, char** argv) {
     p4est_balance(p4est, P4EST_CONNECT_CORNER, NULL);
 
     // Save mesh
-    std::string filename = "toybox_mesh";
-    p4est_vtk_write_file(p4est, NULL, filename.c_str());
+    // std::string filename = "toybox_mesh";
+    // p4est_vtk_write_file(p4est, NULL, filename.c_str());
+
+    EllipticForest::Quadtree<double> quadtree(p4est);
+    quadtree.build(2, [&](double& parentNode, std::size_t childIndex){
+        return parentNode*parentNode;
+    });
+    app.log("Printing quadtree...");
+    std::cout << quadtree << std::endl;
+
+    // MPI_Finalize();
 
     return EXIT_SUCCESS;
 }

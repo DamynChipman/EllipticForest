@@ -8,7 +8,7 @@ HOME=/Users/damynchipman
 ELLIPTIC_FOREST=${HOME}/packages/EllipticForest
 
 # P4EST_PATH : Path to p4est install (i.e., ${P4EST_PATH}/include, ${P4EST_PATH}/lib, ...)
-P4EST_PATH=${HOME}/packages/p4est/p4est/local
+P4EST_PATH=${HOME}/packages/p4est/p4est/build/local
 
 # MPI_PATH : Directory with MPI headers (i.e. ${MPI_PATH}/include)
 MPI_PATH=/opt/homebrew

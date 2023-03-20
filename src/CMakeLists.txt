@@ -12,7 +12,6 @@ target_link_libraries(EllipticForest PUBLIC common)
 set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
     FISHPACK.cpp
-    ForestClaw.cpp
     P4est.cpp
     VTK.cpp
 )
@@ -42,7 +41,6 @@ install(FILES
     EllipticForestApp.hpp
     EllipticProblem.hpp
     FISHPACK.hpp
-    ForestClaw.hpp
     GenericSingleton.hpp
     HPSAlgorithm.hpp
     Matrix.hpp
