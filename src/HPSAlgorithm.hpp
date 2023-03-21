@@ -449,11 +449,12 @@ private:
     // Steps for the merge
     Vector<int> tagPatchesForCoarsening_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
+        std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
         std::vector<PatchGridType*> grids = {&alpha.grid(), &beta.grid(), &gamma.grid(), &omega.grid()};
         std::vector<int> sides(4);
         std::vector<int> tags(4);
 
-        for (auto i = 0; i < 4; i++) { sides[i] = grids[i]->nPointsX(); }   // Get vector of side lengths
+        for (auto i = 0; i < 4; i++) { sides[i] = patches[i]->size(); }   // Get vector of side lengths
         int minSide = *std::min_element(sides.begin(), sides.end());        // Get minimum side length
         for (auto i = 0; i < 4; i++) { tags[i] = (sides[i] / minSide) - 1; }      // Get tags based on side lengths
 
@@ -471,22 +472,22 @@ private:
                 if (tags[i] > 0) {
                     PatchGridType& fineGrid = patchPointers[i]->grid();
                     PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
-                    // int nFine = fineGrid.nPointsX();
-                    // int nCoarse = coarseGrid.nPointsX();
+                    int nFine = fineGrid.nPointsX();
+                    int nCoarse = coarseGrid.nPointsX();
             
-                    // InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
-                    // std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
-                    // Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+                    InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+                    std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+                    Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
 
-                    // InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
-                    // std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
-                    // Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+                    InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
+                    std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
+                    Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
 
-                    // patchPointers[i]->T = L21Patch * patchPointers[i]->T;
-                    // patchPointers[i]->T = patchPointers[i]->T * L12Patch;
-                    patchPointers[i]->matrixT() = patchSolver.buildD2N(coarseGrid);
+                    patchPointers[i]->matrixT() = L21Patch * patchPointers[i]->matrixT();
+                    patchPointers[i]->matrixT() = patchPointers[i]->matrixT() * L12Patch;
+                    // patchPointers[i]->matrixT() = patchSolver.buildD2N(coarseGrid);
 
-                    patchPointers[i]->grid() = coarseGrid;
+                    // patchPointers[i]->grid() = coarseGrid;
                     patchPointers[i]->nCoarsens++;
                 }
             }
@@ -500,16 +501,21 @@ private:
     void createIndexSets_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check that all children patches are the same size (should be handled from the coarsening step if not)
-        int nAlpha = alpha.grid().nPointsX();
-        int nBeta = beta.grid().nPointsX();
-        int nGamma = gamma.grid().nPointsX();
-        int nOmega = omega.grid().nPointsX();
+        // int nAlpha = alpha.grid().nPointsX();
+        // int nBeta = beta.grid().nPointsX();
+        // int nGamma = gamma.grid().nPointsX();
+        // int nOmega = omega.grid().nPointsX();
+        int nAlpha = alpha.size();
+        int nBeta = beta.size();
+        int nGamma = gamma.size();
+        int nOmega = omega.size();
         Vector<int> n = {nAlpha, nBeta, nGamma, nOmega};
         if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
             throw std::invalid_argument("[EllipticForest::FISHPACK::FISHPACKHPSMethod::createIndexSets_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
-        int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nPointsX();
+        int nSide = alpha.size();
 
         Vector<int> I_W = vectorRange(0, nSide-1);
         Vector<int> I_E = vectorRange(nSide, 2*nSide - 1);
@@ -682,7 +688,8 @@ private:
     void reorderOperators_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Form permutation vector and block sizes
-        int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nPointsX();
+        int nSide = alpha.size();
         Vector<int> pi_noChange = {0, 1, 2, 3};
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
         Vector<int> blockSizes1(4, nSide);
@@ -697,7 +704,8 @@ private:
 
     void mergePatch_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        PatchGridType mergedGrid(alpha.grid().nPointsX() + beta.grid().nPointsX(), alpha.grid().nPointsY() + gamma.grid().nPointsY(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
+        // PatchGridType mergedGrid(alpha.grid().nPointsX() + beta.grid().nPointsX(), alpha.grid().nPointsY() + gamma.grid().nPointsY(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
+        PatchGridType mergedGrid(alpha.size() + beta.size(), alpha.size() + gamma.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
         tau.grid() = mergedGrid;
         tau.level = alpha.level - 1;
         tau.isLeaf = false;
@@ -714,8 +722,10 @@ private:
         for (auto i = 0; i < 4; i++) {
             int nCoarsens = patchPointers[i]->nCoarsens;
             for (auto n = 0; n < nCoarsens; n++) {
-                PatchGridType coarseGrid = patchPointers[i]->grid();
-                PatchGridType fineGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
+                // PatchGridType coarseGrid = patchPointers[i]->grid();
+                // PatchGridType fineGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
+                PatchGridType& fineGrid = patchPointers[i]->grid();
+                PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
                 int nFine = fineGrid.nPointsX() * pow(2,nCoarsens-n-1);
                 int nCoarse = coarseGrid.nPointsX() * pow(2,nCoarsens-n-1);
             
@@ -782,17 +792,22 @@ private:
 
     void reorderOperatorsUpwards_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        int nAlpha = alpha.grid().nPointsX();
-        int nBeta = beta.grid().nPointsX();
-        int nGamma = gamma.grid().nPointsX();
-        int nOmega = omega.grid().nPointsX();
+        // int nAlpha = alpha.grid().nPointsX();
+        // int nBeta = beta.grid().nPointsX();
+        // int nGamma = gamma.grid().nPointsX();
+        // int nOmega = omega.grid().nPointsX();
+        int nAlpha = alpha.size();
+        int nBeta = beta.size();
+        int nGamma = gamma.size();
+        int nOmega = omega.size();
         Vector<int> n = {nAlpha, nBeta, nGamma, nOmega};
         if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
             throw std::invalid_argument("[EllipticForest::FISHPACK::FISHPACKHPSMethod::createIndexSets_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
         // Form permutation vector and block sizes
-        int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nPointsX();
+        int nSide = alpha.size();
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
         Vector<int> blockSizes(8, nSide);
 
@@ -807,8 +822,10 @@ private:
         EllipticForestApp& app = EllipticForestApp::getInstance();
 
         for (auto n = 0; n < tau.nCoarsens; n++) {
-            PatchGridType coarseGrid = tau.grid();
-            PatchGridType fineGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
+            // PatchGridType coarseGrid = tau.grid();
+            // PatchGridType fineGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
+            PatchGridType& fineGrid = tau.grid();
+            PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
 
             int nFine = fineGrid.nPointsX();
             int nCoarse = coarseGrid.nPointsX();
@@ -818,7 +835,7 @@ private:
             Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
             tau.vectorG() = L12Patch * tau.vectorG();
 
-            tau.grid() = fineGrid;
+            // tau.grid() = fineGrid;
         }
 
         return;
@@ -836,7 +853,8 @@ private:
         }
 
         // Extract components of interior of tau
-        int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nPointsX();
+        int nSide = alpha.size();
         Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nSide, nSide);
         Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nSide, nSide);
         Vector<double> g_alpha_beta = u_tau_interior.getSegment(2*nSide, nSide);

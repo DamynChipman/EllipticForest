@@ -150,6 +150,8 @@ public:
 
 	}
 
+	
+
 	friend std::ostream& operator<<(std::ostream& os, const Quadtree& quadtree) {
 
 		os << "Global Indices:" << std::endl;

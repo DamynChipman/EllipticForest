@@ -71,6 +71,10 @@ public:
      */
     virtual PatchGridBase<FloatingPointType>& grid() = 0;
 
+    int size() {
+        return grid().nPointsX() / pow(2, nCoarsens);
+    }
+
     /**
      * @brief Function to construct a patch from a parent patch in a quadtree
      * 
