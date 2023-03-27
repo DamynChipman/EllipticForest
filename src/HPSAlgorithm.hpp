@@ -59,6 +59,12 @@ public:
     DataCache<Matrix<NumericalType>> matrixCache{};
 
     /**
+     * @brief Flag for if the build stage has already happened
+     * 
+     */
+    bool isBuilt = false;
+
+    /**
      * @brief Construct a new HPSAlgorithm object
      * 
      * @param rootPatch A patch representing the entire domain and leaf patch prototypes

@@ -343,6 +343,8 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     rootPatch.isLeaf = true;
 
     // Create patch solver
+    double lambda = 0.1;
+    app.options.setOption("lambda", lambda);
     EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
     // Create and run HPS method

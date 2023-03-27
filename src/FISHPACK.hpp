@@ -115,6 +115,8 @@ public:
 
     FISHPACKFVSolver();
 
+    double lambda = 0;
+
     virtual std::string name();
     virtual Vector<double> solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
     virtual Vector<double> mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);

@@ -104,7 +104,12 @@ std::string FISHPACKFVGrid::getExtent() {
 // FISHPACK Finite Volume Patch Solver
 // ---=============================---
 
-FISHPACKFVSolver::FISHPACKFVSolver() {}
+FISHPACKFVSolver::FISHPACKFVSolver() {
+    EllipticForestApp& app = EllipticForestApp::getInstance();
+    if (app.options.optionExists("lambda")) {
+        lambda = std::get<double>(app.options["lambda"]);
+    }
+}
 
 std::string FISHPACKFVSolver::name() {
     return "FISHPACK90Solver";
@@ -140,7 +145,7 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 	int NBDCND = 1;
 	double* BDC = gSouth.dataPointer();
 	double* BDD = gNorth.dataPointer();
-	double ELMBDA = 0; // @TODO: Implement or get lambda value
+	double ELMBDA = lambda; // @TODO: Implement or get lambda value
 	double* F = fT.dataPointer();
     // double* F = rhsData.dataPointer();
 	int IDIMF = M;

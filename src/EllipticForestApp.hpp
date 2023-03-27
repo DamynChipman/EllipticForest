@@ -69,6 +69,16 @@ public:
         }
     }
 
+    bool optionExists(std::string optionName) {
+        return optionsMap.find(optionName) != optionsMap.end();
+        // if (optionsMap.find(optionName) == optionsMap.end()) {
+        //     return false;
+        // }
+        // else {
+        //     return true;
+        // }
+    }
+
     // TODO: Add set from command line options here
 
     void setDefaultOptions() {
