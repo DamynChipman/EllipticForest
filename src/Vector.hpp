@@ -627,6 +627,22 @@ Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
 }
 
 template<typename NumericalType>
+Vector<NumericalType> operator*(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
+    if (lhs.size() != rhs.size()) {
+        std::string errorMessage = "[EllipticForest::Vector::operator*] Sizes of `lhs` and `rhs` are not the same:\n";
+        errorMessage += "\tlhs.size = " + std::to_string(lhs.size()) + "\n";
+        errorMessage += "\trhs.size = " + std::to_string(rhs.size()) + "\n";
+        std::cerr << errorMessage << std::endl;
+        throw std::invalid_argument(errorMessage);
+    }
+    Vector<NumericalType> res(lhs.size());
+    for (auto i = 0; i < res.size(); i++) {
+        res[i] = lhs[i] * rhs[i];
+    }
+    return res;
+}
+
+template<typename NumericalType>
 Vector<NumericalType> operator/(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
     if (lhs.size() != rhs.size()) {
         std::string errorMessage = "[EllipticForest::Vector::operator/] Sizes of `lhs` and `rhs` are not the same:\n";

@@ -12,9 +12,9 @@
 namespace EllipticForest {
 
 enum BoundaryConditionType {
-    Dirichlet,
-    Neumann,
-    Robin
+    Dirichlet = 0,
+    Neumann = 1,
+    Robin = 2
 };
 
 template<typename PatchGridType, typename PatchSolverType, typename PatchType, typename NumericalType>
@@ -252,7 +252,7 @@ public:
      * @sa split1to4
      * 
      * @param boundaryDataFunction 
-     */
+     */    
     virtual void solveStage(std::function<void(PatchType& rootPatch)> boundaryDataFunction) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
@@ -262,6 +262,151 @@ public:
 
         // Set Dirichlet data on root patch
         boundaryDataFunction(quadtree.root());
+
+        quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+            split1to4(tau, alpha, beta, gamma, omega);
+        });
+
+        quadtree.traversePreOrder([&](PatchType& patch){
+            leafSolve(patch);
+        });
+
+        app.timers["solve-stage"].stop();
+        app.log("End HPS Solve Stage");
+
+    }
+
+    virtual void solveStage(std::function<NumericalType(int side, NumericalType x, NumericalType y, NumericalType* a, NumericalType* b)> boundaryFunction) {
+
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        app.log("Begin HPS Solve Stage");
+        app.addTimer("solve-stage");
+        app.timers["solve-stage"].start();
+
+        // Set Dirichlet data on root
+        PatchType& rootPatch = quadtree.root();
+        PatchGridType& rootGrid = rootPatch.grid();
+        int M = rootGrid.nPointsX();
+        std::vector<Vector<NumericalType>> aVectors = {
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M)
+        };
+        std::vector<Vector<NumericalType>> bVectors = {
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M)
+        };
+        std::vector<Vector<NumericalType>> rVectors = {
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M),
+            Vector<NumericalType>(M)
+        };
+        // std::vector<Vector<NumericalType>> gVectors = {
+        //     Vector<NumericalType>(M),
+        //     Vector<NumericalType>(M),
+        //     Vector<NumericalType>(M),
+        //     Vector<NumericalType>(M)
+        // };
+        // std::vector<Vector<NumericalType>> hVectors = {
+        //     rootPatch.vectorH().getSegment(0*M, M),
+        //     rootPatch.vectorH().getSegment(1*M, M),
+        //     rootPatch.vectorH().getSegment(2*M, M),
+        //     rootPatch.vectorH().getSegment(3*M, M)
+        // };
+        // std::vector<Matrix<NumericalType>> TMatrices = {
+        //     rootPatch.matrixT().getBlock(0*M, 0*M, M, M),
+        //     rootPatch.matrixT().getBlock(1*M, 1*M, M, M),
+        //     rootPatch.matrixT().getBlock(2*M, 2*M, M, M),
+        //     rootPatch.matrixT().getBlock(3*M, 3*M, M, M)
+        // };
+
+        for (auto n = 0; n < 4; n++) {
+            for (auto i = 0; i < M; i++) {
+                NumericalType x, y;
+                if (n == 0) {
+                    x = rootGrid.xLower();
+                    y = rootGrid(1, i);
+                }
+                else if (n == 1) {
+                    x = rootGrid.xUpper();
+                    y = rootGrid(1, i);
+                }
+                else if (n == 2) {
+                    x = rootGrid(0, i);
+                    y = rootGrid.yLower();
+                }
+                else if (n == 3) {
+                    x = rootGrid(0, i);
+                    y = rootGrid.yUpper();
+                }
+
+                NumericalType a, b;
+                rVectors[n][i] = boundaryFunction(n, x, y, &a, &b);
+                aVectors[n][i] = a;
+                bVectors[n][i] = b;
+            }
+
+            // Matrix<NumericalType> A = DiagonalMatrix<NumericalType>{aVectors[n]};
+            // Matrix<NumericalType> B = DiagonalMatrix<NumericalType>{bVectors[n]};
+            // B = B * TMatrices[n];
+            // A = A + B;
+
+            // Vector<NumericalType> bh(bVectors[n].size());
+            // for (auto i = 0; i < bh.size(); i++)
+            //     bh[i] = bVectors[n][i] * hVectors[n][i];
+            // Vector<NumericalType> rhs = rVectors[n] - bh;
+            
+            // gVectors[n] = solve(A, rhs);
+        }
+
+        Vector<NumericalType>& g = rootPatch.vectorG();
+        {
+            Vector<NumericalType> r = concatenate(rVectors);
+            Vector<NumericalType> a = concatenate(aVectors);
+            Vector<NumericalType> b = concatenate(bVectors);
+            Vector<NumericalType>& h = rootPatch.vectorH();
+            Matrix<NumericalType>& T = rootPatch.matrixT();
+
+            Matrix<NumericalType> A = DiagonalMatrix<NumericalType>(a);
+            Matrix<NumericalType> B = DiagonalMatrix<NumericalType>(b);
+            Vector<NumericalType> bh = B * h;
+            Vector<NumericalType> rhs = r - bh;
+
+            B = B * T;
+            A = A + B;
+
+            g = solve(A, rhs);
+        }
+
+        // rootPatch.vectorG() = concatenate(gVectors);
+
+        // Set Dirichlet data on root patch
+        // boundaryDataFunction(quadtree.root());
+
+        quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+            split1to4(tau, alpha, beta, gamma, omega);
+        });
+
+        quadtree.traversePreOrder([&](PatchType& patch){
+            leafSolve(patch);
+        });
+
+        app.timers["solve-stage"].stop();
+        app.log("End HPS Solve Stage");
+                
+    }
+
+    virtual void solveStage(std::vector<Vector<NumericalType>> boundaryData, std::vector<BoundaryConditionType> boundaryTypes) {
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        app.log("Begin HPS Solve Stage");
+        app.addTimer("solve-stage");
+        app.timers["solve-stage"].start();
+
+        setBoundaryData_(quadtree.root(), boundaryData, boundaryTypes);
 
         quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
             split1to4(tau, alpha, beta, gamma, omega);
@@ -808,7 +953,7 @@ private:
         int nOmega = omega.size();
         Vector<int> n = {nAlpha, nBeta, nGamma, nOmega};
         if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
-            throw std::invalid_argument("[EllipticForest::FISHPACK::FISHPACKHPSMethod::createIndexSets_] Size of children patches are not the same; something probably went wrong with the coarsening...");
+            throw std::invalid_argument("[EllipticForest::HPSAlgorithm::reorderOperatorsUpwards_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
         // Form permutation vector and block sizes
@@ -821,8 +966,114 @@ private:
         tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
     }
 
-
     // Steps for the split
+    void setBoundaryData_(PatchType& rootPatch, std::vector<Vector<NumericalType>> boundaryData, std::vector<BoundaryConditionType> boundaryTypes) {
+
+        // Initialize data
+        PatchGridType& grid = rootPatch.grid();
+        Matrix<NumericalType>& T = rootPatch.matrixT();
+        Vector<NumericalType>& h = rootPatch.vectorH();
+        std::vector<Vector<NumericalType>> dirichletData;
+        std::vector<Vector<NumericalType>> neumannData;
+        // Vector<NumericalType> gWest(grid.nPointsY());
+        // Vector<NumericalType> gEast(grid.nPointsY());
+        // Vector<NumericalType> gSouth(grid.nPointsX());
+        // Vector<NumericalType> gNorth(grid.nPointsX());
+        int M = grid.nPointsX();
+        // Vector<int> I_W = vectorRange(0*M, 1*M - 1);
+        // Vector<int> I_E = vectorRange(1*M, 2*M - 1);
+        // Vector<int> I_S = vectorRange(2*M, 3*M - 1);
+        // Vector<int> I_N = vectorRange(3*M, 4*M - 1);
+        // std::vector<Vector<int>> IS_WESN = {I_W, I_E, I_S, I_N};
+        std::vector<Vector<int>> IS_WESN = {
+            vectorRange(0*M, 1*M - 1),
+            vectorRange(1*M, 2*M - 1),
+            vectorRange(2*M, 3*M - 1),
+            vectorRange(3*M, 4*M - 1)
+        };
+
+        for (auto& type : boundaryTypes) {
+            if (type == BoundaryConditionType::Robin) {
+                throw std::invalid_argument("[EllipticForest::HPSAlgorithm::setBoundaryData_] Robin BCs not implemented!");
+            }
+        }
+
+        // Check for all Neumann problem
+        bool allNeumannCheck = true;
+        for (auto& type : boundaryTypes) {
+            if (type != BoundaryConditionType::Neumann) {
+                allNeumannCheck = false;
+                break;
+            }
+        }
+
+        if (allNeumannCheck) {
+            // All Neumann problem; need to fix one row of T
+
+        }
+        else {
+            // At least one Dirichlet side; use it in linear system
+            // int nNeumannSides = 0;
+            // for (auto& type : boundaryTypes)  {
+            //     if (type == BoundaryConditionType::Neumann) {
+            //         nNeumannSides++;
+            //     }
+            // }
+
+            std::vector<Vector<int>> Is_unknown, Js_unknown;
+            std::vector<Vector<int>> Is_known, Js_known;
+            for (auto n = 0; n < 4; n++) {
+                if (boundaryTypes[n] == BoundaryConditionType::Dirichlet) {
+                    dirichletData[n] = boundaryData[n];
+                    Is_known.push_back(IS_WESN[n]);
+                    Js_known.push_back(IS_WESN[n]);
+                }
+                else if (boundaryTypes[n] == BoundaryConditionType::Neumann) {
+                    neumannData[n] = boundaryData[n];
+                    Is_unknown.push_back(IS_WESN[n]);
+                    Js_unknown.push_back(IS_WESN[n]);
+                }
+            }
+
+            Vector<int> I_unknown = concatenate(Is_unknown);
+            Vector<int> J_unknown = concatenate(Js_unknown);
+            Vector<int> I_known = concatenate(Is_known);
+            Vector<int> J_known = concatenate(Js_known);
+
+            Vector<NumericalType> v_U = concatenate(neumannData);
+            Vector<NumericalType> g_K = concatenate(dirichletData);
+            Vector<NumericalType> h_U = h.getFromIndexSet(I_unknown);
+            // Vector<NumericalType> h_known = h.getFromIndexSet(I_known);
+            // Matrix<NumericalType> T_known = T.getFromIndexSet(I_known, J_known);
+
+            Matrix<NumericalType> T_UK = T.getFromIndexSet(I_unknown, J_known);
+            Matrix<NumericalType> T_UU = T.getFromIndexSet(I_unknown, J_unknown);
+
+            Vector<NumericalType> RHS = v_U - h_U;
+            Vector<NumericalType> temp = T_UK * g_K;
+            RHS = RHS - temp;
+            Vector<NumericalType> g_U = solve(T_UU, RHS);
+
+            for (auto n = 0; n < 4; n++) {
+                if (boundaryTypes[n] == BoundaryConditionType::Neumann) {
+                    dirichletData[n] = g_U.getFromIndexSet(IS_WESN[n]);
+                }
+            }
+
+        }
+
+        for (auto n = 0; n < 4; n++) {
+            rootPatch.vectorG().setSegment(n*M, dirichletData[n]);
+        }
+        // rootPatch.vectorG().setSegment(0*grid.nPointsX(), dirichletData[0]);
+        // rootPatch.vectorG().setSegment(1*grid.nPointsX(), dirichletData[1]);
+        // rootPatch.vectorG().setSegment(2*grid.nPointsX(), dirichletData[2]);
+        // rootPatch.vectorG().setSegment(3*grid.nPointsX(), dirichletData[3]);
+
+    }
+
+
+
     void uncoarsen_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();

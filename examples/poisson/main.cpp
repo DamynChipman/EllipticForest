@@ -134,6 +134,32 @@ public:
 
 };
 
+class EggCartonPoissonProblem : public EllipticForest::FISHPACK::FISHPACKProblem {
+
+public:
+
+    EggCartonPoissonProblem() {}
+
+    std::string name() override { return "egg-carton"; }
+
+    double u(double x, double y) override {
+        return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
+    }
+
+    double f(double x, double y) override {
+        return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
+    }
+
+    double dudx(double x, double y) override {
+        return 4.0*M_PI*cos(4.0*M_PI*x);
+    }
+
+    double dudy(double x, double y) override {
+        return -4.0*M_PI*sin(4.0*M_PI*y);
+    }
+
+};
+
 class PolarStarPoissonProblem : public EllipticForest::FISHPACK::FISHPACKProblem {
 
 public:
@@ -260,7 +286,7 @@ private:
 
 };
 
-ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, bool vtkFlag) {
+ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, std::vector<EllipticForest::BoundaryConditionType> boundaryTypes, bool vtkFlag) {
 
     // Get the options
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
@@ -381,41 +407,113 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         }
 
         // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
-        HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
-            EllipticForest::FISHPACK::FISHPACKFVGrid& rootGrid = rootPatch.grid();
-            int nBoundary = 2*rootGrid.nPointsX() + 2*rootGrid.nPointsY();
-            EllipticForest::Vector<double> dirichletData(nBoundary);
-            EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, rootGrid.nPointsY() - 1);
-            EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(rootGrid.nPointsY(), 2*rootGrid.nPointsY() - 1);
-            EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*rootGrid.nPointsY(), 2*rootGrid.nPointsY() + rootGrid.nPointsX() - 1);
-            EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(2*rootGrid.nPointsY() + rootGrid.nPointsX(), 2*rootGrid.nPointsY() + 2*rootGrid.nPointsX() - 1);
-            EllipticForest::Vector<int> IS_WESN = EllipticForest::concatenate({IS_West, IS_East, IS_South, IS_North});
-            for (auto i = 0; i < nBoundary; i++) {
-                std::size_t iSide = i % rootGrid.nPointsX();
-                double x, y;
-                if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
-                    x = rootGrid.xLower();
-                    y = rootGrid(YDIM, iSide);
-                    dirichletData[i] = pde.u(x, y);
-                }
-                if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
-                    x = rootGrid.xUpper();
-                    y = rootGrid(YDIM, iSide);
-                    dirichletData[i] = pde.u(x, y);
-                }
-                if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
-                    x = rootGrid(XDIM, iSide);
-                    y = rootGrid.yLower();
-                    dirichletData[i] = pde.u(x, y);
-                }
-                if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
-                    x = rootGrid(XDIM, iSide);
-                    y = rootGrid.yUpper();
-                    dirichletData[i] = pde.u(x, y);
-                }
+        // HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
+        //     EllipticForest::FISHPACK::FISHPACKFVGrid& rootGrid = rootPatch.grid();
+        //     int nBoundary = 2*rootGrid.nPointsX() + 2*rootGrid.nPointsY();
+        //     EllipticForest::Vector<double> dirichletData(nBoundary);
+        //     EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0, rootGrid.nPointsY() - 1);
+        //     EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(rootGrid.nPointsY(), 2*rootGrid.nPointsY() - 1);
+        //     EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*rootGrid.nPointsY(), 2*rootGrid.nPointsY() + rootGrid.nPointsX() - 1);
+        //     EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(2*rootGrid.nPointsY() + rootGrid.nPointsX(), 2*rootGrid.nPointsY() + 2*rootGrid.nPointsX() - 1);
+        //     EllipticForest::Vector<int> IS_WESN = EllipticForest::concatenate({IS_West, IS_East, IS_South, IS_North});
+        //     for (auto i = 0; i < nBoundary; i++) {
+        //         std::size_t iSide = i % rootGrid.nPointsX();
+        //         double x, y;
+        //         if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+        //             x = rootGrid.xLower();
+        //             y = rootGrid(YDIM, iSide);
+        //             dirichletData[i] = pde.u(x, y);
+        //         }
+        //         if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+        //             x = rootGrid.xUpper();
+        //             y = rootGrid(YDIM, iSide);
+        //             dirichletData[i] = pde.u(x, y);
+        //         }
+        //         if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+        //             x = rootGrid(XDIM, iSide);
+        //             y = rootGrid.yLower();
+        //             dirichletData[i] = pde.u(x, y);
+        //         }
+        //         if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+        //             x = rootGrid(XDIM, iSide);
+        //             y = rootGrid.yUpper();
+        //             dirichletData[i] = pde.u(x, y);
+        //         }
+        //     }
+        //     rootPatch.vectorG() = dirichletData;
+        // });
+
+        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
+            switch (side)
+            {
+            case 0:
+                // West : Dirichlet
+                *a = 1.0;
+                *b = 0.0;
+                return pde.u(x,y);
+                break;
+
+            case 1:
+                // East : Dirichlet
+                *a = 0.0;
+                *b = 1.0;
+                return pde.dudx(x,y);
+                break;
+
+            case 2:
+                // South : Neumann
+                *a = 0.0;
+                *b = 1.0;
+                return -pde.dudy(x,y);
+                // return pde.u(x,y);
+                break;
+
+            case 3:
+                // North : Neumann
+                *a = 0.0;
+                *b = 1.0;
+                return pde.dudy(x,y);
+                // return pde.u(x,y);
+                break;
+            
+            default:
+                break;
             }
-            rootPatch.vectorG() = dirichletData;
         });
+
+        // std::vector<EllipticForest::Vector<double>> boundaryData;
+        // int M = grid.nPointsX();
+        // int nBoundary = 4*M;
+        // EllipticForest::Vector<int> IS_West = EllipticForest::vectorRange(0*M, 1*M - 1);
+        // EllipticForest::Vector<int> IS_East = EllipticForest::vectorRange(1*M, 2*M - 1);
+        // EllipticForest::Vector<int> IS_South = EllipticForest::vectorRange(2*M, 3*M - 1);
+        // EllipticForest::Vector<int> IS_North = EllipticForest::vectorRange(3*M, 4*M - 1);
+        // for (auto i = 0; i < nBoundary; i++) {
+        //     std::size_t iSide = i % M;
+        //     double x, y;
+        //     if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
+        //         x = grid.xLower();
+        //         y = grid(YDIM, iSide);
+        //         dirichletData[i] = pde.u(x, y);
+        //     }
+        //     if (std::find(IS_East.data().begin(), IS_East.data().end(), i) != IS_East.data().end()) {
+        //         x = grid.xUpper();
+        //         y = grid(YDIM, iSide);
+        //         dirichletData[i] = pde.u(x, y);
+        //     }
+        //     if (std::find(IS_South.data().begin(), IS_South.data().end(), i) != IS_South.data().end()) {
+        //         x = grid(XDIM, iSide);
+        //         y = grid.yLower();
+        //         dirichletData[i] = pde.u(x, y);
+        //     }
+        //     if (std::find(IS_North.data().begin(), IS_North.data().end(), i) != IS_North.data().end()) {
+        //         x = grid(XDIM, iSide);
+        //         y = grid.yUpper();
+        //         dirichletData[i] = pde.u(x, y);
+        //     }
+        // }
+        // rootPatch.vectorG() = dirichletData;
+        // HPS.solveStage(boundaryData, boundaryTypes);
     }
 
     // HPS.solveStage([&](EllipticForest::FISHPACK::FISHPACKPatch& rootPatch){
@@ -545,26 +643,35 @@ int main(int argc, char** argv) {
     // app.options.setOption("refinement-threshold", 0.1);
     // PolarStarPoissonProblem pde(
     //     2,              // Number of polar stars
-    //     {-0.5, 0.5},    // x0
-    //     {-0.5, 0.5},    // y0
-    //     {0.1, 0.2},     // r0
-    //     {0.1, 0.2},     // r1
-    //     {4, 7},         // n
-    //     0.01            // epsilon
+    //     {-0.5, 0.5, 0.5, -0.5},     // x0
+    //     {-0.5, -0.5, 0.5, 0.5},     // y0
+    //     {0.1, 0.2, 0.3, 0.4},       // r0
+    //     {0.2, 0.3, 0.4, 0.5},       // r1
+    //     {3, 4, 5, 8},               // n
+    //     0.001                       // epsilon
     // );
-    app.options.setOption("refinement-threshold", 1.0);
-    GaussianPoissonProblem pde(
-        0.2,            // x0
-        0.2,            // y0
-        10,              // sigma_x
-        40               // sigma_y
-    );
+    // app.options.setOption("refinement-threshold", 1.0);
+    // GaussianPoissonProblem pde(
+    //     0.2,            // x0
+    //     0.2,            // y0
+    //     10,              // sigma_x
+    //     40               // sigma_y
+    // );
+    app.options.setOption("refinement-threshold", 50.0);
+    EggCartonPoissonProblem pde{};
+
+    std::vector<EllipticForest::BoundaryConditionType> boundaryTypes = {
+        EllipticForest::Dirichlet,
+        EllipticForest::Dirichlet,
+        EllipticForest::Dirichlet,
+        EllipticForest::Dirichlet
+    };
 
     // Convergence parameters
-    // std::vector<int> patchSizeVector = {8, 16, 32, 64, 128};
-    // std::vector<int> levelVector {0, 1, 2, 3, 4};
-    std::vector<int> patchSizeVector = {4, 8, 16, 64};
-    std::vector<int> levelVector {0, 1, 3};
+    // std::vector<int> patchSizeVector = {8, 16, 32, 64, 128, 256, 512, 1024};
+    // std::vector<int> levelVector {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    std::vector<int> patchSizeVector = {8, 16, 32, 64};
+    std::vector<int> levelVector {1, 2, 3, 4};
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
@@ -578,7 +685,8 @@ int main(int argc, char** argv) {
     std::vector<ResultsData> resultsVector;
 
     // Run uniform parameter sweep
-    bool vtkFlag = false;
+    bool vtkFlag = true;
+    int maxResolution = pow(128, 2) * pow(2, 2*5); // About 16M DOFs
     for (auto& M : patchSizeVector) {
 
         PlotPair errorPair;
@@ -586,6 +694,13 @@ int main(int argc, char** argv) {
         PlotPair solvePair;
 
         for (auto& l : levelVector) {
+
+            app.log("UNIFORM: M = %i, l = %i", M, l);
+            int DOFs = pow(M, 2) * pow(2, 2*l);
+            if (DOFs >= maxResolution) {
+                app.log("Skipping...");
+                continue;
+            }
 
             // Set options
             app.options.setOption("min-level", l);
@@ -596,7 +711,7 @@ int main(int argc, char** argv) {
             // Solve via HPS
             if (M == 128 && l == 4) vtkFlag = true;
             else vtkFlag = false;
-            ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+            ResultsData results = solvePoissonViaHPS(pde, boundaryTypes, vtkFlag);
             int nDOFs = results.effective_resolution;
             double error = results.lI_error;
             resultsVector.push_back(results);
@@ -640,6 +755,13 @@ int main(int argc, char** argv) {
 
         for (auto& l : levelVector) {
 
+            app.log("ADAPTIVE: M = %i, l = %i", M, l);
+            int DOFs = pow(M, 2) * pow(2, 2*l);
+            if (DOFs >= maxResolution) {
+                app.log("Skipping...");
+                continue;
+            }
+
             // Set options
             app.options.setOption("min-level", 0);
             app.options.setOption("max-level", l);
@@ -649,7 +771,7 @@ int main(int argc, char** argv) {
             // Solve via HPS
             if (M == 128 && l == 4) vtkFlag = true;
             else vtkFlag = false;
-            ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+            ResultsData results = solvePoissonViaHPS(pde, boundaryTypes, vtkFlag);
             int nDOFs = results.effective_resolution;
             double error = results.lI_error;
             resultsVector.push_back(results);
