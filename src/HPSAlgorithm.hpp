@@ -283,7 +283,7 @@ public:
         app.addTimer("solve-stage");
         app.timers["solve-stage"].start();
 
-        // Set Dirichlet data on root
+        // Set up data for Dirichlet solve
         PatchType& rootPatch = quadtree.root();
         PatchGridType& rootGrid = rootPatch.grid();
         int M = rootGrid.nPointsX();
@@ -305,25 +305,8 @@ public:
             Vector<NumericalType>(M),
             Vector<NumericalType>(M)
         };
-        // std::vector<Vector<NumericalType>> gVectors = {
-        //     Vector<NumericalType>(M),
-        //     Vector<NumericalType>(M),
-        //     Vector<NumericalType>(M),
-        //     Vector<NumericalType>(M)
-        // };
-        // std::vector<Vector<NumericalType>> hVectors = {
-        //     rootPatch.vectorH().getSegment(0*M, M),
-        //     rootPatch.vectorH().getSegment(1*M, M),
-        //     rootPatch.vectorH().getSegment(2*M, M),
-        //     rootPatch.vectorH().getSegment(3*M, M)
-        // };
-        // std::vector<Matrix<NumericalType>> TMatrices = {
-        //     rootPatch.matrixT().getBlock(0*M, 0*M, M, M),
-        //     rootPatch.matrixT().getBlock(1*M, 1*M, M, M),
-        //     rootPatch.matrixT().getBlock(2*M, 2*M, M, M),
-        //     rootPatch.matrixT().getBlock(3*M, 3*M, M, M)
-        // };
 
+        // Populate boundary data vectors
         for (auto n = 0; n < 4; n++) {
             for (auto i = 0; i < M; i++) {
                 NumericalType x, y;
@@ -349,27 +332,16 @@ public:
                 aVectors[n][i] = a;
                 bVectors[n][i] = b;
             }
-
-            // Matrix<NumericalType> A = DiagonalMatrix<NumericalType>{aVectors[n]};
-            // Matrix<NumericalType> B = DiagonalMatrix<NumericalType>{bVectors[n]};
-            // B = B * TMatrices[n];
-            // A = A + B;
-
-            // Vector<NumericalType> bh(bVectors[n].size());
-            // for (auto i = 0; i < bh.size(); i++)
-            //     bh[i] = bVectors[n][i] * hVectors[n][i];
-            // Vector<NumericalType> rhs = rVectors[n] - bh;
-            
-            // gVectors[n] = solve(A, rhs);
         }
 
-        Vector<NumericalType>& g = rootPatch.vectorG();
+        // Solve for Dirichlet data : g = (a*I + b*I*T)^(-1) * (r - b*I*h)
         {
             Vector<NumericalType> r = concatenate(rVectors);
             Vector<NumericalType> a = concatenate(aVectors);
             Vector<NumericalType> b = concatenate(bVectors);
             Vector<NumericalType>& h = rootPatch.vectorH();
             Matrix<NumericalType>& T = rootPatch.matrixT();
+            Vector<NumericalType>& g = rootPatch.vectorG();
 
             Matrix<NumericalType> A = DiagonalMatrix<NumericalType>(a);
             Matrix<NumericalType> B = DiagonalMatrix<NumericalType>(b);
@@ -382,15 +354,12 @@ public:
             g = solve(A, rhs);
         }
 
-        // rootPatch.vectorG() = concatenate(gVectors);
-
-        // Set Dirichlet data on root patch
-        // boundaryDataFunction(quadtree.root());
-
+        // Apply solution matrix down tree
         quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
             split1to4(tau, alpha, beta, gamma, omega);
         });
 
+        // Solve for interior data via leaf solver
         quadtree.traversePreOrder([&](PatchType& patch){
             leafSolve(patch);
         });

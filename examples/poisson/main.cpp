@@ -444,40 +444,33 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, s
         // });
 
         HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-            switch (side)
-            {
-            case 0:
-                // West : Dirichlet
-                *a = 1.0;
-                *b = 0.0;
-                return pde.u(x,y);
-                break;
+            switch (side) {
+                case 0:
+                    // West : Dirichlet
+                    *a = 1.0;
+                    *b = 0.0;
+                    return pde.u(x,y);
 
-            case 1:
-                // East : Dirichlet
-                *a = 0.0;
-                *b = 1.0;
-                return pde.dudx(x,y);
-                break;
+                case 1:
+                    // East : Dirichlet
+                    *a = 1.0;
+                    *b = 0.0;
+                    return pde.u(x,y);
 
-            case 2:
-                // South : Neumann
-                *a = 0.0;
-                *b = 1.0;
-                return -pde.dudy(x,y);
-                // return pde.u(x,y);
-                break;
+                case 2:
+                    // South : Neumann
+                    *a = 0.0;
+                    *b = 1.0;
+                    return -pde.dudy(x,y);
 
-            case 3:
-                // North : Neumann
-                *a = 0.0;
-                *b = 1.0;
-                return pde.dudy(x,y);
-                // return pde.u(x,y);
-                break;
-            
-            default:
-                break;
+                case 3:
+                    // North : Neumann
+                    *a = 0.0;
+                    *b = 1.0;
+                    return pde.dudy(x,y);
+                
+                default:
+                    break;
             }
         });
 
