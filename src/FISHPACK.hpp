@@ -32,6 +32,7 @@ class FISHPACKProblem : public EllipticProblemBase<double> {
 public:
 
     FISHPACKProblem() {}
+    FISHPACKProblem(double lambda);
     void setU(std::function<double(double, double)> func) { u_ = func; }
     void setF(std::function<double(double, double)> func) { f_ = func; }
     void setDUDX(std::function<double(double, double)> func) { dudx_ = func; }
@@ -114,8 +115,7 @@ public:
     // FISHPACKProblem pde;
 
     FISHPACKFVSolver();
-
-    double lambda = 0;
+    FISHPACKFVSolver(double lambda);
 
     virtual std::string name();
     virtual Vector<double> solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);

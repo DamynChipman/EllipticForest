@@ -142,6 +142,8 @@ public:
 
     std::string name() override { return "egg-carton"; }
 
+    double lambda() { return 0.0; }
+
     double u(double x, double y) override {
         return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
     }

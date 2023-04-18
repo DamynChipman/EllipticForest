@@ -16,6 +16,12 @@ class PatchSolverBase {
 public:
 
     /**
+     * @brief Value of `lambda` for Helmholtz equations
+     * 
+     */
+    FloatingPointType lambda = 0;
+
+    /**
      * @brief Returns the name of the patch solver
      * 
      * @return std::string 

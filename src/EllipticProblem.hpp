@@ -8,6 +8,7 @@ class EllipticProblemBase {
 
 public:
 
+    virtual FloatingDataType lambda() = 0;
     virtual FloatingDataType u(FloatingDataType x, FloatingDataType y) = 0;
     virtual FloatingDataType f(FloatingDataType x, FloatingDataType y) = 0;
     virtual FloatingDataType dudx(FloatingDataType x, FloatingDataType y) = 0;
