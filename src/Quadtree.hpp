@@ -44,6 +44,14 @@ protected:
 
 	} quadtree_traversal_wrapper_t;
 
+	struct QuadtreeNode {
+		T& data;
+		int level;
+		int globalID;
+		int parentID;
+		std::vector<int> childrenIDs{4};
+	};
+
 public:
 
     Quadtree() :
@@ -64,6 +72,38 @@ public:
 	T& root() { return data_[0]; }
 	const T& root() const { return data_[0]; }
 	std::vector<T>& data() { return data_; }
+
+	QuadtreeNode getNode(int ID) {
+
+		QuadtreeNode node;
+		int i;
+
+		// Find node in global level array
+		bool breakLoop = false;
+		for (int l = 0; l < globalIndices_.size(); l++) {
+			for (int i = 0; i < globalIndices_[l].size(); i++) {
+				if (globalIndices_[l][i] == ID) {
+					// Node found, get data and return
+					node.level = l;
+					node.globalID = globalIndices_[l][i];
+					node.parentID = parentIndices_[l][i];
+					node.childrenIDs[0] = childIndices_[l][i];
+					if (node.childrenIDs[0] != -1) {
+						auto it = std::find(globalIndices_[l+1].begin(), globalIndices_[l+1].end(), node.childrenIDs[0]);
+						int c_idx = it - globalIndices_[l+1].begin();
+						node.childrenIDs[1] = globalIndices_[l+1][c_idx+1];
+						node.childrenIDs[2] = globalIndices_[l+1][c_idx+2];
+						node.childrenIDs[3] = globalIndices_[l+1][c_idx+3];
+					}
+					node.data = data_[node.globalID];
+					return node;
+				}
+			}
+		}
+
+		return;
+
+	}
 
 	/**
 	 * @brief User derived function for data initialization given the node's level and index
@@ -150,7 +190,139 @@ public:
 
 	}
 
-	// void refineNode()
+	void refineNode(int nodeID, std::function<std::vector<T>(T&)> parent2childrenFunction) {
+
+		// Get node information
+		QuadtreeNode node = getNode(nodeID);
+
+		// Create new fine nodes (children)
+		T& p = data_[node.parentID];
+		std::vector<T> newNodeData = parent2childrenFunction(p);
+
+		// Iterate through tree via level arrays and create new ones
+		LevelArray newGlobalIndices = globalIndices_;
+		LevelArray newParentIndices = parentIndices_;
+		LevelArray newChildIndices = childIndices_;
+		std::vector<T> newData(data_.size() + 4);
+		for (int l = 0; l < globalIndices_.size(); l++) {
+			for (int i = 0; i < globalIndices_[l].size(); i++) {
+				if (globalIndices_[l][i] > nodeID) {
+					// Unaffected node after node to be refined;
+
+					newGlobalIndices[l][i] = newGlobalIndices[l][i] + 4;
+					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i] - 4]);
+
+				}
+				else if (globalIndices_[l][i] == nodeID) {
+					// Node to be refined;
+
+					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i]]);
+
+					std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
+					std::vector<int> childrenPIDS(4, nodeID);
+					std::vector<int> childrenCIDS(4, -1);
+
+					if (l == globalIndices_.size()-1) {
+						// New level needs to be created
+						newGlobalIndices.push_back(childrenGIDS);
+						newParentIndices.push_back(childrenPIDS);
+						newChildIndices.push_back(childrenCIDS);
+					}
+					else {
+						// Nodes inserted before ones on same level
+						int nextLevelFirstChild = -1;
+						int j = 1;
+						while (nextLevelFirstChild == -1) {
+							nextLevelFirstChild = newChildIndices[l][i+j];
+							j++;
+						}
+						std::vector<int>::iterator iter = std::find(newGlobalIndices[l+1].begin(), newGlobalIndices[l+1].end(), nextLevelFirstChild);
+						newGlobalIndices[l+1].insert(iter, childrenGIDS.begin(), childrenGIDS.end());
+						newParentIndices[l+1].insert(iter, childrenPIDS.begin(), childrenPIDS.end());
+						newChildIndices[l+1].insert(iter, childrenCIDS.begin(), childrenCIDS.end());
+					}
+					
+					for (int j = 0; j < 4; j++) {
+						newData[newGlobalIndices[l+1][j]] = std::move(newNodeData[j]);
+					}
+				}
+				else {
+					// Unaffected node before node to be refined;
+
+					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i]]);
+				}
+			}
+		}
+
+		// Reset quadtree data
+		globalIndices_ = newGlobalIndices;
+		parentIndices_ = newParentIndices;
+		childIndices_ = newChildIndices;
+		data_ = newData;
+
+		return;
+
+	}
+
+	void coarsenNode(int nodeID, std::function<T(T&, T&, T&, T&)> children2parentFunction) {
+
+		// Get node information
+		QuadtreeNode node = getNode(nodeID);
+
+		// Create new coarse node (parent)
+		T& c0 = data_[node.childrenIDs[0]];
+		T& c1 = data_[node.childrenIDs[1]];
+		T& c2 = data_[node.childrenIDs[2]];
+		T& c3 = data_[node.childrenIDs[3]];
+		T newNodeData = children2parentFunction(c0, c1, c2, c3);
+
+		// Iterate through tree via level arrays and create new ones
+		LevelArray newGlobalIndices = globalIndices_;
+		LevelArray newParentIndices = parentIndices_;
+		LevelArray newChildIndices = childIndices_;
+		std::vector<T> newData(data_.size() - 4);
+		for (int l = 0; l < globalIndices_.size(); l++) {
+			for (int i = 0; i < globalIndices_[l].size(); i++) {
+				if (globalIndices_[l][i] == node.childrenIDs[0] || globalIndices_[l][i] == node.childrenIDs[1] || globalIndices_[l][i] == node.childrenIDs[2] || globalIndices_[l][i] == node.childrenIDs[3]) {
+					// Child node; erase from all level arrays
+
+					newGlobalIndices[l].erase(newGlobalIndices[l].begin() + i);
+					newParentIndices[l].erase(newParentIndices[l].begin() + i);
+					newChildIndices[l].erase(newChildIndices[l].begin() + i);
+
+				}
+				else if (globalIndices_[l][i] > nodeID) {
+					// Unaffected node after node to be coarsened; copy old node data to new data array after node to be coarsened
+
+					newGlobalIndices[l][i] = newGlobalIndices[l][i] - 4;
+					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i] + 4]);
+
+				}
+				else if (globalIndices_[l][i] == nodeID) {
+					// Node to be coarsened; remove child index and place new node data where old node data was
+
+					newChildIndices[l][i] = -1;
+					newData[newGlobalIndices[l][i]] = newNodeData;
+
+				}
+				else {
+					// Unaffected node before node to be coarsened; copy old node data to new data array at same location
+
+					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i]]);
+
+				}
+			}
+		}
+
+		// Reset quadtree data
+		globalIndices_ = newGlobalIndices;
+		parentIndices_ = newParentIndices;
+		childIndices_ = newChildIndices;
+		data_ = newData;
+
+		return;
+
+	}
 
 	friend std::ostream& operator<<(std::ostream& os, const Quadtree& quadtree) {
 
