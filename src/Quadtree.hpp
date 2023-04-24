@@ -47,6 +47,7 @@ protected:
 	struct QuadtreeNode {
 		T data;
 		int level;
+		int levelID;
 		int globalID;
 		int parentID;
 		std::vector<int> childrenIDs{4};
@@ -66,6 +67,13 @@ public:
 	
 	}
 
+	Quadtree(T root) :
+		p4est_(nullptr) {
+
+		buildFromRoot(root);
+
+	}
+
 	LevelArray globalIndices() const { return globalIndices_; }
 	LevelArray parentIndices() const { return parentIndices_; }
 	LevelArray childIndices() const { return childIndices_; }
@@ -76,7 +84,6 @@ public:
 	QuadtreeNode getNode(int ID) {
 
 		QuadtreeNode node;
-		int i;
 
 		// Find node in global level array
 		bool breakLoop = false;
@@ -85,6 +92,7 @@ public:
 				if (globalIndices_[l][i] == ID) {
 					// Node found, get data and return
 					node.level = l;
+					node.levelID = i;
 					node.globalID = globalIndices_[l][i];
 					node.parentID = parentIndices_[l][i];
 					node.childrenIDs[0] = childIndices_[l][i];
@@ -214,7 +222,7 @@ public:
 		T& p = data_[node.globalID];
 		std::vector<T> newNodeData = parent2childrenFunction(p);
 
-		// Iterate through tree via level arrays and create new ones
+		// Iterate through tree via level arrays and update all nodes
 		LevelArray newGlobalIndices = globalIndices_;
 		LevelArray newParentIndices = parentIndices_;
 		LevelArray newChildIndices = childIndices_;
@@ -223,7 +231,6 @@ public:
 		bool nodeVisited = false;
 		for (int l = 0; l < globalIndices_.size(); l++) {
 			for (int i = 0; i < globalIndices_[l].size(); i++) {
-
 				if (globalIndices_[l][i] > nodeID) {
 					newGlobalIndices[l][i] = globalIndices_[l][i] + 4;
 				}
@@ -233,165 +240,49 @@ public:
 				if (childIndices_[l][i] > nodeID) {
 					newChildIndices[l][i] = childIndices_[l][i] + 4;
 				}
-				
 				if (globalIndices_[l][i] != nodeID) {
-					std::cout << "Old globalID = " << globalIndices_[l][i] << std::endl;
-					std::cout << "New globalID = " << newGlobalIndices[l][i] << std::endl;
 					newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
 				}
-
-				// if (globalIndices_[l][i] > nodeID) {
-				// 	// Unaffected node after node to be refined;
-
-				// 	if (l == node.level+1) {
-				// 		newGlobalIndices[l][i+shift] = globalIndices_[l][i] + 4;
-				// 		newParentIndices[l][i+shift] = parentIndices_[l][i] + 4;
-				// 		// newChildIndices[l][i+shift] = childIndices_[l][i] + 4;
-				// 		newData[newGlobalIndices[l][i]] = std::move(data_[globalIndices_[l][i]]);
-				// 	}
-				// 	else {
-				// 		newGlobalIndices[l][i] = globalIndices_[l][i] + 4;
-				// 		// newChildIndices[l][i] = childIndices_[l][i] + 4;
-				// 		// newParentIndices[l][i] = parentIndices_[l][i] + 4;
-				// 		newData[newGlobalIndices[l][i]] = std::move(data_[globalIndices_[l][i]]);
-				// 	}
-
-				// 	if (childIndices_[l][i] != -1) {
-				// 		newChildIndices[l][i] = childIndices_[l][i] + 4;
-				// 	}
-
-				// 	// newParentIndices[l][i] = parentIndices_[l][i] + 4;
-
-				// }
-				// else if (globalIndices_[l][i] == nodeID) {
-				// 	// Node to be refined;
-
-				// 	newChildIndices[l][i] = nodeID + 1;
-				// 	newData[newGlobalIndices[l][i]] = std::move(data_[globalIndices_[l][i]]);
-
-					
-
-				// 	if (l == globalIndices_.size()-1) {
-				// 		// New level needs to be created
-				// 		std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
-				// 		std::vector<int> childrenPIDS(4, nodeID);
-				// 		std::vector<int> childrenCIDS(4, -1);
-
-				// 		newGlobalIndices.push_back(childrenGIDS);
-				// 		newParentIndices.push_back(childrenPIDS);
-				// 		newChildIndices.push_back(childrenCIDS);
-				// 	}
-				// 	else {
-				// 		// Nodes inserted before ones on same level
-				// 		int nextLevelFirstChildID = -1;
-				// 		int j = 1;
-				// 		while (nextLevelFirstChildID == -1) {
-				// 			nextLevelFirstChildID = newChildIndices[l][i+j];
-				// 			j++;
-				// 		}
-				// 		QuadtreeNode nextLevelFirstChildNode = getNode(nextLevelFirstChildID);
-
-				// 		std::vector<int>::iterator iterG = std::find(newGlobalIndices[l+1].begin(), newGlobalIndices[l+1].end(), nextLevelFirstChildNode.globalID);
-				// 		std::vector<int>::iterator iterP = std::find(newParentIndices[l+1].begin(), newParentIndices[l+1].end(), nextLevelFirstChildNode.parentID);
-				// 		std::vector<int>::iterator iterC = std::find(newChildIndices[l+1].begin(), newChildIndices[l+1].end(), nextLevelFirstChildNode.childrenIDs[0]);
-
-				// 		std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
-				// 		std::vector<int> childrenPIDS(4, nodeID);
-				// 		std::vector<int> childrenCIDS(4, -1);
-						
-				// 		newGlobalIndices[l+1].insert(iterG, childrenGIDS.begin(), childrenGIDS.end());
-				// 		newParentIndices[l+1].insert(iterP, childrenPIDS.begin(), childrenPIDS.end());
-				// 		newChildIndices[l+1].insert(iterC, childrenCIDS.begin(), childrenCIDS.end());
-
-				// 		shift = 4;
-				// 	}
-					
-				// 	for (int j = 0; j < 4; j++) {
-				// 		newData[newGlobalIndices[l+1][j]] = std::move(newNodeData[j]);
-				// 	}
-
-				// }
-				// else {
-				// 	// Unaffected node before node to be refined;
-
-				// 	newData[newGlobalIndices[l][i]] = std::move(data_[globalIndices_[l][i]]);
-				// }
-
-				// std::cout << "===================================" << std::endl;
-				// std::cout << "L = " << l << ", i = " << i << std::endl;
-				// std::cout << "Global Indices:" << std::endl;
-				// for (auto ll : newGlobalIndices) {
-				// 	for (auto ii : ll) {
-				// 		std::cout << ii << ", ";
-				// 	}
-				// 	std::cout << std::endl;
-				// }
-				// std::cout << "Parent Indices:" << std::endl;
-				// for (auto ll : newParentIndices) {
-				// 	for (auto ii : ll) {
-				// 		std::cout << ii << ", ";
-				// 	}
-				// 	std::cout << std::endl;
-				// }
-				// std::cout << "Child Indices:" << std::endl;
-				// for (auto ll : newChildIndices) {
-				// 	for (auto ii : ll) {
-				// 		std::cout << ii << ", ";
-				// 	}
-				// 	std::cout << std::endl;
-				// }
-				// std::cout << "===================================" << std::endl;
 			}
 		}
 
-		for (int l = 0; l < globalIndices_.size(); l++) {
-			for (int i = 0; i < globalIndices_[l].size(); i++) {
-				if (globalIndices_[l][i] == nodeID) {
+		// Insert new nodes and data into tree
+		int l = node.level;
+		int i = node.levelID;
+		newChildIndices[l][i] = nodeID + 1;
+					
+		std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
+		std::vector<int> childrenPIDS(4, nodeID);
+		std::vector<int> childrenCIDS(4, -1);
 
-					newChildIndices[l][i] = nodeID + 1;
-
-					if (l == globalIndices_.size()-1) {
-						// New level needs to be created
-						std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
-						std::vector<int> childrenPIDS(4, nodeID);
-						std::vector<int> childrenCIDS(4, -1);
-
-						newGlobalIndices.push_back(childrenGIDS);
-						newParentIndices.push_back(childrenPIDS);
-						newChildIndices.push_back(childrenCIDS);
-					}
-					else {
-						// Nodes inserted before ones on same level
-						int nextLevelFirstChildID = -1;
-						int j = 1;
-						while (nextLevelFirstChildID == -1) {
-							nextLevelFirstChildID = childIndices_[l][i+j];
-							j++;
-						}
-						QuadtreeNode nextLevelFirstChildNode = getNode(nextLevelFirstChildID);
-
-						std::vector<int>::iterator iterG = std::find(newGlobalIndices[l+1].begin(), newGlobalIndices[l+1].end(), nextLevelFirstChildNode.globalID+4);
-						std::vector<int>::iterator iterP = std::find(newParentIndices[l+1].begin(), newParentIndices[l+1].end(), nextLevelFirstChildNode.parentID+4);
-						std::vector<int>::iterator iterC = std::find(newChildIndices[l+1].begin(), newChildIndices[l+1].end(), nextLevelFirstChildNode.childrenIDs[0]);
-
-						std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
-						std::vector<int> childrenPIDS(4, nodeID);
-						std::vector<int> childrenCIDS(4, -1);
-						
-						newGlobalIndices[l+1].insert(iterG, childrenGIDS.begin(), childrenGIDS.end());
-						newParentIndices[l+1].insert(iterP, childrenPIDS.begin(), childrenPIDS.end());
-						newChildIndices[l+1].insert(iterC, childrenCIDS.begin(), childrenCIDS.end());
-					}
-
-					printf("l = %i, i = %i, gOld = %i, gNew = %i\n", l, i, globalIndices_[l][i], newGlobalIndices[l][i]);
-					newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
-					for (int j = 0; j < 4; j++) {
-						newData[nodeID + j + 1] = newNodeData[j];
-					}
-
-					// newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
-				}
+		if (l == globalIndices_.size()-1) {
+			// New level needs to be created
+			newGlobalIndices.push_back(childrenGIDS);
+			newParentIndices.push_back(childrenPIDS);
+			newChildIndices.push_back(childrenCIDS);
+		}
+		else {
+			// Nodes inserted before ones on same level
+			int nextLevelFirstChildID = -1;
+			int j = 1;
+			while (nextLevelFirstChildID == -1) {
+				nextLevelFirstChildID = childIndices_[l][i+j];
+				j++;
 			}
+			QuadtreeNode nextLevelFirstChildNode = getNode(nextLevelFirstChildID);
+
+			std::vector<int>::iterator iterG = std::find(newGlobalIndices[l+1].begin(), newGlobalIndices[l+1].end(), nextLevelFirstChildNode.globalID+4);
+			std::vector<int>::iterator iterP = std::find(newParentIndices[l+1].begin(), newParentIndices[l+1].end(), nextLevelFirstChildNode.parentID+4);
+			std::vector<int>::iterator iterC = std::find(newChildIndices[l+1].begin(), newChildIndices[l+1].end(), nextLevelFirstChildNode.childrenIDs[0]);
+			
+			newGlobalIndices[l+1].insert(iterG, childrenGIDS.begin(), childrenGIDS.end());
+			newParentIndices[l+1].insert(iterP, childrenPIDS.begin(), childrenPIDS.end());
+			newChildIndices[l+1].insert(iterC, childrenCIDS.begin(), childrenCIDS.end());
+		}
+
+		newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
+		for (int j = 0; j < 4; j++) {
+			newData[nodeID + j + 1] = newNodeData[j];
 		}
 
 		// Reset quadtree data
@@ -408,6 +299,7 @@ public:
 
 		// Get node information
 		QuadtreeNode node = getNode(nodeID);
+		QuadtreeNode firstChildNode = getNode(node.childrenIDs[0]);
 
 		// Create new coarse node (parent)
 		T& c0 = data_[node.childrenIDs[0]];
@@ -416,6 +308,13 @@ public:
 		T& c3 = data_[node.childrenIDs[3]];
 		T newNodeData = children2parentFunction(c0, c1, c2, c3);
 
+		// Erase child nodes from level arrays
+		int l = firstChildNode.level;
+		int i = firstChildNode.levelID;
+		globalIndices_[l].erase(globalIndices_[l].begin() + i, globalIndices_[l].begin() + i + 4);
+		parentIndices_[l].erase(parentIndices_[l].begin() + i, parentIndices_[l].begin() + i + 4);
+		childIndices_[l].erase(childIndices_[l].begin() + i, childIndices_[l].begin() + i + 4);
+
 		// Iterate through tree via level arrays and create new ones
 		LevelArray newGlobalIndices = globalIndices_;
 		LevelArray newParentIndices = parentIndices_;
@@ -423,33 +322,21 @@ public:
 		std::vector<T> newData(data_.size() - 4);
 		for (int l = 0; l < globalIndices_.size(); l++) {
 			for (int i = 0; i < globalIndices_[l].size(); i++) {
-				if (globalIndices_[l][i] == node.childrenIDs[0] || globalIndices_[l][i] == node.childrenIDs[1] || globalIndices_[l][i] == node.childrenIDs[2] || globalIndices_[l][i] == node.childrenIDs[3]) {
-					// Child node; erase from all level arrays
-
-					newGlobalIndices[l].erase(newGlobalIndices[l].begin() + i);
-					newParentIndices[l].erase(newParentIndices[l].begin() + i);
-					newChildIndices[l].erase(newChildIndices[l].begin() + i);
-
+				if (globalIndices_[l][i] > nodeID) {
+					newGlobalIndices[l][i] = globalIndices_[l][i] - 4;
 				}
-				else if (globalIndices_[l][i] > nodeID) {
-					// Unaffected node after node to be coarsened; copy old node data to new data array after node to be coarsened
-
-					newGlobalIndices[l][i] = newGlobalIndices[l][i] - 4;
-					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i] + 4]);
-
+				if (parentIndices_[l][i] > nodeID) {
+					newParentIndices[l][i] = parentIndices_[l][i] - 4;
 				}
-				else if (globalIndices_[l][i] == nodeID) {
-					// Node to be coarsened; remove child index and place new node data where old node data was
-
-					newChildIndices[l][i] = -1;
-					newData[newGlobalIndices[l][i]] = newNodeData;
-
+				if (childIndices_[l][i] > nodeID) {
+					newChildIndices[l][i] = childIndices_[l][i] - 4;
+				}
+				if (globalIndices_[l][i] != nodeID) {
+					newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
 				}
 				else {
-					// Unaffected node before node to be coarsened; copy old node data to new data array at same location
-
-					newData[newGlobalIndices[l][i]] = std::move(data_[newGlobalIndices[l][i]]);
-
+					newChildIndices[l][i] = -1;
+					newData[newGlobalIndices[l][i]] = newNodeData;
 				}
 			}
 		}
