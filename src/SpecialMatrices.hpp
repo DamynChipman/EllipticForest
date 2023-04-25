@@ -6,6 +6,38 @@
 namespace EllipticForest {
 
 template<typename NumericalType>
+class IdentityMatrix : public Matrix<NumericalType> {
+
+public:
+
+    IdentityMatrix(std::size_t N) :
+        Matrix<NumericalType>(N, N, 0) {
+
+        for (auto i = 0; i < N; i++) {
+            this->operator()(i,i) = 1;
+        }
+
+    }
+
+};
+
+template<typename NumericalType>
+class DiagonalMatrix : public Matrix<NumericalType> {
+
+public:
+
+    DiagonalMatrix(Vector<NumericalType> diag) :
+        Matrix<NumericalType>(diag.size(), diag.size(), 0) {
+
+        for (auto i = 0; i < diag.size(); i++) {
+            this->operator()(i, i) = diag[i];
+        }
+
+    }
+
+};
+
+template<typename NumericalType>
 class InterpolationMatrixFine2Coarse : public Matrix<NumericalType> {
 
 public:

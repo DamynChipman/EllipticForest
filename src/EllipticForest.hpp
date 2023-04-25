@@ -2,7 +2,6 @@
 #define ELLIPTIC_FOREST_HPP_
 
 #include "DataCache.hpp"
-#include "EllipticForest.hpp"
 #include "EllipticForestApp.hpp"
 #include "EllipticProblem.hpp"
 #include "FISHPACK.hpp"

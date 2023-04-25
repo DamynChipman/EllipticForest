@@ -31,9 +31,15 @@ target_link_directories(EllipticForest PUBLIC
     ${EXTERNAL_PKGS_LIB}
 )
 
-target_link_libraries(EllipticForest PUBLIC
-    fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas
-)
+if(WITH_PETSC)
+    target_link_libraries(EllipticForest PUBLIC
+        fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas z
+    )
+else()
+    target_link_libraries(EllipticForest PUBLIC
+        fishpack90 sc p4est ${PYTHON_VERSION} lapack blas z
+    )
+endif()
 
 install(FILES
     DataCache.hpp

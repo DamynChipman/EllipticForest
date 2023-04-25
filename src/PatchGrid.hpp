@@ -3,6 +3,11 @@
 
 #include <string>
 
+#if USE_MATPLOTLIBCPP
+#include <matplotlibcpp.h>
+namespace plt = matplotlibcpp;
+#endif
+
 namespace EllipticForest {
 
 #define XDIM 0
@@ -84,6 +89,46 @@ public:
      * @return FloatingPointType 
      */
     virtual FloatingPointType operator()(std::size_t DIM, std::size_t index) = 0;
+
+#if USE_MATPLOTLIBCPP
+    void plot(std::string name = "", bool plotBox = true, bool plotPoints = true, bool plotEdges = true, bool plotName = true, std::string edgeColor = "b", std::string pointColor = "r") {
+
+        std::vector<double> xPoints(nPointsX());
+        for (auto i = 0; i < nPointsX(); i++) {
+            xPoints[i] = operator()(XDIM, i);
+        }
+
+        std::vector<double> yPoints(nPointsY());
+        for (auto j = 0; j < nPointsY(); j++) {
+            yPoints[j] = operator()(YDIM, j);
+        }
+
+        if (plotBox) {
+            std::vector<double> xCornerCoords = { xLower(), xUpper(), xUpper(), xLower(), xLower() };
+            std::vector<double> yCornerCoords = { yLower(), yLower(), yUpper(), yUpper(), yLower() };
+            plt::plot(xCornerCoords, yCornerCoords, "-k");
+        }
+
+        if (plotEdges) {
+            plt::plot(std::vector(nPointsY(), xLower()), yPoints, "." + edgeColor);
+            plt::plot(std::vector(nPointsY(), xUpper()), yPoints, "." + edgeColor);
+            plt::plot(xPoints, std::vector(nPointsX(), yLower()), "." + edgeColor);
+            plt::plot(xPoints, std::vector(nPointsX(), yUpper()), "." + edgeColor);
+        }
+
+        if (plotPoints) {
+            for (auto j = 0; j < nPointsY(); j++) {
+                std::vector<double> yLine(nPointsX(), yPoints[j]);
+                plt::plot(xPoints, yLine, "." + pointColor);
+            }
+        }
+
+        if (plotName) {
+            plt::text((xLower() + xUpper()) / 2, (yLower() + yUpper()) / 2, name);
+        }
+
+    }
+#endif
 
 };
 

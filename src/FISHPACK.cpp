@@ -106,6 +106,10 @@ std::string FISHPACKFVGrid::getExtent() {
 
 FISHPACKFVSolver::FISHPACKFVSolver() {}
 
+FISHPACKFVSolver::FISHPACKFVSolver(double lambda) {
+    this->lambda = lambda;
+}
+
 std::string FISHPACKFVSolver::name() {
     return "FISHPACK90Solver";
 }
@@ -140,25 +144,28 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 	int NBDCND = 1;
 	double* BDC = gSouth.dataPointer();
 	double* BDD = gNorth.dataPointer();
-	double ELMBDA = 0; // @TODO: Implement or get lambda value
+	double ELMBDA = this->lambda; // @TODO: Implement or get lambda value
 	double* F = fT.dataPointer();
     // double* F = rhsData.dataPointer();
 	int IDIMF = M;
 	double PERTRB;
 	int IERROR;
-	int WSIZE = 13*M + 4*N + M*((int)log2(N));
-	double* W = (double*) malloc(WSIZE*sizeof(double));
+	// int WSIZE = 13*M + 4*N + M*((int)log2(N));
+	// double* W = (double*) malloc(WSIZE*sizeof(double));
 
 	// Make FORTRAN call to FISHPACK
-	hstcrtt_(&A, &B, &M, &MBDCND, BDA, BDB,
-			&C, &D, &N, &NBDCND, BDC, BDD,
-			&ELMBDA, F, &IDIMF, &PERTRB, &IERROR, W);
-    // hstcrt_(&A, &B, &M, &MBDCND, BDA, BDB,
+	// hstcrtt_(&A, &B, &M, &MBDCND, BDA, BDB,
 	// 		&C, &D, &N, &NBDCND, BDC, BDD,
-	// 		&ELMBDA, F, &IDIMF, &PERTRB, &IERROR);
-	// if (IERROR) {
-	// 	std::cerr << "[EllipticForest::FISHPACK::FISHPACKFVSolver::solve] WARNING: call to hstcrt_ returned non-zero error value: IERROR = " << IERROR << std::endl;
-	// }
+	// 		&ELMBDA, F, &IDIMF, &PERTRB, &IERROR, W);
+    hstcrt_(&A, &B, &M, &MBDCND, BDA, BDB,
+			&C, &D, &N, &NBDCND, BDC, BDD,
+			&ELMBDA, F, &IDIMF, &PERTRB, &IERROR);
+	if (IERROR != 0 && IERROR != 6) {
+		std::cerr << "[EllipticForest::FISHPACK::FISHPACKFVSolver::solve] WARNING: call to hstcrt_ returned non-zero error value: IERROR = " << IERROR << std::endl;
+	}
+    if (fabs(PERTRB) > 1e-8) {
+        std::cerr << "[EllipticForest::FISHPACK::FISHPACKFVSolver::solve] WARNING: PERTRB value from FISHPACK is non-zero: PERTRB = " << PERTRB << std::endl;
+    }
 
 	// Move FISHPACK solution into Vector for output
 	Vector<double> solution(grid.nPointsX() * grid.nPointsY());
@@ -169,7 +176,7 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 		}
 	}
 
-    free(W);
+    // free(W);
 
 	return solution; // return rhsData;
 

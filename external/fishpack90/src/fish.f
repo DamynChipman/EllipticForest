@@ -55,10 +55,12 @@ C
 	INTEGER, INTENT(INOUT) :: ierror
 	INTEGER :: istatus
 !       first deallocate to avoid memory leakage
-#ifdef __DEALLOC__
- 	if(associated(wsave%rew))DEALLOCATE(wsave%rew)
- 	if(associated(wsave%cxw))DEALLOCATE(wsave%cxw)
-#endif
+! #ifdef __DEALLOC__
+! FOR SOME REASON, THIS IS ATTEMPTING TO DEALLOCATE NON-ALLOCATED MEMORY
+! COMMENTED OUT - DAMYN
+!  	if(associated(wsave%rew))DEALLOCATE(wsave%rew)
+!  	if(associated(wsave%cxw))DEALLOCATE(wsave%cxw)
+! #endif
 !       allocate irwk words of real work space
 	if (irwk > 0) then
 	     ALLOCATE(wsave%rew(irwk),STAT = istatus)

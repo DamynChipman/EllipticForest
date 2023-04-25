@@ -11,6 +11,11 @@
 
 namespace EllipticForest {
 
+/**
+ * @brief Data structure for a full quadtree with adaptivity features
+ * 
+ * @tparam T Datatype of each node
+ */
 template<typename T>
 class Quadtree {
 
@@ -20,13 +25,40 @@ public:
 
 protected:
 
+	/**
+	 * @brief Storage for p4est data structure
+	 * 
+	 */
 	p4est_t* p4est_;
-    LevelArray globalIndices_{};
-    LevelArray parentIndices_{};
-    LevelArray childIndices_{};
-    std::vector<T> data_{};
-    // std::function<T(std::size_t, std::size_t)> initializationFunction_;
 
+	/**
+	 * @brief LevelArray with global IDs
+	 * 
+	 */
+    LevelArray globalIndices_{};
+
+	/**
+	 * @brief LevelArray with parent IDs
+	 * 
+	 */
+    LevelArray parentIndices_{};
+
+	/**
+	 * @brief LevelArray with first child IDs
+	 * 
+	 */
+    LevelArray childIndices_{};
+
+	/**
+	 * @brief Storage for node data
+	 * 
+	 */
+    std::vector<T> data_{};
+
+	/**
+	 * @brief Wrapper of quadtree data for passing to p4est functions
+	 * 
+	 */
     typedef struct quadtree_data_wrapper {
 
 		LevelArray* g;
@@ -37,12 +69,29 @@ protected:
 
 	} quadtree_data_wrapper_t;
 
+	/**
+	 * @brief Wrapper of node and visit function for passing to p4est functions
+	 * 
+	 */
     typedef struct quadtree_traversal_wrapper {
 
 		std::function<void(T&)> visit;
 		T& data;
 
 	} quadtree_traversal_wrapper_t;
+
+	/**
+	 * @brief Capsulated data structure for returning a node's information
+	 * 
+	 */
+	struct QuadtreeNode {
+		T data;
+		int level;
+		int levelID;
+		int globalID;
+		int parentID;
+		std::vector<int> childrenIDs{4};
+	};
 
 public:
 
@@ -51,12 +100,8 @@ public:
 			{}
 	
 	Quadtree(p4est_t* p4est) :
-		p4est_(p4est) {
-
-		// buildLevelArrays_();
-		// buildData_();
-	
-	}
+		p4est_(p4est) 
+			{}
 
 	LevelArray globalIndices() const { return globalIndices_; }
 	LevelArray parentIndices() const { return parentIndices_; }
@@ -66,33 +111,104 @@ public:
 	std::vector<T>& data() { return data_; }
 
 	/**
-	 * @brief User derived function for data initialization given the node's level and index
+	 * @brief Utility function that gets node data given the global ID
 	 * 
-	 * @param parentData Node's parent data
-	 * @param level Node's level in tree
-	 * @param index Node's index in level
-	 * @return T A newly constructed node data
+	 * Iterates over the entire tree until the node is found; non-optimal performance
+	 * 
+	 * @param ID Global ID of desired node
+	 * @return QuadtreeNode 
 	 */
-	// virtual T initData(T& parentData, std::size_t level, std::size_t index) = 0;
-	// virtual void toVTK(std::string filename) = 0;
+	QuadtreeNode getNode(int ID) {
 
-	void build(T rootData, std::function<T(T& parentNode, std::size_t childIndex)> initDataFunction) {
+		QuadtreeNode node;
+
+		// Find node in global level array
+		bool breakLoop = false;
+		for (int l = 0; l < globalIndices_.size(); l++) {
+			for (int i = 0; i < globalIndices_[l].size(); i++) {
+				if (globalIndices_[l][i] == ID) {
+					// Node found, get data and return
+					node.level = l;
+					node.levelID = i;
+					node.globalID = globalIndices_[l][i];
+					node.parentID = parentIndices_[l][i];
+					node.childrenIDs[0] = childIndices_[l][i];
+					if (node.childrenIDs[0] != -1) {
+						auto it = std::find(globalIndices_[l+1].begin(), globalIndices_[l+1].end(), node.childrenIDs[0]);
+						int c_idx = it - globalIndices_[l+1].begin();
+						node.childrenIDs[1] = globalIndices_[l+1][c_idx+1];
+						node.childrenIDs[2] = globalIndices_[l+1][c_idx+2];
+						node.childrenIDs[3] = globalIndices_[l+1][c_idx+3];
+					}
+					node.data = data_[node.globalID];
+					return node;
+				}
+			}
+		}
+
+	}
+
+	/**
+	 * @brief Builds the quadtree from a p4est data structure
+	 * 
+	 * @param p4est p4est instance
+	 * @param rootData Copy of root data
+	 * @param initDataFunction Function that initializes a child node from a parent and the child index [0..3]
+	 */
+	void buildFromP4est(p4est_t* p4est, T rootData, std::function<T(T& parentNode, int childIndex)> initDataFunction) {
+		p4est_ = p4est;
 		buildLevelArrays_();
 		buildData_(rootData, initDataFunction);
 	}
 
+	/**
+	 * @brief Builds the quadtree from the root data; quadtree can be refined and coarsened using `refineNode` and `coarsenNode`
+	 * 
+	 * @sa refineNode
+	 * @sa coarsenNode
+	 * 
+	 * @param rootData Copy of root data 
+	 */
+	void buildFromRoot(T rootData) {
+		data_.push_back(rootData);
+		globalIndices_.push_back({0});
+		parentIndices_.push_back({-1});
+		childIndices_.push_back({-1});
+	}
+
+	/**
+	 * @brief Traverses the quadtree in pre-order fashion
+	 * 
+	 * @param visit Function that is called during pre-order traversal with reference to node data
+	 */
 	void traversePreOrder(std::function<void(T&)> visit) {
 
 		for (auto& d : data_) visit(d);
 
 	}
 
+	/**
+	 * @brief Traverses the quadtree in post-order fashion
+	 * 
+	 * @param visit Function that is called during post-order traversal with reference to node data
+	 */
 	void traversePostOrder(std::function<void(T&)> visit) {
 
 		_traversePostOrder(visit, 0, 0);
 
 	}
 
+	/**
+	 * @brief Does the merge algorithm detailed in reference paper
+	 * 
+	 * Starting at the lowest level, calls the `visit` function for the parent and children, and
+	 * iterates up the tree, similar to a post-order traversal
+	 * 
+	 * The `visit` function is called with the following data order:
+	 * 		visit(parentData, child0Data, child1Data, child2Data, child3Data)
+	 * 
+	 * @param visit Function that is called for parent and child data with references to parent and child data
+	 */
 	void merge(std::function<void(T&, T&, T&, T&, T&)> visit) {
 
 		for (int l = globalIndices_.size()-1; l > 0; l--) {
@@ -122,6 +238,17 @@ public:
 
 	}
 
+	/**
+	 * @brief Does the split algorithm detailed in reference paper
+	 * 
+	 * Starting at the root, calls the `visit` function for the parent and children, and
+	 * iteraters down the tree, similiar to a pre-order traversal
+	 * 
+	 * The `visit` function is called with the following data order:
+	 * 		visit(parentData, child0Data, child1Data, child2Data, child3Data)
+	 * 
+	 * @param visit Function that is called for parent and child data with references to parent and child data
+	 */
 	void split(std::function<void(T&, T&, T&, T&, T&)> visit) {
 
 		for (int l = 0; l < globalIndices_.size(); l++) {
@@ -150,34 +277,197 @@ public:
 
 	}
 
+	/**
+	 * @brief Refines a given node, creating four children
+	 * 
+	 * @param nodeID Global node ID of node to refine
+	 * @param parent2childrenFunction Function that creates four children data from parent data
+	 */
+	void refineNode(int nodeID, std::function<std::vector<T>(T&)> parent2childrenFunction) {
+
+		// Get node information
+		QuadtreeNode node = getNode(nodeID);
+
+		if (node.childrenIDs[0] != -1) {
+			return;
+		}
+
+		// Create new fine nodes (children)
+		T& p = data_[node.globalID];
+		std::vector<T> newNodeData = parent2childrenFunction(p);
+
+		// Iterate through tree via level arrays and update all nodes
+		LevelArray newGlobalIndices = globalIndices_;
+		LevelArray newParentIndices = parentIndices_;
+		LevelArray newChildIndices = childIndices_;
+		std::vector<T> newData(data_.size() + 4);
+		int shift = 0;
+		bool nodeVisited = false;
+		for (int l = 0; l < globalIndices_.size(); l++) {
+			for (int i = 0; i < globalIndices_[l].size(); i++) {
+				if (globalIndices_[l][i] > nodeID) {
+					newGlobalIndices[l][i] = globalIndices_[l][i] + 4;
+				}
+				if (parentIndices_[l][i] > nodeID) {
+					newParentIndices[l][i] = parentIndices_[l][i] + 4;
+				}
+				if (childIndices_[l][i] > nodeID) {
+					newChildIndices[l][i] = childIndices_[l][i] + 4;
+				}
+				if (globalIndices_[l][i] != nodeID) {
+					newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
+				}
+			}
+		}
+
+		// Insert new nodes and data into tree
+		int l = node.level;
+		int i = node.levelID;
+		newChildIndices[l][i] = nodeID + 1;
+					
+		std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
+		std::vector<int> childrenPIDS(4, nodeID);
+		std::vector<int> childrenCIDS(4, -1);
+
+		if (l == globalIndices_.size()-1) {
+			// New level needs to be created
+			newGlobalIndices.push_back(childrenGIDS);
+			newParentIndices.push_back(childrenPIDS);
+			newChildIndices.push_back(childrenCIDS);
+		}
+		else {
+			// Nodes inserted before ones on same level
+			int nextLevelFirstChildID = -1;
+			int j = 1;
+			while (nextLevelFirstChildID == -1) {
+				nextLevelFirstChildID = childIndices_[l][i+j];
+				j++;
+			}
+			QuadtreeNode nextLevelFirstChildNode = getNode(nextLevelFirstChildID);
+
+			std::vector<int>::iterator iterG = std::find(newGlobalIndices[l+1].begin(), newGlobalIndices[l+1].end(), nextLevelFirstChildNode.globalID+4);
+			std::vector<int>::iterator iterP = std::find(newParentIndices[l+1].begin(), newParentIndices[l+1].end(), nextLevelFirstChildNode.parentID+4);
+			std::vector<int>::iterator iterC = std::find(newChildIndices[l+1].begin(), newChildIndices[l+1].end(), nextLevelFirstChildNode.childrenIDs[0]);
+			
+			newGlobalIndices[l+1].insert(iterG, childrenGIDS.begin(), childrenGIDS.end());
+			newParentIndices[l+1].insert(iterP, childrenPIDS.begin(), childrenPIDS.end());
+			newChildIndices[l+1].insert(iterC, childrenCIDS.begin(), childrenCIDS.end());
+		}
+
+		newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
+		for (int j = 0; j < 4; j++) {
+			newData[nodeID + j + 1] = newNodeData[j];
+		}
+
+		// Reset quadtree data
+		globalIndices_ = newGlobalIndices;
+		parentIndices_ = newParentIndices;
+		childIndices_ = newChildIndices;
+		data_ = newData;
+
+		return;
+
+	}
+
+	/**
+	 * @brief Coarsens a given node, deleting the children
+	 * 
+	 * @param nodeID Global node ID of node to coarsen
+	 * @param children2parentFunction Function that creates parent data given the four children data
+	 */
+	void coarsenNode(int nodeID, std::function<T(T&, T&, T&, T&)> children2parentFunction) {
+
+		// Get node information
+		QuadtreeNode node = getNode(nodeID);
+		QuadtreeNode firstChildNode = getNode(node.childrenIDs[0]);
+
+		// Create new coarse node (parent)
+		T& c0 = data_[node.childrenIDs[0]];
+		T& c1 = data_[node.childrenIDs[1]];
+		T& c2 = data_[node.childrenIDs[2]];
+		T& c3 = data_[node.childrenIDs[3]];
+		T newNodeData = children2parentFunction(c0, c1, c2, c3);
+
+		// Erase child nodes from level arrays
+		int l = firstChildNode.level;
+		int i = firstChildNode.levelID;
+		globalIndices_[l].erase(globalIndices_[l].begin() + i, globalIndices_[l].begin() + i + 4);
+		parentIndices_[l].erase(parentIndices_[l].begin() + i, parentIndices_[l].begin() + i + 4);
+		childIndices_[l].erase(childIndices_[l].begin() + i, childIndices_[l].begin() + i + 4);
+
+		// Iterate through tree via level arrays and create new ones
+		LevelArray newGlobalIndices = globalIndices_;
+		LevelArray newParentIndices = parentIndices_;
+		LevelArray newChildIndices = childIndices_;
+		std::vector<T> newData(data_.size() - 4);
+		for (int l = 0; l < globalIndices_.size(); l++) {
+			for (int i = 0; i < globalIndices_[l].size(); i++) {
+				if (globalIndices_[l][i] > nodeID) {
+					newGlobalIndices[l][i] = globalIndices_[l][i] - 4;
+				}
+				if (parentIndices_[l][i] > nodeID) {
+					newParentIndices[l][i] = parentIndices_[l][i] - 4;
+				}
+				if (childIndices_[l][i] > nodeID) {
+					newChildIndices[l][i] = childIndices_[l][i] - 4;
+				}
+				if (globalIndices_[l][i] != nodeID) {
+					newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
+				}
+				else {
+					newChildIndices[l][i] = -1;
+					newData[newGlobalIndices[l][i]] = newNodeData;
+				}
+			}
+		}
+
+		// Reset quadtree data
+		globalIndices_ = newGlobalIndices;
+		parentIndices_ = newParentIndices;
+		childIndices_ = newChildIndices;
+		data_ = newData;
+
+		return;
+
+	}
+
+	/**
+	 * @brief Outstream operator for Quadtree<T>
+	 * 
+	 * @param os ostream reference
+	 * @param quadtree Quadtree reference
+	 * @return std::ostream& 
+	 */
 	friend std::ostream& operator<<(std::ostream& os, const Quadtree& quadtree) {
 
+		const auto& G = quadtree.globalIndices();
+		const auto& P = quadtree.parentIndices();
+		const auto& C = quadtree.childIndices();
+
 		os << "Global Indices:" << std::endl;
-		for (auto& g : quadtree.globalIndices()) {
-			for (auto& i : g) {
-				os << i << ",  ";
+		for (int l = 0; l < G.size(); l++) {
+			os << "l = " << l << ": [";
+			for (int i = 0; i < G[l].size(); i++) {
+				os << G[l][i] << ", ";
 			}
-			os << std::endl;
+			os << "]\n";
 		}
-		os << std::endl;
-
 		os << "Parent Indices:" << std::endl;
-		for (auto& p : quadtree.parentIndices()) {
-			for (auto& i : p) {
-				os << i << ",  ";
+		for (int l = 0; l < P.size(); l++) {
+			os << "l = " << l << ": [";
+			for (int i = 0; i < P[l].size(); i++) {
+				os << P[l][i] << ", ";
 			}
-			os << std::endl;
+			os << "]\n";
 		}
-		os << std::endl;
-
 		os << "Child Indices:" << std::endl;
-		for (auto& c : quadtree.childIndices()) {
-			for (auto& i : c) {
-				os << i << ",  ";
+		for (int l = 0; l < C.size(); l++) {
+			os << "l = " << l << ": [";
+			for (int i = 0; i < C[l].size(); i++) {
+				os << C[l][i] << ", ";
 			}
-			os << std::endl;
+			os << "]\n";
 		}
-		os << std::endl;
 
 		return os;
 
@@ -185,6 +475,16 @@ public:
 
 protected:    
 
+	/**
+	 * @brief p4est callback function for the pre-visit callback
+	 * 
+	 * @param p4est p4est instance
+	 * @param which_tree Tree ID
+	 * @param quadrant p4est quadrant
+	 * @param local_num 
+	 * @param point 
+	 * @return int 
+	 */
     static int p4est_visit_pre(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
 		// Write code that checks which processors have `quadrant`
 		// p4est_comm_find_owner to find owner of lower left corner
@@ -219,6 +519,16 @@ protected:
 		return 1;
 	}
 
+	/**
+	 * @brief p4est callback function for the post-visit callback
+	 * 
+	 * @param p4est p4est instance
+	 * @param which_tree Tree ID
+	 * @param quadrant p4est quadrant
+	 * @param local_num 
+	 * @param point 
+	 * @return int 
+	 */
 	static int p4est_visit_post(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
 		
 		// Get access to level arrays
@@ -245,6 +555,10 @@ protected:
 
 private:
 
+	/**
+	 * @brief Bulds the level arrays
+	 * 
+	 */
     void buildLevelArrays_() {
         
         p4est_tree_t* p4est_tree = p4est_tree_array_index(p4est_->trees, 0); // TODO: What if this is part of a forest of trees?
@@ -284,6 +598,12 @@ private:
 
     }
 
+	/**
+	 * @brief Builds the data
+	 * 
+	 * @param rootData Reference of data at root of tree
+	 * @param initDataFunction Function that creates a child given the parent data and child index [0..3]
+	 */
     void buildData_(T& rootData, std::function<T(T& parentNode, std::size_t childIndex)> initDataFunction) {
 
 		// Count total number of nodes
@@ -315,6 +635,13 @@ private:
 
 	}
 
+	/**
+	 * @brief Recursive call to traverse post order
+	 * 
+	 * @param visit Visit function
+	 * @param level Level
+	 * @param idx Level index
+	 */
 	void _traversePostOrder(std::function<void(T&)> visit, int level, int idx) {
 		int gID = globalIndices_[level][idx];
 		int cID = childIndices_[level][idx];

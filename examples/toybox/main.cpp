@@ -3,75 +3,130 @@
 #include <utility>
 #include <string>
 
-#include <mpi.h>
+#include <PlotUtils.hpp>
+#include <P4est.hpp>
+#include <EllipticForestApp.hpp>
+#include <Quadtree.hpp>
 
 #include <EllipticForestApp.hpp>
 #include <P4est.hpp>
 #include <Quadtree.hpp>
 
+std::vector<double> refineFunction(double& parentData) {
+    std::vector<double> childrenData = {parentData/4.0, parentData/4.0, parentData/4.0, parentData/4.0};
+    return childrenData;
+}
+
+double coarsenFunction(double& c0, double& c1, double& c2, double& c3) {
+    return c0 + c1 + c2 + c3;
+}
+
 int main(int argc, char** argv) {
 
     MPI_Init(&argc, &argv);
     EllipticForest::EllipticForestApp app(&argc, &argv);
-    int myRank = -1;
-    int nRanks = -1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-    MPI_Comm_size(MPI_COMM_WORLD, &nRanks);
+    app.log("Hello, there!");
 
-    app.log("I am rank %i of %i", myRank, nRanks);
-
-    // Create p4est
-    int fillUniform = 0;
-    int refineRecursive = 1;
-    int minLevel = 0;
-    p4est_connectivity_t* conn = EllipticForest::p4est::p4est_connectivity_new_square_domain(-1, 1, -1, 1);
-    p4est_t* p4est = p4est_new_ext(MPI_COMM_WORLD, conn, 0, minLevel, fillUniform, 0, NULL, NULL);
-
-    p4est_refine(p4est, refineRecursive,
-    [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
-        if (quadrant->level >= 3) {
-            return 0;
-        }
-
-        // Get bounds of quadrant
-        double vxyz[3];
-        double xLower, xUpper, yLower, yUpper;
-        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x, quadrant->y, vxyz);
-        xLower = vxyz[0];
-        yLower = vxyz[1];
-
-        p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x + P4EST_QUADRANT_LEN(quadrant->level), quadrant->y + P4EST_QUADRANT_LEN(quadrant->level), vxyz);
-        xUpper = vxyz[0];
-        yUpper = vxyz[1];
-
-        // Refine if middle of domain
-        // Refine if -0.2 < x,y < 0.2
-        double xMiddle = (xLower + xUpper) / 2.0;
-        double yMiddle = (yLower + yUpper) / 2.0;
-        if (xMiddle > -0.6 && xMiddle < 0.6 && yMiddle > -0.6 && yMiddle < 0.6) {
-            return 1;
-        }
-        else {
-            return 0;
-        }
-    },
-    NULL);
-
-    // Balance the p4est
-    p4est_balance(p4est, P4EST_CONNECT_CORNER, NULL);
-
-    // Save mesh
-    // std::string filename = "toybox_mesh";
-    // p4est_vtk_write_file(p4est, NULL, filename.c_str());
-
-    EllipticForest::Quadtree<double> quadtree(p4est);
-    quadtree.build(2, [&](double& parentNode, std::size_t childIndex){
-        return parentNode*parentNode;
+    // Build quadtree
+    std::cout << "Creating quadtree..." << std::endl;
+    EllipticForest::Quadtree<double> quadtree{};
+    quadtree.buildFromRoot(10.0);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
     });
-    app.log("Printing quadtree...");
-    std::cout << quadtree << std::endl;
+    std::cout << std::endl << std::endl;
 
-    // MPI_Finalize();
+    std::cout << "Refining node 0..." << std::endl;
+    quadtree.refineNode(0, refineFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Refining node 3..." << std::endl;
+    quadtree.refineNode(3, refineFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Refining node 1..." << std::endl;
+    quadtree.refineNode(1, refineFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Refining node 10..." << std::endl;
+    quadtree.refineNode(10, refineFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Refining node 2..." << std::endl;
+    quadtree.refineNode(2, refineFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Coarsening node 14..." << std::endl;
+    quadtree.coarsenNode(14, coarsenFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Coarsening node 11..." << std::endl;
+    quadtree.coarsenNode(11, coarsenFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Coarsening node 2..." << std::endl;
+    quadtree.coarsenNode(2, coarsenFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Coarsening node 1..." << std::endl;
+    quadtree.coarsenNode(1, coarsenFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Coarsening node 0..." << std::endl;
+    quadtree.coarsenNode(0, coarsenFunction);
+    std::cout << quadtree;
+    std::cout << "Data: ";
+    quadtree.traversePreOrder([&](double& data){
+        std::cout << data << ", ";
+    });
+    std::cout << std::endl << std::endl;
 
     return EXIT_SUCCESS;
 }

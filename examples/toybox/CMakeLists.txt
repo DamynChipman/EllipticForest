@@ -11,3 +11,5 @@ target_include_directories(toybox PRIVATE
 target_link_libraries(toybox PUBLIC
     EllipticForest
 )
+
+configure_file(options.ini options.ini)
