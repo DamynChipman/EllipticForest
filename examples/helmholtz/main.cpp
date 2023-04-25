@@ -240,7 +240,7 @@ public:
  * @param vtkFlag Flag to output VTK files
  * @return ResultsData Data structure with results of solver
  */
-ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, bool vtkFlag) {
+ResultsData solveHelmholtzViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, bool vtkFlag) {
 
     // Get the options
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
@@ -308,7 +308,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Save initial mesh
     if (vtkFlag) {
-        std::string VTKFilename = "poisson_mesh_" + mode + "_" + pde.name();
+        std::string VTKFilename = "helmholtz_mesh_" + mode + "_" + pde.name();
         p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
     }
 
@@ -493,7 +493,7 @@ int main(int argc, char** argv) {
                 app.options.setOption("ny", M);
 
                 // Solve via HPS
-                ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+                ResultsData results = solveHelmholtzViaHPS(pde, vtkFlag);
                 int nDOFs = results.effective_resolution;
                 double error = results.lI_error;
                 resultsVector.push_back(results);
@@ -528,7 +528,7 @@ int main(int argc, char** argv) {
 
     // Write results to file
     std::ofstream csvFile;
-    csvFile.open("poisson_results.csv");
+    csvFile.open("helmholtz_results.csv");
     csvFile << ResultsData::headers() << std::endl;
     for (auto& results : resultsVector) {
         csvFile << results.csv() << std::endl;
@@ -552,9 +552,9 @@ int main(int argc, char** argv) {
     plt::xticks(xTicks, xTickLabels);
     plt::legend({{"loc", "upper right"}});
     plt::grid(true);
-    plt::save("plot_poisson_error_" + pde.name() + "_no_title.pdf");
+    plt::save("plot_helmholtz_error_" + pde.name() + "_no_title.pdf");
     plt::title("Convergence Study - Uniform vs. Adaptive Mesh");
-    plt::save("plot_poisson_error_" + pde.name() + ".pdf");
+    plt::save("plot_helmholtz_error_" + pde.name() + ".pdf");
     plt::show();
 
     int fig2 = plt::figure(2);
@@ -568,9 +568,9 @@ int main(int argc, char** argv) {
     plt::xticks(xTicks, xTickLabels);
     plt::legend({{"loc", "lower right"}});
     plt::grid(true);
-    plt::save("plot_poisson_build_time_" + pde.name() + "_no_title.pdf");
+    plt::save("plot_helmholtz_build_time_" + pde.name() + "_no_title.pdf");
     plt::title("Timing Study - Uniform vs. Adaptive Mesh - Build Stage");
-    plt::save("plot_poisson_build_time_" + pde.name() + ".pdf");
+    plt::save("plot_helmholtz_build_time_" + pde.name() + ".pdf");
     plt::show();
 
     int fig3 = plt::figure(3);
@@ -584,9 +584,9 @@ int main(int argc, char** argv) {
     plt::xticks(xTicks, xTickLabels);
     plt::legend({{"loc", "lower right"}});
     plt::grid(true);
-    plt::save("plot_poisson_solve_time_" + pde.name() + "_no_title.pdf");
+    plt::save("plot_helmholtz_solve_time_" + pde.name() + "_no_title.pdf");
     plt::title("Timing Study - Uniform vs. Adaptive Mesh - Solve Stage");
-    plt::save("plot_poisson_solve_time_" + pde.name() + ".pdf");
+    plt::save("plot_helmholtz_solve_time_" + pde.name() + ".pdf");
     plt::show();
     #endif
 
