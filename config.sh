@@ -24,7 +24,7 @@ PYTHON_VERSION=python3.9
 
 # For pre-installed PETSc:
 # PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
-PETSC_PATH=${HOME}/packages/petsc/petsc-build
+# PETSC_PATH=${HOME}/packages/petsc/petsc-build
 # --=== END User Variables ===--
 
 # --=== Create Build Directory ===--
@@ -39,10 +39,6 @@ cmake ${ELLIPTIC_FOREST} \
     -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_C_COMPILER=mpicc \
     -DMPI_PATH=${MPI_PATH} \
-    -DP4EST_PATH=${P4EST_PATH} \
-    -DPETSC_PATH=${PETSC_PATH} \
-    -DWITH_MATPLOTLIBCPP=true \
-    -DPYTHON_ENV_PATH=${PYTHON_ENV_PATH} \
-    -DPYTHON_VERSION=${PYTHON_VERSION}
+    -DP4EST_PATH=${P4EST_PATH}
 
 echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"

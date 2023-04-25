@@ -13,7 +13,11 @@
 #include <cctype>
 
 #include <mpi.h>
+
+#if USE_PETSC
 #include <petsc.h>
+#endif
+
 #include <p4est.h>
 #include "GenericSingleton.hpp"
 
@@ -304,8 +308,10 @@ public:
         int isMPIIntialized;
         MPI_Initialized(&isMPIIntialized);
         if (!isMPIIntialized) MPI_Init(argc_, argv_);
+#if USE_PETSC
         PetscInitialize(argc_, argv_, NULL, NULL);
         PetscGetArgs(argc_, argv_);
+#endif
 
         // Create options
         InputParser inputParser(*argc_, *argv_);
@@ -340,7 +346,9 @@ public:
         }
 
         if (!isMPIFinalized) {
+#if USE_PETSC
             PetscFinalize();
+#endif
             MPI_Finalize();
         }
     }

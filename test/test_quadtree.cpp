@@ -23,7 +23,8 @@ TEST(Quadtree, refine_coarsen) {
 
     // Create quadtree with root
     double root = 10.0;
-    Quadtree<double> quadtree(root);
+    Quadtree<double> quadtree;
+    quadtree.buildFromRoot(root);
 
     gID = {{0}};
     pID = {{-1}};

@@ -108,7 +108,7 @@ public:
 
         // Build quadtree from p4est_t tree
         quadtree = Quadtree<PatchType>(p4est);
-        quadtree.build(rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
+        quadtree.buildFromP4est(p4est, rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
             // Function to init patch from parent patch (implemented in derived Patch class)
             return parentPatch.buildChild(childIndex);
         });
