@@ -101,7 +101,7 @@ public:
         
         // Get app and log
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Setup Stage");
+        app.logHead("Begin HPS Setup Stage");
 
         app.addTimer("setup-stage");
         app.timers["setup-stage"].start();
@@ -148,7 +148,7 @@ public:
         // });
 
         app.timers["setup-stage"].stop();
-        app.log("End HPS Setup Stage");
+        app.logHead("End HPS Setup Stage");
 
     }
 
@@ -167,7 +167,7 @@ public:
     virtual void buildStage() {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Build Stage");
+        app.logHead("Begin HPS Build Stage");
         app.addTimer("build-stage");
         app.timers["build-stage"].start();
 
@@ -191,7 +191,7 @@ public:
         });
 
         app.timers["build-stage"].stop();
-        app.log("End HPS Build Stage");
+        app.logHead("End HPS Build Stage");
 
     }
 
@@ -213,7 +213,7 @@ public:
     virtual void upwardsStage(std::function<void(PatchType& leafPatch)> rhsPatchFunction) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Upwards Stage");
+        app.logHead("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
         app.timers["upwards-stage"].start();
 
@@ -232,7 +232,7 @@ public:
         });
 
         app.timers["upwards-stage"].stop();
-        app.log("End HPS Upwards Stage");
+        app.logHead("End HPS Upwards Stage");
 
     }
 
@@ -256,7 +256,7 @@ public:
     virtual void solveStage(std::function<void(PatchType& rootPatch)> boundaryDataFunction) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Solve Stage");
+        app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
         app.timers["solve-stage"].start();
 
@@ -272,14 +272,14 @@ public:
         });
 
         app.timers["solve-stage"].stop();
-        app.log("End HPS Solve Stage");
+        app.logHead("End HPS Solve Stage");
 
     }
 
     virtual void solveStage(std::function<NumericalType(int side, NumericalType x, NumericalType y, NumericalType* a, NumericalType* b)> boundaryFunction) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Solve Stage");
+        app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
         app.timers["solve-stage"].start();
 
@@ -365,13 +365,13 @@ public:
         });
 
         app.timers["solve-stage"].stop();
-        app.log("End HPS Solve Stage");
+        app.logHead("End HPS Solve Stage");
                 
     }
 
     virtual void solveStage(std::vector<Vector<NumericalType>> boundaryData, std::vector<BoundaryConditionType> boundaryTypes) {
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.log("Begin HPS Solve Stage");
+        app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
         app.timers["solve-stage"].start();
 
@@ -386,19 +386,19 @@ public:
         });
 
         app.timers["solve-stage"].stop();
-        app.log("End HPS Solve Stage");
+        app.logHead("End HPS Solve Stage");
 
     }
 
     virtual void merge4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        // app.log("Merging:");
-        // app.log("  alpha = %i", alpha.globalID);
-        // app.log("  beta = %i", beta.globalID);
-        // app.log("  gamma = %i", gamma.globalID);
-        // app.log("  omega = %i", omega.globalID);
-        // app.log("  tau = %i", tau.globalID);
+        // app.logHead("Merging:");
+        // app.logHead("  alpha = %i", alpha.globalID);
+        // app.logHead("  beta = %i", beta.globalID);
+        // app.logHead("  gamma = %i", gamma.globalID);
+        // app.logHead("  omega = %i", omega.globalID);
+        // app.logHead("  tau = %i", tau.globalID);
 
         // Steps for the merge (private member functions)
         coarsen_(tau, alpha, beta, gamma, omega);
@@ -442,12 +442,12 @@ public:
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-            // app.log("Upwards:");
-            // app.log("  alpha = %i", alpha.globalID);
-            // app.log("  beta = %i", beta.globalID);
-            // app.log("  gamma = %i", gamma.globalID);
-            // app.log("  omega = %i", omega.globalID);
-            // app.log("  tau = %i", tau.globalID);
+            // app.logHead("Upwards:");
+            // app.logHead("  alpha = %i", alpha.globalID);
+            // app.logHead("  beta = %i", beta.globalID);
+            // app.logHead("  gamma = %i", gamma.globalID);
+            // app.logHead("  omega = %i", omega.globalID);
+            // app.logHead("  tau = %i", tau.globalID);
 
             // Steps for the upwards stage (private member functions)
             coarsenUpwards_(tau, alpha, beta, gamma, omega);
@@ -465,12 +465,12 @@ public:
     virtual void split1to4(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
-        // app.log("Splitting:");
-        // app.log("  tau = %i", tau.globalID);
-        // app.log("  alpha = %i", alpha.globalID);
-        // app.log("  beta = %i", beta.globalID);
-        // app.log("  gamma = %i", gamma.globalID);
-        // app.log("  omega = %i", omega.globalID);
+        // app.logHead("Splitting:");
+        // app.logHead("  tau = %i", tau.globalID);
+        // app.logHead("  alpha = %i", alpha.globalID);
+        // app.logHead("  beta = %i", beta.globalID);
+        // app.logHead("  gamma = %i", gamma.globalID);
+        // app.logHead("  omega = %i", omega.globalID);
 
         // Steps for the split (private member functions)
         uncoarsen_(tau, alpha, beta, gamma, omega);

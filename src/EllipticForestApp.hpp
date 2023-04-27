@@ -23,6 +23,8 @@
 
 namespace EllipticForest {
 
+static int HEAD_RANK = 0;
+
 struct Logger {
 
     Logger() {}
@@ -35,6 +37,18 @@ struct Logger {
         MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
         std::string toPrint = "[EllipticForest " + std::to_string(myRank) + "] " + message + "\n";
         printf(toPrint.c_str(), args...);
+
+    }
+
+    template<class... Args>
+    void logHead(std::string message, Args... args) {
+    
+        int myRank = -1;
+        MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+        if (myRank == HEAD_RANK) {
+            std::string toPrint = "[EllipticForest " + std::to_string(myRank) + "] " + message + "\n";
+            printf(toPrint.c_str(), args...);
+        }
 
     }
 
@@ -359,6 +373,11 @@ public:
     template<class... Args>
     void log(std::string message, Args... args) {
         logger.log(message, args...);
+    }
+
+    template<class... Args>
+    void logHead(std::string message, Args... args) {
+        logger.logHead(message, args...);
     }
 
     void addTimer(std::string name) {

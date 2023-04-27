@@ -13,6 +13,7 @@ set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
     FISHPACK.cpp
     P4est.cpp
+    PETSc.cpp
     VTK.cpp
 )
 
@@ -54,6 +55,7 @@ install(FILES
     Patch.hpp
     PatchGrid.hpp
     PatchSolver.hpp
+    PETSc.hpp
     PlotUtils.hpp
     Quadtree.hpp
     SpecialMatrices.hpp

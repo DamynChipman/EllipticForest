@@ -5,128 +5,72 @@
 
 #include <PlotUtils.hpp>
 #include <P4est.hpp>
-#include <EllipticForestApp.hpp>
+#include <EllipticForest.hpp>
 #include <Quadtree.hpp>
-
-#include <EllipticForestApp.hpp>
-#include <P4est.hpp>
-#include <Quadtree.hpp>
-
-std::vector<double> refineFunction(double& parentData) {
-    std::vector<double> childrenData = {parentData/4.0, parentData/4.0, parentData/4.0, parentData/4.0};
-    return childrenData;
-}
-
-double coarsenFunction(double& c0, double& c1, double& c2, double& c3) {
-    return c0 + c1 + c2 + c3;
-}
 
 int main(int argc, char** argv) {
 
-    MPI_Init(&argc, &argv);
+    // Create app
     EllipticForest::EllipticForestApp app(&argc, &argv);
-    app.log("Hello, there!");
+    app.logHead("Starting toybox...");
 
-    // Build quadtree
-    std::cout << "Creating quadtree..." << std::endl;
-    EllipticForest::Quadtree<double> quadtree{};
-    quadtree.buildFromRoot(10.0);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Create p4est
+    int fillUniform = 1;
+    int refineRecursive = 1;
+    int minLevel = 0;
+    p4est_connectivity_t* conn = EllipticForest::p4est::p4est_connectivity_new_square_domain(-1, 1, -1, 1);
+    p4est_t* p4est = p4est_new_ext(MPI_COMM_WORLD, conn, 0, minLevel, fillUniform, 0, NULL, NULL);
 
-    std::cout << "Refining node 0..." << std::endl;
-    quadtree.refineNode(0, refineFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Refine the p4est according to the RHS up to the max level
+    p4est_refine(p4est, refineRecursive,
+    [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
 
-    std::cout << "Refining node 3..." << std::endl;
-    quadtree.refineNode(3, refineFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+        if (quadrant->level > 3) {
+            return 0;
+        }
+        else {
+            return 1;
+        }
 
-    std::cout << "Refining node 1..." << std::endl;
-    quadtree.refineNode(1, refineFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    },
+    NULL);
 
-    std::cout << "Refining node 10..." << std::endl;
-    quadtree.refineNode(10, refineFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Balance the p4est
+    p4est_balance(p4est, P4EST_CONNECT_CORNER, NULL);
 
-    std::cout << "Refining node 2..." << std::endl;
-    quadtree.refineNode(2, refineFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Save initial mesh
+    bool vtkFlag = true;
+    if (vtkFlag) {
+        std::string VTKFilename = "toybox_mesh";
+        p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
+    }
 
-    std::cout << "Coarsening node 14..." << std::endl;
-    quadtree.coarsenNode(14, coarsenFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Create leaf level root patch
+    int nx = 16;
+    int ny = 16;
+    double xLower = -1;
+    double xUpper = 1;
+    double yLower = -1;
+    double yUpper = 1;
+    EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
+    rootPatch.level = 0;
+    rootPatch.isLeaf = true;
 
-    std::cout << "Coarsening node 11..." << std::endl;
-    quadtree.coarsenNode(11, coarsenFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Create patch solver
+    EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
-    std::cout << "Coarsening node 2..." << std::endl;
-    quadtree.coarsenNode(2, coarsenFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // Create and run HPS method
+    // 1. Create the HPSAlgorithm instance
+    EllipticForest::HPSAlgorithm
+        <EllipticForest::FISHPACK::FISHPACKFVGrid,
+        EllipticForest::FISHPACK::FISHPACKFVSolver,
+        EllipticForest::FISHPACK::FISHPACKPatch,
+        double>
+            HPS(rootPatch, solver);
 
-    std::cout << "Coarsening node 1..." << std::endl;
-    quadtree.coarsenNode(1, coarsenFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
-
-    std::cout << "Coarsening node 0..." << std::endl;
-    quadtree.coarsenNode(0, coarsenFunction);
-    std::cout << quadtree;
-    std::cout << "Data: ";
-    quadtree.traversePreOrder([&](double& data){
-        std::cout << data << ", ";
-    });
-    std::cout << std::endl << std::endl;
+    // 2. Call the setup stage
+    HPS.setupStage(p4est);
 
     return EXIT_SUCCESS;
 }

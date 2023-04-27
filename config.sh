@@ -42,6 +42,8 @@ cmake ${ELLIPTIC_FOREST} \
     -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_C_COMPILER=mpicc \
     -DMPI_PATH=${MPI_PATH} \
-    -DP4EST_PATH=${P4EST_PATH}
+    -DP4EST_PATH=${P4EST_PATH} \
+    -DWITH_PETSC=true \
+    -DPETSC_PATH=${PETSC_PATH}
 
 echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"

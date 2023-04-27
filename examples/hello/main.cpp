@@ -13,9 +13,9 @@ int main(int argc, char** argv) {
     app.log("Hello, there!");
 
 #ifdef USE_MATPLOTLIBCPP
-    app.log("matplotlibcpp enabled!");
+    app.logHead("matplotlibcpp enabled!");
 #else
-    app.log("matplotlibcpp not enabled...");
+    app.logHead("matplotlibcpp not enabled...");
 #endif
 
     return EXIT_SUCCESS;
