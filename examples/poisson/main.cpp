@@ -13,6 +13,7 @@
 #include <fstream>
 
 #include <EllipticForest.hpp>
+#include <PETSc.hpp>
 
 #ifdef USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
@@ -427,20 +428,23 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double xUpper = 1;
     double yLower = -1;
     double yUpper = 1;
-    EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-    EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
+    EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    // EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    EllipticForest::Petsc::PetscPatch rootPatch(grid);
+    // EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
     rootPatch.level = 0;
     rootPatch.isLeaf = true;
 
     // Create patch solver
-    EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
+    EllipticForest::Petsc::PetscPatchSolver solver{};
+    // EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
     // Create and run HPS method
     // 1. Create the HPSAlgorithm instance
     EllipticForest::HPSAlgorithm
-        <EllipticForest::FISHPACK::FISHPACKFVGrid,
-        EllipticForest::FISHPACK::FISHPACKFVSolver,
-        EllipticForest::FISHPACK::FISHPACKPatch,
+        <EllipticForest::Petsc::PetscGrid,
+        EllipticForest::Petsc::PetscPatchSolver,
+        EllipticForest::Petsc::PetscPatch,
         double>
             HPS(rootPatch, solver);
 

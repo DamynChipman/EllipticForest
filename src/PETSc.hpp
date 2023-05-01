@@ -75,9 +75,9 @@ public:
     PetscPatchSolver();
 
     virtual std::string name();
-    virtual PetscVector solve(PetscGrid& grid, PetscVector& dirichletData, PetscVector& rhsData);
-    virtual PetscVector mapD2N(PetscGrid& grid, PetscVector& dirichletData, PetscVector& rhsData);
-    virtual PetscMatrix buildD2N(PetscGrid& grid);
+    virtual Vector<double> solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
+    virtual Vector<double> mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
+    virtual Matrix<double> buildD2N(PatchGridBase<double>& grid);
 
     PetscVector computeDiffusionVector(PetscGrid& grid, std::function<double(double x, double y)> diffusionFunction);
     PetscVector computeLambdaVector(PetscGrid& grid, std::function<double(double x, double y)> lambdaFunction);

@@ -78,19 +78,19 @@ PetscPatchSolver::PetscPatchSolver() {}
 
 std::string PetscPatchSolver::name() { return "PETScPatchSolver"; }
 
-PetscVector PetscPatchSolver::solve(PetscGrid& grid, PetscVector& dirichletData, PetscVector& rhsData) {
+Vector<double> PetscPatchSolver::solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
 
 
 }
 
-PetscVector PetscPatchSolver::mapD2N(PetscGrid& grid, PetscVector& dirichletData, PetscVector& rhsData) {
+Vector<double> PetscPatchSolver::mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
 
 
 }
 
-PetscMatrix PetscPatchSolver::buildD2N(PetscGrid& grid) {
+Matrix<double> PetscPatchSolver::buildD2N(PatchGridBase<double>& grid) {
 
 
 
