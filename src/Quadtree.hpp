@@ -8,8 +8,17 @@
 #include <functional>
 #include <p4est.h>
 #include <p4est_search.h>
+#include <p4est_bits.h>
+#include <p4est_communication.h>
+
+#include "MPI.hpp"
 
 namespace EllipticForest {
+
+enum QuadtreeParallelDataPolicy {
+	COPY,
+	STRIPE
+};
 
 /**
  * @brief Data structure for a full quadtree with adaptivity features
@@ -17,7 +26,7 @@ namespace EllipticForest {
  * @tparam T Datatype of each node
  */
 template<typename T>
-class Quadtree {
+class Quadtree : public MPIObject {
 
 public:
 
@@ -66,8 +75,11 @@ protected:
 		LevelArray* c;
 		std::vector<T>* d;
 		int global_counter;
+		Quadtree<T>* quadtree;
 
 	} quadtree_data_wrapper_t;
+
+
 
 	/**
 	 * @brief Wrapper of node and visit function for passing to p4est functions
@@ -96,11 +108,11 @@ protected:
 public:
 
     Quadtree() :
-		p4est_(nullptr)
+		MPIObject(MPI_COMM_WORLD), p4est_(nullptr)
 			{}
 	
 	Quadtree(p4est_t* p4est) :
-		p4est_(p4est) 
+		MPIObject(MPI_COMM_WORLD), p4est_(p4est) 
 			{}
 
 	LevelArray globalIndices() const { return globalIndices_; }
@@ -502,6 +514,20 @@ protected:
 		LevelArray& parentIndices = *(wrapper->p);
 		LevelArray& childIndices = *(wrapper->c);
 		std::vector<T> data = *(wrapper->d);
+		Quadtree<T>* quadtree = wrapper->quadtree;
+
+		double vxyz[3];
+		p4est_qcoord_to_vertex(p4est->connectivity, which_tree, quadrant->x, quadrant->y, vxyz);
+		printf("[RANK %i] quad.x = %8.4f, quad.y = %8.4f, quad.l = %i\n", quadtree->getRank(), vxyz[0], vxyz[1], quadrant->level);
+
+		p4est_tree_t* this_tree = p4est_tree_array_index(p4est->trees, which_tree);
+		p4est_quadrant_t ld = this_tree->last_desc;
+		int owner_left = p4est_comm_find_owner(p4est, which_tree, quadrant, 0);
+		int owner_right = p4est_comm_find_owner(p4est, which_tree, &ld, 0);
+
+		// printf("[RANK %i] owner_left = %i, owner_right = %i\n", quadtree->getRank(), owner_left, owner_right);
+
+		
 
 		// Populate global index array
 		globalIndices[quadrant->level].push_back(wrapper->global_counter++);
@@ -537,6 +563,9 @@ protected:
 		LevelArray& parentIndices = *(wrapper->p);
 		LevelArray& childIndices = *(wrapper->c);
 		std::vector<T> data = *(wrapper->d);
+		Quadtree<T>* quadtree = wrapper->quadtree;
+
+		// printf("[RANK %i] POST: global_counter = %i\n", quadtree->getRank(), wrapper->global_counter);
 
 		// Populate child array
 		int cID;
@@ -587,6 +616,7 @@ private:
 		wrapper.c = &childIndices_;
 		wrapper.d = &data_;
 		wrapper.global_counter = 0;
+		wrapper.quadtree = this;
 		p4est_->user_pointer = &wrapper;
 
         // Call `p4est_search_reorder` to traverse tree and populate level arrays

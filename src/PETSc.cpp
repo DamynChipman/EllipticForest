@@ -17,9 +17,11 @@ PetscGrid::PetscGrid(int nx, int ny, double xLower, double xUpper, double yLower
 PetscErrorCode PetscGrid::create() {
 
     PetscErrorCode ierr;
-    int dofs = 1;
+    int dofVertex = 0;
+    int dofSide = 0;
+    int dofCell = 1;
     int stencilWidth = 1;
-    ierr = DMDACreate2d(MPI_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, nx_, ny_, PETSC_DECIDE, PETSC_DECIDE, dofs, stencilWidth, nullptr, nullptr, &dm_); CHKERRQ(ierr);
+    ierr = DMStagCreate2d(MPI_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, nx_, ny_, PETSC_DECIDE, PETSC_DECIDE, dofVertex, dofSide, dofCell, DMSTAG_STENCIL_STAR, stencilWidth, nullptr, nullptr, &dm_); CHKERRQ(ierr);
     ierr = DMDASetUniformCoordinates(dm_, xLower_, xUpper_, yLower_, yUpper_, 0, 0);
     ierr = DMSetFromOptions(dm_); CHKERRQ(ierr);
     ierr = DMSetUp(dm_); CHKERRQ(ierr);
@@ -78,22 +80,46 @@ PetscPatchSolver::PetscPatchSolver() {}
 
 std::string PetscPatchSolver::name() { return "PETScPatchSolver"; }
 
-Vector<double> PetscPatchSolver::solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
+Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
+
+    // Unpack Dirichlet data
+    int nSide = grid.nPointsX();
+    Vector<double> gWest = dirichletData.getSegment(0*nSide, nSide);
+	Vector<double> gEast = dirichletData.getSegment(1*nSide, nSide);
+	Vector<double> gSouth = dirichletData.getSegment(2*nSide, nSide);
+	Vector<double> gNorth = dirichletData.getSegment(3*nSide, nSide);
+
+    // Get Petsc data
+    DM& dm = grid.dm();
+
+}
+
+Vector<double> PetscPatchSolver::mapD2N(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
 
 
 }
 
-Vector<double> PetscPatchSolver::mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
+Matrix<double> PetscPatchSolver::buildD2N(PetscGrid& grid) {
 
 
 
 }
 
-Matrix<double> PetscPatchSolver::buildD2N(PatchGridBase<double>& grid) {
+void PetscPatchSolver::setAlphaFunction(std::function<double(double, double)> fn) {
+    alphaFunction = fn;
+}
 
+void PetscPatchSolver::setBetaFunction(std::function<double(double, double)> fn) {
+    betaFunction = fn;
+}
 
+void PetscPatchSolver::setLambdaFunction(std::function<double(double, double)> fn) {
+    lambdaFunction = fn;
+}
 
+void PetscPatchSolver::setLoadFunction(std::function<double(double, double)> fn) {
+    loadFunction = fn;
 }
 
 PetscPatch::PetscPatch() {}
@@ -114,44 +140,48 @@ PetscPatch PetscPatch::buildChild(std::size_t childIndex) {
 
 }
 
-PetscMatrix& PetscPatch::matrixX() {
-
+double PetscPatch::dataSize() {
+    return 0.0;
 }
 
-PetscMatrix& PetscPatch::matrixH() {
-
+Matrix<double>& PetscPatch::matrixX() {
+    return X;
 }
 
-PetscMatrix& PetscPatch::matrixS() {
-
+Matrix<double>& PetscPatch::matrixH() {
+    return H;
 }
 
-PetscMatrix& PetscPatch::matrixT() {
-
+Matrix<double>& PetscPatch::matrixS() {
+    return S;
 }
 
-PetscVector& PetscPatch::vectorU() {
-
+Matrix<double>& PetscPatch::matrixT() {
+    return T;
 }
 
-PetscVector& PetscPatch::vectorG() {
-
+Vector<double>& PetscPatch::vectorU() {
+    return u;
 }
 
-PetscVector& PetscPatch::vectorV() {
-
+Vector<double>& PetscPatch::vectorG() {
+    return g;
 }
 
-PetscVector& PetscPatch::vectorF() {
-
+Vector<double>& PetscPatch::vectorV() {
+    return v;
 }
 
-PetscVector& PetscPatch::vectorH() {
-
+Vector<double>& PetscPatch::vectorF() {
+    return f;
 }
 
-PetscVector& PetscPatch::vectorW() {
+Vector<double>& PetscPatch::vectorH() {
+    return h;
+}
 
+Vector<double>& PetscPatch::vectorW() {
+    return w;
 }
 
 

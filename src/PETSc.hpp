@@ -19,6 +19,15 @@ protected:
 
     Vec vec_;
 
+public:
+
+    PetscVector();
+    PetscVector(MPI_Comm comm, int size);
+    PetscVector(MPI_Comm comm, Vector<double>& vector);
+
+
+
+
 };
 
 class PetscMatrix : public Matrix<double> {
@@ -51,6 +60,8 @@ public:
 
     PetscErrorCode create();
 
+    DM& dm() {return dm_; }
+
     virtual std::string name();
     virtual std::size_t nPointsX();
     virtual std::size_t nPointsY();
@@ -75,13 +86,25 @@ public:
     PetscPatchSolver();
 
     virtual std::string name();
-    virtual Vector<double> solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
-    virtual Vector<double> mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
-    virtual Matrix<double> buildD2N(PatchGridBase<double>& grid);
+    virtual Vector<double> solve(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
+    virtual Vector<double> mapD2N(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
+    virtual Matrix<double> buildD2N(PetscGrid& grid);
 
-    PetscVector computeDiffusionVector(PetscGrid& grid, std::function<double(double x, double y)> diffusionFunction);
-    PetscVector computeLambdaVector(PetscGrid& grid, std::function<double(double x, double y)> lambdaFunction);
-    PetscVector computeLoadVector(PetscGrid& grid, std::function<double(double x, double y)> loadFunction);
+    void setAlphaFunction(std::function<double(double, double)> fn);
+    void setBetaFunction(std::function<double(double, double)> fn);
+    void setLambdaFunction(std::function<double(double, double)> fn);
+    void setLoadFunction(std::function<double(double, double)> fn);
+
+    // Vector<double> computeDiffusionVector(PetscGrid& grid, std::function<double(double x, double y)> diffusionFunction);
+    // Vector<double> computeLambdaVector(PetscGrid& grid, std::function<double(double x, double y)> lambdaFunction);
+    // Vector<double> computeLoadVector(PetscGrid& grid, std::function<double(double x, double y)> loadFunction);
+
+private:
+
+    std::function<double(double x, double y)> alphaFunction;
+    std::function<double(double x, double y)> betaFunction;
+    std::function<double(double x, double y)> lambdaFunction;
+    std::function<double(double x, double y)> loadFunction;
 
 };
 
@@ -95,20 +118,35 @@ public:
     virtual std::string name();
     virtual PetscGrid& grid();
     virtual PetscPatch buildChild(std::size_t childIndex);
-    virtual PetscMatrix& matrixX();
-    virtual PetscMatrix& matrixH();
-    virtual PetscMatrix& matrixS();
-    virtual PetscMatrix& matrixT();
-    virtual PetscVector& vectorU();
-    virtual PetscVector& vectorG();
-    virtual PetscVector& vectorV();
-    virtual PetscVector& vectorF();
-    virtual PetscVector& vectorH();
-    virtual PetscVector& vectorW();
+    // virtual PetscMatrix& matrixX();
+    // virtual PetscMatrix& matrixH();
+    // virtual PetscMatrix& matrixS();
+    // virtual PetscMatrix& matrixT();
+    // virtual PetscVector& vectorU();
+    // virtual PetscVector& vectorG();
+    // virtual PetscVector& vectorV();
+    // virtual PetscVector& vectorF();
+    // virtual PetscVector& vectorH();
+    // virtual PetscVector& vectorW();
+    virtual Matrix<double>& matrixX();
+    virtual Matrix<double>& matrixH();
+    virtual Matrix<double>& matrixS();
+    virtual Matrix<double>& matrixT();
+    virtual Vector<double>& vectorU();
+    virtual Vector<double>& vectorG();
+    virtual Vector<double>& vectorV();
+    virtual Vector<double>& vectorF();
+    virtual Vector<double>& vectorH();
+    virtual Vector<double>& vectorW();
+
+    double dataSize();
 
 private:
 
     PetscGrid grid_;
+
+    Matrix<double> X{}, H{}, S{}, T{};
+    Vector<double> u{}, g{}, v{}, f{}, h{}, w{};
 
 };
 

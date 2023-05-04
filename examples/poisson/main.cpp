@@ -459,8 +459,8 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     for (auto n = 0; n < nSolves; n++) {
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-            HPS.upwardsStage([&](EllipticForest::FISHPACK::FISHPACKPatch& leafPatch){
-                EllipticForest::FISHPACK::FISHPACKFVGrid& grid = leafPatch.grid();
+            HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& leafPatch){
+                EllipticForest::Petsc::PetscGrid& grid = leafPatch.grid();
                 leafPatch.vectorF() = EllipticForest::Vector<double>(grid.nPointsX() * grid.nPointsY());
                 for (auto i = 0; i < grid.nPointsX(); i++) {
                     double x = grid(0, i);
@@ -512,9 +512,9 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double l2_error = 0;
     double lI_error = 0;
     int nLeafPatches = 0;
-    HPS.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+    HPS.quadtree.traversePostOrder([&](EllipticForest::Petsc::PetscPatch& patch){
         if (patch.isLeaf) {
-            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
+            EllipticForest::Petsc::PetscGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
                 double x = grid(XDIM, i);
                 for (auto j = 0; j < grid.nPointsY(); j++) {
@@ -538,7 +538,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Compute size of quadtree and data
     double size_MB = 0;
-    HPS.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+    HPS.quadtree.traversePostOrder([&](EllipticForest::Petsc::PetscPatch& patch){
         size_MB += patch.dataSize();
     });
 
