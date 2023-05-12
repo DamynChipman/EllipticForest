@@ -539,6 +539,51 @@ public:
 
 	}
 
+	std::string str() const {
+
+		std::string out = "";
+		const auto& G = globalIndices_;
+		const auto& P = parentIndices_;
+		const auto& C = childIndices_;
+		const auto& L = leafIndices_;
+
+		out += "Global Indices:\n";
+		for (int l = 0; l < G.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < G[l].size(); i++) {
+				out += std::to_string(G[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+		out += "Parent Indices:\n";
+		for (int l = 0; l < P.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < P[l].size(); i++) {
+				out += std::to_string(P[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+		out += "Child Indices:\n";
+		for (int l = 0; l < C.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < C[l].size(); i++) {
+				out += std::to_string(C[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+		out += "Leaf Indices:\n";
+		for (int l = 0; l < L.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < L[l].size(); i++) {
+				out += std::to_string(L[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+
+		return out;
+
+	}
+
 	/**
 	 * @brief Outstream operator for Quadtree<T>
 	 * 
