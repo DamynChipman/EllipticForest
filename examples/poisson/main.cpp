@@ -185,20 +185,25 @@ public:
 
     double lambda() { return 0.0; }
 
+    double a = 4.0;
+
     double u(double x, double y) override {
-        return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
+        return sin(a*M_PI*x*x) + cos(a*M_PI*y*y);
     }
 
     double f(double x, double y) override {
-        return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
+        // return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
+        return 2*a*M_PI*cos(a*M_PI*pow(x,2)) - 4*pow(a,2)*pow(M_PI,2)*pow(y,2)*cos(a*M_PI*pow(y,2)) - 4*pow(a,2)*pow(M_PI,2)*pow(x,2)*sin(a*M_PI*pow(x,2)) - 2*a*M_PI*sin(a*M_PI*pow(y,2));
     }
 
     double dudx(double x, double y) override {
-        return 4.0*M_PI*cos(4.0*M_PI*x);
+        // return 4.0*M_PI*cos(4.0*M_PI*x);
+        return 2.0*a*M_PI*x*cos(a*M_PI*x*x);
     }
 
     double dudy(double x, double y) override {
-        return -4.0*M_PI*sin(4.0*M_PI*y);
+        // return -4.0*M_PI*sin(4.0*M_PI*y);
+        return -2.0*a*M_PI*y*sin(a*M_PI*y*y);
     }
 
 };
@@ -562,7 +567,7 @@ int main(int argc, char** argv) {
     // Set options
     app.options.setOption("cache-operators", false);
     app.options.setOption("homogeneous-rhs", false);
-    app.options.setOption("refinement-threshold", 50.0);
+    app.options.setOption("refinement-threshold", 500.0);
 
     // Create PDE to solve
     // PolarStarPoissonProblem pde(
@@ -601,6 +606,7 @@ int main(int argc, char** argv) {
     bool vtkFlag = true;
     int maxResolution = pow(128, 2) * pow(2, 2*5); // About 16M DOFs
     for (auto& M : patchSizeVector) {
+        continue;
 
         PlotPair errorPair;
         PlotPair buildPair;
@@ -622,7 +628,7 @@ int main(int argc, char** argv) {
             app.options.setOption("ny", M);
 
             // Solve via HPS
-            if (M == 128 && l == 4) vtkFlag = true;
+            if (M == 64 && l == 4) vtkFlag = true;
             else vtkFlag = false;
             ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
             int nDOFs = results.effective_resolution;
@@ -673,8 +679,9 @@ int main(int argc, char** argv) {
             app.options.setOption("ny", M);
 
             // Solve via HPS
-            if (M == 128 && l == 4) vtkFlag = true;
-            else vtkFlag = false;
+            // if (M == 64 && l == 4) vtkFlag = true;
+            // else vtkFlag = false;
+            vtkFlag = true;
             ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
             int nDOFs = results.effective_resolution;
             double error = results.lI_error;

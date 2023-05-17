@@ -71,7 +71,22 @@ public:
      */
     virtual PatchGridBase<FloatingPointType>& grid() = 0;
 
+    void updateCoarsens() {
+        // int before = nCoarsens;
+        int N = matrixT().nRows();
+        int M = grid().nPointsX();
+        if (N != 0) {
+            nCoarsens = (4*M / N) - 1;
+        }
+        // int after = nCoarsens;
+        // std::cout << "nCoarsens BEFORE: " << before << " | AFTER: " << after << std::endl;
+    }
+
     int size() {
+        // int before = nCoarsens;
+        // updateCoarsens();
+        // int after = nCoarsens;
+        // std::cout << "nCoarsens BEFORE: " << before << " | AFTER: " << after << std::endl;
         return grid().nPointsX() / pow(2, nCoarsens);
     }
 

@@ -225,6 +225,8 @@ public:
                 // Set particular Neumann data using patch solver function
                 patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
             }
+
+            patch.nCoarsens = 0;
         });
 
         quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
@@ -353,6 +355,11 @@ public:
 
             g = solve(A, rhs);
         }
+
+        quadtree.traversePreOrder([&](typename Quadtree<PatchType>::QuadtreeNode node){
+            node.data->updateCoarsens();
+            return true;
+        });
 
         // Apply solution matrix down tree
         quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
@@ -580,7 +587,7 @@ private:
 
         return {tags};
     }
-
+public:
     void coarsen_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check for adaptivity
@@ -635,7 +642,8 @@ private:
         }
 
         // int nSide = alpha.grid().nPointsX();
-        int nSide = alpha.size();
+        // int nSide = alpha.size();
+        int nSide = alpha.matrixT().nRows() / 4;
 
         Vector<int> I_W = vectorRange(0, nSide-1);
         Vector<int> I_E = vectorRange(nSide, 2*nSide - 1);
@@ -722,7 +730,7 @@ private:
 
         return;
     }
-
+private:
     void mergeX_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Create diagonals
@@ -809,7 +817,8 @@ private:
 
         // Form permutation vector and block sizes
         // int nSide = alpha.grid().nPointsX();
-        int nSide = alpha.size();
+        // int nSide = alpha.size();
+        int nSide = alpha.matrixT().nRows() / 4;
         Vector<int> pi_noChange = {0, 1, 2, 3};
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
         Vector<int> blockSizes1(4, nSide);
@@ -838,6 +847,31 @@ private:
 
         // Check for adaptivity
         std::vector<PatchType*> patchPointers = {&alpha, &beta, &gamma, &omega};
+        Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+        int maxTag = *std::max_element(tags.data().begin(), tags.data().end());
+        while (maxTag > 0) {
+            for (auto i = 0; i < 4; i++) {
+                if (tags[i] > 0) {
+                    PatchGridType& fineGrid = patchPointers[i]->grid();
+                    PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
+                    int nFine = fineGrid.nPointsX();
+                    int nCoarse = coarseGrid.nPointsX();
+            
+                    InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
+                    std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
+                    Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+                    patchPointers[i]->vectorH() = L21Patch * patchPointers[i]->vectorH();
+
+                    // patchPointers[i]->grid() = coarseGrid;
+                    patchPointers[i]->nCoarsens++;
+                }
+            }
+            tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
+            maxTag = *std::max_element(tags.data().begin(), tags.data().end());
+        }
+#if 0
+        // Check for adaptivity
+        std::vector<PatchType*> patchPointers = {&alpha, &beta, &gamma, &omega};
 
         for (auto i = 0; i < 4; i++) {
             int nCoarsens = patchPointers[i]->nCoarsens;
@@ -855,7 +889,7 @@ private:
                 patchPointers[i]->vectorH() = L21Patch * patchPointers[i]->vectorH();
             }
         }
-
+#endif
         return;
     }
 
@@ -927,7 +961,8 @@ private:
 
         // Form permutation vector and block sizes
         // int nSide = alpha.grid().nPointsX();
-        int nSide = alpha.size();
+        // int nSide = alpha.size();
+        int nSide = alpha.matrixT().nRows() / 4;
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
         Vector<int> blockSizes(8, nSide);
 
