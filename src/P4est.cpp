@@ -42,6 +42,16 @@ p4est_connectivity_t* p4est_connectivity_new_square_domain(double x_lower, doubl
 
 }
 
+std::string p4est_quadrant_path(const p4est_quadrant_t* q) {
+    std::string path = "";
+    for (int l = q->level; l != 0; l--) {
+        path += std::to_string(p4est_quadrant_ancestor_id(q, l));
+    }
+    std::reverse(path.begin(), path.end());
+    path = "0" + path;
+    return path;
+}
+
 } // NAMESPACE : p4est
 
 } // NAMESPACE : EllipticForest

@@ -6,19 +6,201 @@
 #include <ostream>
 #include <vector>
 #include <functional>
-#include <p4est.h>
-#include <p4est_search.h>
-#include <p4est_bits.h>
-#include <p4est_communication.h>
+#include <map>
 
 #include "MPI.hpp"
+#include "P4est.hpp"
 
 namespace EllipticForest {
+
+using NodePathKey = std::string;
 
 enum QuadtreeParallelDataPolicy {
 	COPY,
 	STRIPE
 };
+
+template<typename T>
+struct Node : public MPIObject {
+
+	Node() :
+		MPIObject(MPI_COMM_WORLD)
+			{}
+
+	Node(MPI_Comm comm) :
+		MPIObject(comm)
+			{}
+
+	T data;
+	std::string path;
+	int level;
+	int pfirst;
+	int plast;
+
+	bool isOwned() {
+		return pfirst <= this->getRank() && this->getRank() <= plast;
+	}
+
+};
+
+template<typename T>
+class AbstractNodeFactory {
+public:
+	virtual Node<T>* createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
+	virtual Node<T>* createChildNode(Node<T>* parentNode, int siblingID, int pfirst, int plast) = 0;
+	virtual Node<T>* createParentNode(std::vector<Node<T>*> childrenNodes, int pfirst, int plast) = 0;
+};
+
+template<typename T>
+class Quadtree : public MPIObject {
+
+public:
+
+	using NodeMap = std::map<NodePathKey, Node<T>*>;
+	NodeMap map;
+	T* rootDataPtr_;
+	AbstractNodeFactory<T>* nodeFactory;
+	// std::function<T(Node<T>* parentNode, int siblingID, int pfirst, int plast)> initFromParentFunction_;
+
+	Quadtree() :
+		MPIObject(MPI_COMM_WORLD),
+		rootDataPtr_(nullptr),
+		nodeFactory(nullptr) {}
+	
+	Quadtree(MPI_Comm comm, p4est_t* p4est, T rootData, AbstractNodeFactory<T>& nodeFactory) :
+		MPIObject(comm),
+		rootDataPtr_(&rootData),
+		nodeFactory(&nodeFactory) {
+
+		// Save user pointer and store self in it
+		void* savedUserPointer = p4est->user_pointer;
+		p4est->user_pointer = this;
+
+		// Use p4est_search_all to do depth first traversal and create quadtree map and nodes
+		int callPost = 0;
+		p4est_search_all(
+			p4est,
+			callPost,
+			[](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
+
+				// Get quadtree
+				auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+				auto& map = quadtree.map;
+
+				// Get MPI info
+				int rank;
+				MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+				// Compute unique path
+				std::string path = p4est::p4est_quadrant_path(quadrant);
+
+				// Check if quadrant is owned by this rank
+				bool owned = pfirst <= rank && rank <= plast;
+
+				// If owned, create Node in map
+				if (owned) {
+					// Create node and metadata
+					Node<T>* node = new Node<T>;
+					// node->path = path;
+					// node->pfirst = pfirst;
+					// node->plast = plast;
+					// node->level = quadrant->level;
+
+					// Create node's data
+					if (quadrant->level == 0) {
+						// Quadrant is root; init with root data
+						// node->data = *quadtree.rootDataPtr_;
+						node = quadtree.nodeFactory->createNode(*quadtree.rootDataPtr_, path, quadrant->level, pfirst, plast);
+					}
+					else {
+						// Quadrant is not root; init from parent and sibling index
+						Node<T>* parentNode = quadtree.getParentFromPath(path);
+						int siblingID = p4est_quadrant_child_id(quadrant);
+						node = quadtree.nodeFactory->createChildNode(parentNode, siblingID, pfirst, plast);
+						// node->data = parentNode->spawnChild(siblingID, pfirst, plast);
+					}
+					map[path] = node;
+				}
+				else {
+					map[path] = nullptr;
+				}
+
+				return 1;
+			},
+			NULL,
+			NULL
+		);
+
+	}
+
+	Node<T>* getParentFromPath(std::string path) {
+		return map[path.substr(0, path.length() - 1)];
+	}
+
+	// void initFromP4est(p4est_t* p4est, T rootData, std::function<T(Node<T>* parentNode, int siblingID, int pfirst, int plast)> initFromParentFunction) {
+
+	// 	// Save user pointer and store self in it
+	// 	void* savedUserPointer = p4est->user_pointer;
+	// 	p4est->user_pointer = this;
+
+	// 	// Use p4est_search_all to do depth first traversal and create quadtree map and nodes
+	// 	int callPost = 0;
+	// 	p4est_search_all(
+	// 		p4est,
+	// 		callPost,
+	// 		[](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
+
+	// 			// Get quadtree
+	// 			auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+	// 			auto& map = quadtree.map;
+
+	// 			// Get MPI info
+	// 			int rank;
+	// 			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	// 			// Compute unique path
+	// 			std::string path = p4est::p4est_quadrant_path(quadrant);
+
+	// 			// Check if quadrant is owned by this rank
+	// 			bool owned = pfirst <= rank && rank <= plast;
+
+	// 			// If owned, create Node in map
+	// 			if (owned) {
+	// 				// Create node and metadata
+	// 				Node<T>* node = new Node<T>;
+	// 				node->path = path;
+	// 				node->pfirst = pfirst;
+	// 				node->plast = plast;
+	// 				node->level = quadrant->level;
+
+	// 				// Create node's data
+	// 				if (quadrant->level == 0) {
+	// 					// Quadrant is root; init with root data
+	// 					node->data = *quadtree.rootDataPtr_;
+	// 				}
+	// 				else {
+	// 					// Quadrant is not root; init from parent and sibling index
+	// 					Node<T>* parentNode = quadtree.getParent(node);
+	// 					int siblingID = p4est_quadrant_child_id(quadrant);
+	// 					node->data = quadtree.initFromParentFunction_(parentNode, siblingID, pfirst, plast);
+	// 				}
+	// 				map[path] = node;
+	// 			}
+	// 			else {
+	// 				map[path] = nullptr;
+	// 			}
+
+	// 			return 1;
+	// 		},
+	// 		NULL,
+	// 		NULL
+	// 	);
+
+	// }
+
+};
+
+#if 0
 
 /**
  * @brief Data structure for a full quadtree with adaptivity features
@@ -690,6 +872,8 @@ private:
 	}
 
 };
+
+#endif
 
 } // NAMESPACE : EllipticForest
 

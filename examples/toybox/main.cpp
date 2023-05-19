@@ -13,6 +13,40 @@
 #include <Quadtree.hpp>
 #include <MPI.hpp>
 
+class DoubleNodeFactory : public EllipticForest::AbstractNodeFactory<double> {
+public:
+    DoubleNodeFactory() {}
+    ~DoubleNodeFactory() {}
+    
+    virtual EllipticForest::Node<double>* createNode(double data, std::string path, int level, int pfirst, int plast) {
+        EllipticForest::Node<double>* node = new EllipticForest::Node<double>;
+        node->data = data;
+        node->path = path;
+        node->level = level;
+        node->pfirst = pfirst;
+        node->plast = plast;
+        return node;
+    }
+
+    virtual EllipticForest::Node<double>* createChildNode(EllipticForest::Node<double>* parentNode, int siblingID, int pfirst, int plast) {
+        EllipticForest::Node<double>* node = new EllipticForest::Node<double>;
+        node->data = parentNode->data / 4.0;
+        node->path = parentNode->path + std::to_string(siblingID);
+        node->level = parentNode->level + 1;
+        node->pfirst = pfirst;
+        node->plast = plast;
+        return node;
+    }
+
+    virtual EllipticForest::Node<double>* createParentNode(std::vector<EllipticForest::Node<double>*> childrenNodes, int pfirst, int plast) {
+
+        throw std::runtime_error("Virtual function `createParentNode` is NOT IMPLEMENTED!");
+        return nullptr;
+
+    }
+
+};
+
 template<typename T>
 struct Node {
 // public:
@@ -28,6 +62,14 @@ struct Node {
     friend std::ostream& operator<<(std::ostream& os, const Node<T>& node) {
         os << "node: pfrist = " << node.pfirst << ", plast = " << node.plast << ", data = " << node.data << std::endl;
         return os; 
+    }
+
+    Node<T> fromParent(int siblingID, int pfirst, int plast) {
+        Node<T> node;
+        node.pfirst = pfirst;
+        node.plast = plast;
+        node.data = data / 4;
+        return node;
     }
 
 };
@@ -213,6 +255,12 @@ int main(int argc, char** argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
+
+    DoubleNodeFactory factory{};
+
+    double rootData = 10.0;
+    EllipticForest::Quadtree<double> quadtree(MPI_COMM_WORLD, p4est, rootData, factory);
+
     // printf("[RANK %i / %i] Quadtree:\n", mpi.getRank(), mpi.getSize());
     // std::cout << quadtree << std::endl;
 
@@ -250,66 +298,84 @@ int main(int argc, char** argv) {
     // QCoordMap map;
     // p4est->user_pointer = &map;
 
-    std::map<std::string, Node<double>*> nodeMap;
-    p4est->user_pointer = &nodeMap;
 
-    int callPost = 0;
-    p4est_search_all(
-        p4est,
-        callPost,
-        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
-            // auto& map = *(QCoordMap*) p4est->user_pointer;
-            auto& map = *(std::map<std::string, Node<double>*>*) p4est->user_pointer;
 
-            int rank;
-            int size;
-            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-            MPI_Comm_size(MPI_COMM_WORLD, &size);
+    // std::map<std::string, Node<double>*> nodeMap;
+    // p4est->user_pointer = &nodeMap;
 
-            // Compute unique path
-            std::string path = p4est_quadrant_path(quadrant);
+    // int callPost = 0;
+    // p4est_search_all(
+    //     p4est,
+    //     callPost,
+    //     [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
+    //         // auto& map = *(QCoordMap*) p4est->user_pointer;
+    //         auto& map = *(std::map<std::string, Node<double>*>*) p4est->user_pointer;
 
-            // Check if quadrant is owned by this rank
-            bool owned = pfirst <= rank && rank <= plast;
+    //         int rank;
+    //         int size;
+    //         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    //         MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-            // If owned, create Node in map
-            if (owned) {
-                Node<double>* node = new Node<double>;
-                node->pfirst = pfirst;
-                node->plast = plast;
-                node->data = 10.0;
-                map[path] = new Node<double>;
+    //         // Compute unique path
+    //         std::string path = p4est_quadrant_path(quadrant);
 
-                // Node<double>* node = new Node<double>;
-                // map.insert({path, node});
-            }
-            else {
-                map[path] = nullptr;
-            }
+    //         // Check if quadrant is owned by this rank
+    //         bool owned = pfirst <= rank && rank <= plast;
 
-            std::string q_str = p4est_quadrant_to_string(p4est, which_tree, quadrant);
-            printf("[RANK %i / %i]:\n\twhich_tree = %i, num = %i\n\tquadrant: %s\n\tpfirst = %i, plast = %i, path = %s\n",
-                    rank, size-1, which_tree, local_num, q_str.c_str(), pfirst, plast, path.c_str());
+    //         // If owned, create Node in map
+    //         if (owned) {
+    //             Node<double>* node = new Node<double>;
+    //             if (quadrant->level == 0) {
+    //                 node->pfirst = pfirst;
+    //                 node->plast = plast;
+    //                 node->data = 10.0;
+    //             }
+    //             else {
+    //                 std::string parentPath = path.substr(0, path.length()-1);
+    //                 Node<double>* parentNode = map[parentPath];
+    //                 int siblingID = p4est_quadrant_child_id(quadrant);
+    //                 *node = parentNode->fromParent(siblingID, pfirst, plast);
+    //             }
+    //             map[path] = node;
 
-            return 1;
-        },
-        NULL,
-        NULL
-        // [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
-        //     int rank;
-        //     int size;
-        //     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        //     MPI_Comm_size(MPI_COMM_WORLD, &size);
+    //             // Node<double>* node = new Node<double>;
+    //             // map.insert({path, node});
+    //         }
+    //         else {
+    //             map[path] = nullptr;
+    //         }
 
-        //     double* p = (double*) point;
+    //         std::string q_str = p4est_quadrant_to_string(p4est, which_tree, quadrant);
+    //         printf("[RANK %i / %i]:\n\twhich_tree = %i, num = %i\n\tquadrant: %s\n\tpfirst = %i, plast = %i, path = %s\n",
+    //                 rank, size-1, which_tree, local_num, q_str.c_str(), pfirst, plast, path.c_str());
+    //         if (owned) {
+    //             std::cout << *map[path] << std::endl;
+    //         }
 
-        //     printf("[RANK %i / %i]:\n\tpoint = %10.4f\n\n",
-        //             rank, size-1, *p);
+    //         return 1;
+    //     },
+    //     NULL,
+    //     NULL
+    //     // [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
+    //     //     int rank;
+    //     //     int size;
+    //     //     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    //     //     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-        //     return 1;
-        // },
-        // points
-    );
+    //     //     double* p = (double*) point;
+
+    //     //     printf("[RANK %i / %i]:\n\tpoint = %10.4f\n\n",
+    //     //             rank, size-1, *p);
+
+    //     //     return 1;
+    //     // },
+    //     // points
+    // );
+
+    // for (std::map<std::string, Node<double>*>::iterator iter = nodeMap.begin(); iter != nodeMap.end(); iter++) {
+    //     if (iter->second != nullptr)
+    //         std::cout << (iter->first) << "->" << *(iter->second) << std::endl;
+    // }
 
     MPI_Finalize();
 
