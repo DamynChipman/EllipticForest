@@ -58,8 +58,10 @@ public:
 
 	using NodeMap = std::map<NodePathKey, Node<T>*>;
 	NodeMap map;
+	p4est_t* p4est;
 	T* rootDataPtr_;
 	AbstractNodeFactory<T>* nodeFactory;
+	std::function<int(Node<T>*)> visitFn;
 	// std::function<T(Node<T>* parentNode, int siblingID, int pfirst, int plast)> initFromParentFunction_;
 
 	Quadtree() :
@@ -69,6 +71,7 @@ public:
 	
 	Quadtree(MPI_Comm comm, p4est_t* p4est, T rootData, AbstractNodeFactory<T>& nodeFactory) :
 		MPIObject(comm),
+		p4est(p4est),
 		rootDataPtr_(&rootData),
 		nodeFactory(&nodeFactory) {
 
@@ -127,6 +130,53 @@ public:
 
 				return 1;
 			},
+			NULL,
+			NULL
+		);
+
+	}
+
+	static int p4est_search_visit(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
+		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		auto& map = quadtree.map;
+		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
+		int cont = 1;
+		if (node != nullptr) {
+			bool owned = node->pfirst <= rank && rank <= node->plast;
+			if (owned) {
+				cont = quadtree.visitFn(node);
+			}
+		}
+		return cont;
+	}
+
+	void traversePreOrder(std::function<int(Node<T>*)> visit) {
+
+		visitFn = visit;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			p4est_search_visit,
+			NULL,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void traversePostOrder(std::function<int(Node<T>*)> visit) {
+
+		visitFn = visit;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			NULL,
+			p4est_search_visit,
 			NULL,
 			NULL
 		);

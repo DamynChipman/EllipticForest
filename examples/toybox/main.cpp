@@ -261,6 +261,18 @@ int main(int argc, char** argv) {
     double rootData = 10.0;
     EllipticForest::Quadtree<double> quadtree(MPI_COMM_WORLD, p4est, rootData, factory);
 
+    quadtree.traversePreOrder([&](EllipticForest::Node<double>* node){
+        std::cout << "node data = " << node->data << std::endl;
+        return 1;
+    });
+
+    std::cout << std::endl;
+
+    quadtree.traversePostOrder([&](EllipticForest::Node<double>* node){
+        std::cout << "node data = " << node->data << std::endl;
+        return 1;
+    });
+
     // printf("[RANK %i / %i] Quadtree:\n", mpi.getRank(), mpi.getSize());
     // std::cout << quadtree << std::endl;
 
