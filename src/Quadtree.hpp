@@ -10,49 +10,12 @@
 
 #include "MPI.hpp"
 #include "P4est.hpp"
+#include "QuadNode.hpp"
 
 namespace EllipticForest {
 
-using NodePathKey = std::string;
-
-enum QuadtreeParallelDataPolicy {
-	COPY,
-	STRIPE
-};
-
 template<typename T>
-struct Node : public MPIObject {
-
-	Node() :
-		MPIObject(MPI_COMM_WORLD)
-			{}
-
-	Node(MPI_Comm comm) :
-		MPIObject(comm)
-			{}
-
-	T data;
-	std::string path;
-	int level;
-	int pfirst;
-	int plast;
-
-	bool isOwned() {
-		return pfirst <= this->getRank() && this->getRank() <= plast;
-	}
-
-};
-
-template<typename T>
-class AbstractNodeFactory {
-public:
-	virtual Node<T>* createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
-	virtual Node<T>* createChildNode(Node<T>* parentNode, int siblingID, int pfirst, int plast) = 0;
-	virtual Node<T>* createParentNode(std::vector<Node<T>*> childrenNodes, int pfirst, int plast) = 0;
-};
-
-template<typename T>
-class Quadtree : public MPIObject {
+class Quadtree : public MPI::MPIObject {
 
 public:
 
@@ -61,7 +24,8 @@ public:
 	p4est_t* p4est;
 	T* rootDataPtr_;
 	AbstractNodeFactory<T>* nodeFactory;
-	std::function<int(Node<T>*)> visitFn;
+	std::function<int(Node<T>*)> visitNodeFn;
+	std::function<int(Node<T>*, std::vector<Node<T>*>)> visitFamilyFn;
 	// std::function<T(Node<T>* parentNode, int siblingID, int pfirst, int plast)> initFromParentFunction_;
 
 	Quadtree() :
@@ -136,6 +100,15 @@ public:
 
 	}
 
+	~Quadtree() {
+		// Iterate through map and delete any owned nodes
+		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); iter++) {
+			if (iter->second != nullptr) {
+				delete iter->second;
+			}
+		}
+	}
+
 	static int p4est_search_visit(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
 		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
@@ -145,15 +118,150 @@ public:
 		if (node != nullptr) {
 			bool owned = node->pfirst <= rank && rank <= node->plast;
 			if (owned) {
-				cont = quadtree.visitFn(node);
+				cont = quadtree.visitNodeFn(node);
 			}
 		}
 		return cont;
 	}
 
+	static int p4est_search_merge(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
+		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+		int ranks; MPI_Comm_size(MPI_COMM_WORLD, &ranks);
+		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		auto& map = quadtree.map;
+		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
+		int cont = 1;
+		bool owned = node->pfirst <= rank && rank <= node->plast;
+
+		// printf("[RANK %i / %i]\n", rank, ranks);
+		// std::cout << "\tlocal_num = " << local_num << std::endl;
+		// std::cout << "\tnode = " << node << std::endl;
+
+		if (local_num >= 0) {
+			// Quadrant is a leaf; call leaf callback
+			if (node != nullptr && owned) {
+				cont = quadtree.visitNodeFn(node);
+				return cont;
+			}
+		}
+		else {
+			// Quadrant is a branch; call branch callback
+			std::vector<Node<T>*> children{4};
+			if (node->pfirst == node->plast) {
+				// Node is owned by single rank
+				for (int i = 0; i < 4; i++) {
+					children[i] = map[node->path + std::to_string(i)];
+				}
+			}
+			else if (owned) {
+				// Nodes on different ranks; broadcast to ranks that own the node
+				// Get node group and communicator
+				MPI_Group nodeGroup;
+				MPI_Comm nodeComm;
+				node->getMPIGroupComm(&nodeGroup, &nodeComm);
+				int nodeRank; MPI_Comm_rank(nodeComm, &nodeRank);
+
+				// Iterate through children
+				for (int i = 0; i < 4; i++) {
+					Node<T>* child = map[node->path + std::to_string(i)];
+					
+					// Communicate root rank to all others in node comm
+					bool amRoot = child != nullptr;
+					int pnode;
+					int maybeRoot = (amRoot ? nodeRank : 0);
+					MPI_Allreduce(&maybeRoot, &pnode, 1, MPI_INT, MPI_MAX, nodeComm);
+
+					// Allocate memory on my rank to store incoming node data
+					if (child == nullptr) {
+						child = new Node<T>(node->getComm());
+					}
+
+					// Broadcast node
+					MPI::broadcast(*child, pnode, nodeComm);
+					
+					// Store child in children
+					children[i] = child;
+				}
+			}
+
+			// If owned, call family branch callback
+			if (owned) {
+				cont = quadtree.visitFamilyFn(node, children);
+			}
+
+		}
+		return cont;
+	}
+
+	static int p4est_search_split(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
+
+		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+		int ranks; MPI_Comm_size(MPI_COMM_WORLD, &ranks);
+		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		auto& map = quadtree.map;
+		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
+		int cont = 1;
+		bool owned = node->pfirst <= rank && rank <= node->plast;
+
+		if (local_num >= 0) {
+			// Quadrant is a leaf; call leaf callback
+			if (node != nullptr && owned) {
+				cont = quadtree.visitNodeFn(node);
+				return cont;
+			}
+		}
+		else {
+			// Quadrant is a branch; call branch callback
+			std::vector<Node<T>*> children{4};
+			if (node->pfirst == node->plast) {
+				// Node is owned by single rank
+				for (int i = 0; i < 4; i++) {
+					children[i] = map[node->path + std::to_string(i)];
+				}
+			}
+			else if (owned) {
+				// Nodes on different ranks; broadcast to ranks that own the node
+				// Get node group and communicator
+				MPI_Group nodeGroup;
+				MPI_Comm nodeComm;
+				node->getMPIGroupComm(&nodeGroup, &nodeComm);
+				int nodeRank; MPI_Comm_rank(nodeComm, &nodeRank);
+
+				// Iterate through children
+				for (int i = 0; i < 4; i++) {
+					Node<T>* child = map[node->path + std::to_string(i)];
+					
+					// Communicate root rank to all others in node comm
+					bool amRoot = child != nullptr;
+					int pnode;
+					int maybeRoot = (amRoot ? nodeRank : 0);
+					MPI_Allreduce(&maybeRoot, &pnode, 1, MPI_INT, MPI_MAX, nodeComm);
+
+					// Allocate memory on my rank to store incoming node data
+					if (child == nullptr) {
+						child = new Node<T>(node->getComm());
+					}
+
+					// Broadcast node
+					MPI::broadcast(*child, pnode, nodeComm);
+					
+					// Store child in children
+					children[i] = child;
+				}
+			}
+
+			// If owned, call family branch callback
+			if (owned) {
+				cont = quadtree.visitFamilyFn(node, children);
+			}
+		}
+		return cont;
+
+	}
+
 	void traversePreOrder(std::function<int(Node<T>*)> visit) {
 
-		visitFn = visit;
+		visitNodeFn = visit;
 		int skipLevels = 0;
 		p4est_search_reorder(
 			p4est,
@@ -169,7 +277,7 @@ public:
 
 	void traversePostOrder(std::function<int(Node<T>*)> visit) {
 
-		visitFn = visit;
+		visitNodeFn = visit;
 		int skipLevels = 0;
 		p4est_search_reorder(
 			p4est,
@@ -177,6 +285,40 @@ public:
 			NULL,
 			NULL,
 			p4est_search_visit,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void merge(std::function<int(Node<T>*)> visitLeaf, std::function<int(Node<T>*, std::vector<Node<T>*>)> visitBranch) {
+
+		visitNodeFn = visitLeaf;
+		visitFamilyFn = visitBranch;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			NULL,
+			p4est_search_merge,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void split(std::function<int(Node<T>*)> visitLeaf, std::function<int(Node<T>*, std::vector<Node<T>*>)> visitBranch) {
+
+		visitNodeFn = visitLeaf;
+		visitFamilyFn = visitBranch;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			p4est_search_split,
+			NULL,
 			NULL,
 			NULL
 		);

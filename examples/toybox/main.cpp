@@ -10,6 +10,7 @@
 #include <PlotUtils.hpp>
 #include <P4est.hpp>
 #include <EllipticForest.hpp>
+#include <QuadNode.hpp>
 #include <Quadtree.hpp>
 #include <MPI.hpp>
 
@@ -47,32 +48,32 @@ public:
 
 };
 
-template<typename T>
-struct Node {
-// public:
+// template<typename T>
+// struct Node {
+// // public:
 
-    int pfirst = -1;
-    int plast = -1;
-    T data;
+//     int pfirst = -1;
+//     int plast = -1;
+//     T data;
 
-    std::string str() {
-        return std::to_string(data);
-    }
+//     std::string str() {
+//         return std::to_string(data);
+//     }
 
-    friend std::ostream& operator<<(std::ostream& os, const Node<T>& node) {
-        os << "node: pfrist = " << node.pfirst << ", plast = " << node.plast << ", data = " << node.data << std::endl;
-        return os; 
-    }
+//     friend std::ostream& operator<<(std::ostream& os, const Node<T>& node) {
+//         os << "node: pfrist = " << node.pfirst << ", plast = " << node.plast << ", data = " << node.data << std::endl;
+//         return os; 
+//     }
 
-    Node<T> fromParent(int siblingID, int pfirst, int plast) {
-        Node<T> node;
-        node.pfirst = pfirst;
-        node.plast = plast;
-        node.data = data / 4;
-        return node;
-    }
+//     Node<T> fromParent(int siblingID, int pfirst, int plast) {
+//         Node<T> node;
+//         node.pfirst = pfirst;
+//         node.plast = plast;
+//         node.data = data / 4;
+//         return node;
+//     }
 
-};
+// };
 
 std::string p4est_quadrant_to_string(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* q) {
     double xyz_lower[3];
@@ -176,9 +177,52 @@ int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
     PetscInitialize(&argc, &argv, nullptr, nullptr);
     
-    EllipticForest::MPIObject mpi(MPI_COMM_WORLD);
-    printf("I am rank [%i / %i]\n", mpi.getRank(), mpi.getSize());
+    EllipticForest::MPI::MPIObject mpi(MPI_COMM_WORLD);
+    // printf("I am rank [%i / %i]\n", mpi.getRank(), mpi.getSize());
+#if 0
+    EllipticForest::Node<double> node;
+    if (mpi.getRank() == 0) {
+        // Head rank create node
+        node.data = 3.14;
+        node.path = "001";
+        node.level = 2;
+        node.pfirst = 0;
+        node.plast = mpi.getSize();
+    }
+    // std::string node;
+    // std::vector<std::string> node;
+    // std::vector<double> node;
+    // if (mpi.getRank() == 0) {
+    //     // node = "asdf";
+    //     // node = {"1.", "2.", "3.", "4.", "6.", ""};
+    //     // node = {1., 2., 3., 4.};
+    // }
 
+    std::cout << "[RANK " << mpi.getRank() << " / " << mpi.getSize() << "] " << node << std::endl;
+    // std::cout << "[RANK " << mpi.getRank() << " / " << mpi.getSize() << "] ";
+    // for (auto& i : node) std::cout << i << ", ";
+    // std::cout << std::endl;
+
+    // Broadcast node
+    EllipticForest::MPI::broadcast(node, 0, MPI_COMM_WORLD);
+
+    // if (mpi.getRank() == 0) {
+    //     // Head rank send
+    //     for (int i = 1; i < mpi.getSize(); i++)
+    //         EllipticForest::MPI::send(node, i, 0, MPI_COMM_WORLD);
+    // }
+    // else {
+    //     // Other ranks recieve
+    //     MPI_Status status;
+    //     EllipticForest::MPI::receive(node, 0, 0, MPI_COMM_WORLD, &status);
+    // }
+
+    // Print stuff
+    std::cout << "[RANK " << mpi.getRank() << " / " << mpi.getSize() << "] " << node << std::endl;
+    // std::cout << "[RANK " << mpi.getRank() << " / " << mpi.getSize() << "] ";
+    // for (auto& i : node) std::cout << i << ", ";
+    // std::cout << std::endl;
+#endif
     // Create p4est
     int fillUniform = 1;
     int refineRecursive = 1;
@@ -253,26 +297,73 @@ int main(int argc, char** argv) {
     //     return parentData / 4.0;
     // });
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
 
     DoubleNodeFactory factory{};
 
     double rootData = 10.0;
     EllipticForest::Quadtree<double> quadtree(MPI_COMM_WORLD, p4est, rootData, factory);
 
+    // quadtree.traversePreOrder([&](EllipticForest::Node<double>* node){
+    //    std::cout << "PRE: " << *node << "\t" << node->data << std::endl;
+    //     return 1;
+    // });
+
+    // quadtree.traversePostOrder([&](EllipticForest::Node<double>* node){
+    //     std::cout << "POST: " << *node << std::endl;
+    //     return 1;
+    // });
+
+    // std::cout << "--- MERGING ---" << std::endl;
+    quadtree.merge(
+        [&](EllipticForest::Node<double>* leafNode) {
+            // std::cout << "Calling leaf callback" << std::endl;
+            return 1;
+        },
+        [&](EllipticForest::Node<double>* parentNode, std::vector<EllipticForest::Node<double>*> childrenNodes) {
+            // std::cout << "Calling family callback" << std::endl;
+            // std::cout << "PARENT: " << *parentNode << std::endl;
+            // for (int i = 0; i < 4; i++) {
+            //     std::cout << "CHILD " << i << ": " << *childrenNodes[i] << std::endl;
+            // }
+            double sum = 0;
+            for (auto* child : childrenNodes) sum += child->data;
+            parentNode->data = 10.0*sum;
+            return 1;
+        }
+    );
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
+
     quadtree.traversePreOrder([&](EllipticForest::Node<double>* node){
-        std::cout << "node data = " << node->data << std::endl;
+        printf("[RANK %i / %i] ", mpi.getRank(), mpi.getSize());
+        std::cout << "PRE: " << *node << "\t" << node->data << std::endl;
         return 1;
     });
 
-    std::cout << std::endl;
+    quadtree.split(
+        [&](EllipticForest::Node<double>* leafNode) {
+            return 1;
+        },
+        [&](EllipticForest::Node<double>* parentNode, std::vector<EllipticForest::Node<double>*> childrenNodes) {
+            for (auto* child : childrenNodes) child->data = parentNode->data / 4.0;
+            return 1;
+        }
+    );
 
-    quadtree.traversePostOrder([&](EllipticForest::Node<double>* node){
-        std::cout << "node data = " << node->data << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
+
+    quadtree.traversePreOrder([&](EllipticForest::Node<double>* node){
+        printf("[RANK %i / %i] ", mpi.getRank(), mpi.getSize());
+        std::cout << "PRE: " << *node << "\t" << node->data << std::endl;
         return 1;
     });
 
+
+#if 0
     // printf("[RANK %i / %i] Quadtree:\n", mpi.getRank(), mpi.getSize());
     // std::cout << quadtree << std::endl;
 
@@ -388,7 +479,7 @@ int main(int argc, char** argv) {
     //     if (iter->second != nullptr)
     //         std::cout << (iter->first) << "->" << *(iter->second) << std::endl;
     // }
-
+#endif
     MPI_Finalize();
 
     return EXIT_SUCCESS;

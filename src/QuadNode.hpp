@@ -1,0 +1,199 @@
+#ifndef QUAD_NODE_HPP_
+#define QUAD_NODE_HPP_
+
+#include <cstddef>
+#include "MPI.hpp"
+
+namespace EllipticForest {
+
+using NodePathKey = std::string;
+
+enum QuadtreeParallelDataPolicy {
+	COPY,
+	STRIPE
+};
+
+// Forward declaration of QuadNode for AbstractNodeFactory
+template<typename T> class Node;
+
+template<typename T>
+class AbstractNodeFactory {
+public:
+	virtual Node<T>* createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
+	virtual Node<T>* createChildNode(Node<T>* parentNode, int siblingID, int pfirst, int plast) = 0;
+	virtual Node<T>* createParentNode(std::vector<Node<T>*> childrenNodes, int pfirst, int plast) = 0;
+};
+
+template<typename T>
+class Node : public MPI::MPIObject {
+
+public:
+
+	T data;
+	std::string path;
+	int level;
+	int pfirst;
+	int plast;
+
+    // typedef struct node_struct {
+    //     T data;
+    //     std::string path;
+    //     int level;
+    //     int pfirst;
+    //     int plast;
+    // } node_struct_t;
+    // node_struct_t node_struct;
+
+	Node() :
+		MPIObject(MPI_COMM_WORLD)
+			{}
+
+	Node(MPI_Comm comm) :
+		MPIObject(comm)
+			{}
+
+	bool isOwned() {
+		return pfirst <= this->getRank() && this->getRank() <= plast;
+	}
+
+	// virtual void serialize() {
+
+	// 	node_struct.data = (void*) &data;
+	// 	// node_struct.path_length = 
+
+	// 	int count = 5;
+	// 	int blockLengths[5] = {1, (int) path.length(), 1, 1, 1};
+	// 	MPI_Datatype types[5] = {MPI_DOUBLE, MPI_CHAR, MPI_INT, MPI_INT, MPI_INT};
+	// 	MPI_Aint offsets[5];
+	// 	offsets[0] = offsetof(Node<T>, data);
+	// 	offsets[1] = offsetof(Node<T>, path);
+	// 	offsets[2] = offsetof(Node<T>, level);
+	// 	offsets[3] = offsetof(Node<T>, pfirst);
+	// 	offsets[4] = offsetof(Node<T>, plast);
+
+	// 	MPI_Type_create_struct(count, blockLengths, offsets, types, &this->mpiDatatype);
+	// }
+
+	void getMPIGroupComm(MPI_Group* newGroup, MPI_Comm* newComm) {
+		MPI_Group group; MPI_Comm_group(comm, &group);
+		int pdiff = plast - pfirst + 1;
+		std::vector<int> ranks{pdiff};
+		for (int i = 0; i < pdiff; i++) {
+			ranks[i] = pfirst + i;
+		}
+		int* ranksArray = ranks.data();
+		MPI_Group_incl(group, pdiff, ranksArray, newGroup);
+
+		MPI_Comm nodeComm;
+		MPI_Comm_create(comm, *newGroup, newComm);
+	}
+
+	friend std::ostream& operator<<(std::ostream& os, const Node<T>& node) {
+		os << "node: path = " << node.path << ", level = " << node.level << ", ranks = [" << node.pfirst << "-" << node.plast << "]" << std::endl;
+		return os;
+	}
+
+};
+
+template<class T>
+struct MPI::TypeTraits<Node<T>> {
+
+    static inline MPI_Datatype getType(Node<T>& node) {
+        MPI_Datatype tempType, nodeType;
+        MPI_Aint lb, extent;
+        int count = 5;
+        const int blocklengths[5] = {
+            (int) MPI::TypeTraits<T>::getSize(node.data),
+            (int) MPI::TypeTraits<std::string>::getSize(node.path),
+            (int) MPI::TypeTraits<int>::getSize(node.level),
+            (int) MPI::TypeTraits<int>::getSize(node.pfirst),
+            (int) MPI::TypeTraits<int>::getSize(node.plast)
+        };
+        const MPI_Aint displacements[5] = {
+            offsetof(Node<T>, data),
+            offsetof(Node<T>, path),
+            offsetof(Node<T>, level),
+            offsetof(Node<T>, data),
+            offsetof(Node<T>, data)
+        };
+        const MPI_Datatype types[5] = {
+            MPI::TypeTraits<T>::getType(node.data),
+            MPI::TypeTraits<std::string>::getType(node.path),
+            MPI::TypeTraits<int>::getType(node.level),
+            MPI::TypeTraits<int>::getType(node.pfirst),
+            MPI::TypeTraits<int>::getType(node.plast)
+        };
+        MPI_Type_create_struct(count, blocklengths, displacements, types, &tempType);
+        MPI_Type_get_extent(tempType, &lb, &extent);
+        MPI_Type_create_resized(tempType, lb, extent, &nodeType);
+        MPI_Type_commit(&nodeType);
+        return nodeType;
+    }
+    static inline std::size_t getSize(Node<T>& node) { return 1; }
+    static inline Node<T>* getAddress(Node<T>& node) { return &node; }
+
+};
+
+namespace MPI {
+
+template<class T>
+int send(Node<T>& node, int dest, int tag, MPI_Comm comm) {
+    send(node.data, dest, tag, comm);
+    send(node.path, dest, tag, comm);
+    send(node.level, dest, tag, comm);
+    send(node.pfirst, dest, tag, comm);
+    send(node.plast, dest, tag, comm);
+    return 0;
+}
+
+template<class T>
+int receive(Node<T>& node, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+    receive(node.data, src, tag, comm, status);
+    receive(node.path, src, tag, comm, status);
+    receive(node.level, src, tag, comm, status);
+    receive(node.pfirst, src, tag, comm, status);
+    receive(node.plast, src, tag, comm, status);
+    return 0;
+}
+
+template<class T>
+int broadcast(Node<T>& node, int root, MPI_Comm comm) {
+    broadcast(node.data, root, comm);
+    broadcast(node.path, root, comm);
+    broadcast(node.level, root, comm);
+    broadcast(node.pfirst, root, comm);
+    broadcast(node.plast, root, comm);
+    return 0;
+}
+
+}
+
+// template<class T>
+// int MPI::broadcast_(Node<T>& node, int dest, int tag, MPI_Comm comm, Node<T>*) {
+//     std::cout << "Calling Node broadcast" << std::endl;
+//     return 0;
+// }
+
+// template<>
+// int send<Node<T>>(Node<T>& node, int dest, int tag, MPI_Comm comm) {
+//     MPI::send(node.data, dest, tag + 1, comm);
+//     MPI::send(node.path, dest, tag + 2, comm);
+//     MPI::send(node.level, dest, tag + 3, comm);
+//     MPI::send(node.pfirst, dest, tag + 4, comm);
+//     MPI::send(node.plast, dest, tag + 5, comm);
+//     return 0;
+// }
+
+// template<>
+// int receive<Node<T>>(Node<T>& node, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+//     MPI::receive(node.data, src, tag + 1, comm, status);
+//     MPI::receive(node.path, src, tag + 2, comm, status);
+//     MPI::receive(node.level, src, tag + 3, comm, status);
+//     MPI::receive(node.pfirst, src, tag + 4, comm, status);
+//     MPI::receive(node.plast, src, tag + 5, comm, status);
+//     return 0;
+// }
+
+} // NAMESPACE : EllipticForest
+
+#endif // QUAD_NODE_HPP_
