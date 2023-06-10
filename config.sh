@@ -44,6 +44,9 @@ cmake ${ELLIPTIC_FOREST} \
     -DMPI_PATH=${MPI_PATH} \
     -DP4EST_PATH=${P4EST_PATH} \
     -DWITH_PETSC=true \
-    -DPETSC_PATH=${PETSC_PATH}
+    -DPETSC_PATH=${PETSC_PATH} \
+    -DWITH_MATPLOTLIBCPP=true \
+    -DPYTHON_ENV_PATH=${PYTHON_ENV_PATH} \
+    -DPYTHON_VERSION=${PYTHON_VERSION}
 
 echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"

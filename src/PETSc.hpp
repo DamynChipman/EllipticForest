@@ -75,11 +75,13 @@ public:
 
 };
 
-class PetscPatchSolver : public PatchSolverBase<double> {
+class PetscPatchSolver {
 
 protected:
 
     KSP ksp_;
+    DM da_;
+    Mat A_;
 
 public:
 
@@ -93,18 +95,17 @@ public:
     void setAlphaFunction(std::function<double(double, double)> fn);
     void setBetaFunction(std::function<double(double, double)> fn);
     void setLambdaFunction(std::function<double(double, double)> fn);
-    void setLoadFunction(std::function<double(double, double)> fn);
+    void setRHSFunction(std::function<double(double, double)> fn);
 
     // Vector<double> computeDiffusionVector(PetscGrid& grid, std::function<double(double x, double y)> diffusionFunction);
     // Vector<double> computeLambdaVector(PetscGrid& grid, std::function<double(double x, double y)> lambdaFunction);
-    // Vector<double> computeLoadVector(PetscGrid& grid, std::function<double(double x, double y)> loadFunction);
-
-private:
+    // Vector<double> computeLoadVector(PetscGrid& grid, std::function<double(double x, double y)> rhsFunction);
 
     std::function<double(double x, double y)> alphaFunction;
     std::function<double(double x, double y)> betaFunction;
     std::function<double(double x, double y)> lambdaFunction;
-    std::function<double(double x, double y)> loadFunction;
+    std::function<double(double x, double y)> rhsFunction;
+    int gridIndex2MatrixIndex(int i, int j, int nx, int ny);
 
 };
 

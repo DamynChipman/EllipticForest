@@ -696,6 +696,24 @@ double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 
 }
 
+template<typename NumericalType>
+double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
+    if (a.size() != b.size()) {
+        std::string errorMessage = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
+        errorMessage += "\ta.size = " + std::to_string(a.size()) + "\n";
+        errorMessage += "\tb.size = " + std::to_string(b.size()) + "\n";
+        std::cerr << errorMessage << std::endl;
+        throw std::invalid_argument(errorMessage);
+    }
+
+    double norm = 0.;
+    for (int i = 0; i < a.size(); i++) {
+        norm += pow(a[i] - b[i], 2);
+    }
+    return sqrt(norm);
+
+}
+
 // template<typename NumericalType>
 // Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
 //     Vector<NumericalType> res(rhs.size());
