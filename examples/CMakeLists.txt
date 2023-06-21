@@ -1,4 +1,5 @@
 add_subdirectory(hello)
 add_subdirectory(poisson)
 add_subdirectory(helmholtz)
+add_subdirectory(elliptic)
 add_subdirectory(toybox)
