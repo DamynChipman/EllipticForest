@@ -97,17 +97,15 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
     double dy = grid.dy();
 
     // Get Petsc data
-    DM& dm = grid.dm();
-
     Mat A;
     MatCreate(MPI_COMM_WORLD, &A);
-    MatSetSizes(A, N, N, N, N);
+    MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE, N, N);
     MatSetFromOptions(A);
     MatSetUp(A);
 
     Vec f;
     VecCreate(MPI_COMM_WORLD, &f);
-    VecSetSizes(f, N, N);
+    VecSetSizes(f, PETSC_DECIDE, N);
     VecSetFromOptions(f);
 
     Vec x;
@@ -261,10 +259,10 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
     KSPSolve(ksp, f, x);
 
     // Create EllipticForest vector
-    double** x_data;
-    VecGetArray(x, x_data);
+    double* x_data;
+    VecGetArray(x, &x_data);
     std::vector<double> xv;
-    xv.assign(*x_data, *x_data + N);
+    xv.assign(x_data, x_data + N);
     Vector<double> x_vector(xv);
 
     // Clean up
@@ -438,6 +436,11 @@ Matrix<double> PetscPatchSolver::buildD2N(PetscGrid& grid) {
 
 }
 
+Vector<double> PetscPatchSolver::particularNeumannData(PetscGrid& grid, Vector<double>& rhsData) {
+    Vector<double> gZero(2*grid.nPointsX() + 2*grid.nPointsX(), 0);
+    return mapD2N(grid, gZero, rhsData);
+}
+
 void PetscPatchSolver::setAlphaFunction(std::function<double(double, double)> fn) {
     alphaFunction = fn;
 }
@@ -465,15 +468,15 @@ PetscPatch::PetscPatch(PetscGrid grid) :
         {}
 
 std::string PetscPatch::name() {
-
+    return "PetscPatch";
 }
 
 PetscGrid& PetscPatch::grid() {
-
+    return grid_;
 }
 
 PetscPatch PetscPatch::buildChild(std::size_t childIndex) {
-
+    
 }
 
 double PetscPatch::dataSize() {
@@ -520,8 +523,119 @@ Vector<double>& PetscPatch::vectorW() {
     return w;
 }
 
+PetscPatchNodeFactory::PetscPatchNodeFactory() {}
 
+PetscPatchNodeFactory::PetscPatchNodeFactory(MPI_Comm comm) :
+    MPIObject(comm)
+        {}
+
+Node<PetscPatch>* PetscPatchNodeFactory::createNode(PetscPatch data, std::string path, int level, int pfirst, int plast) {
+    Node<PetscPatch>* node = new Node<PetscPatch>(this->getComm(), data, path, level, pfirst, plast);
+    return node;
+}
+
+Node<PetscPatch>* PetscPatchNodeFactory::createChildNode(Node<PetscPatch>* parentNode, int siblingID, int pfirst, int plast) {
+    
+    // Get parent grid info
+    auto& parentGrid = parentNode->data.grid();
+    int nx = parentGrid.nPointsX();
+    int ny = parentGrid.nPointsY();
+    double xLower = parentGrid.xLower();
+    double xUpper = parentGrid.xUpper();
+    double xMid = (xLower + xUpper) / 2.0;
+    double yLower = parentGrid.yLower();
+    double yUpper = parentGrid.yUpper();
+    double yMid = (yLower + yUpper) / 2.0;
+
+    // Create child grid
+    PetscGrid childGrid;
+    switch (siblingID)
+    {
+    case 0:
+        // Lower left
+        childGrid = PetscGrid(nx, ny, xLower, xMid, yLower, yMid);
+        break;
+    case 1:
+        // Lower right
+        childGrid = PetscGrid(nx, ny, xMid, xUpper, yLower, yMid);
+        break;
+    case 2:
+        // Upper left
+        childGrid = PetscGrid(nx, ny, xLower, xMid, yMid, yUpper);
+        break;
+    case 3:
+        // Upper right
+        childGrid = PetscGrid(nx, ny, xMid, xUpper, yMid, yUpper);
+        break;
+    default:
+        break;
+    }
+
+    // Create child patch
+    PetscPatch childPatch(childGrid);
+
+    // Create child node
+    std::string path = parentNode->path + std::to_string(siblingID);
+    int level = parentNode->level + 1;
+    return new Node<PetscPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
+    
+}
+
+Node<PetscPatch>* PetscPatchNodeFactory::createParentNode(std::vector<Node<PetscPatch>*> childNodes, int pfirst, int plast) {
+
+    // Create parent grid
+    int nx = childNodes[0]->data.grid().nPointsX();
+    int ny = childNodes[0]->data.grid().nPointsY();
+    double xLower = childNodes[0]->data.grid().xLower();
+    double xUpper = childNodes[1]->data.grid().xUpper();
+    double yLower = childNodes[0]->data.grid().yLower();
+    double yUpper = childNodes[2]->data.grid().yUpper();
+    PetscGrid parentGrid(nx, ny, xLower, xUpper, yLower, yUpper);
+
+    // Create parent patch
+    PetscPatch parentPatch(parentGrid);
+
+    // Create parent node
+    std::string path = childNodes[0]->path.substr(0, childNodes[0]->path.length()-1);
+    int level = childNodes[0]->level - 1;
+    return new Node<PetscPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
+
+}
 
 } // NAMESPACE : Petsc
+
+namespace MPI {
+
+template<>
+int broadcast(Petsc::PetscGrid& grid, int root, MPI_Comm comm) {
+    int nx, ny;
+    double xLower, xUpper, yLower, yUpper;
+    broadcast(nx, root, comm);
+    broadcast(ny, root, comm);
+    broadcast(xLower, root, comm);
+    broadcast(xUpper, root, comm);
+    broadcast(yLower, root, comm);
+    broadcast(yUpper, root, comm);
+    grid = Petsc::PetscGrid(nx, ny, xLower, xUpper, yLower, yUpper);
+    return 1;
+} 
+
+template<>
+int broadcast(Petsc::PetscPatch& patch, int root, MPI_Comm comm) {
+    broadcast(patch.grid(), root, comm);
+    broadcast(patch.matrixX(), root, comm);
+    broadcast(patch.matrixH(), root, comm);
+    broadcast(patch.matrixS(), root, comm);
+    broadcast(patch.matrixT(), root, comm);
+    broadcast(patch.vectorU(), root, comm);
+    broadcast(patch.vectorG(), root, comm);
+    broadcast(patch.vectorV(), root, comm);
+    broadcast(patch.vectorF(), root, comm);
+    broadcast(patch.vectorH(), root, comm);
+    broadcast(patch.vectorW(), root, comm);
+    return 1;
+}
+
+} // NAMESPACE : MPI
 
 } // NAMESPACE : EllipticForest

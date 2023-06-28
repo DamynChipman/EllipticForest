@@ -8,11 +8,12 @@
 #include <string>
 
 #include "VTK.hpp"
+#include "MPI.hpp"
 
 namespace EllipticForest {
 
 template<typename NumericalType>
-class Vector : public DataArrayNodeBase {
+class Vector : public DataArrayNodeBase, public MPI::MPIObject {
 
 protected:
 
@@ -215,6 +216,8 @@ public:
      * @return std::vector<NumericalType> Data
      */
     const std::vector<NumericalType>& data() const { return data_; }
+
+    std::vector<NumericalType>& dataNoConst() { return data_; }
 
     /**
      * @brief Return the pointer of the data array of the std::vector
@@ -714,14 +717,33 @@ double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 
 }
 
-// template<typename NumericalType>
-// Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
-//     Vector<NumericalType> res(rhs.size());
-//     for (auto i = 0; i < res.size(); i++) {
-//         res[i] = lhs * rhs[i];
-//     }
-//     return res;
-// }
+namespace MPI {
+
+template<class T>
+int send(Vector<T>& vector, int dest, int tag, MPI_Comm comm) {
+    send(vector.dataNoConst(), dest, tag, comm);
+    return 0;
+}
+
+template<class T>
+int receive(Vector<T>& vector, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+    std::vector<T> vec;
+    receive(vec, src, tag, comm, status);
+    vector = Vector<T>(vec);
+    return 0;
+}
+
+template<class T>
+int broadcast(Vector<T>& vector, int root, MPI_Comm comm) {
+    int rank; MPI_Comm_rank(comm, &rank);
+    std::vector<T> vec;
+    if (rank == root) vec = vector.dataNoConst();
+    broadcast(vec, root, comm);
+    if (rank != root) vector = Vector<T>(vec);
+    return 0;
+}
+
+} // NAMESPACE : MPI
  
 } // NAMESPACE : EllipticForest
 

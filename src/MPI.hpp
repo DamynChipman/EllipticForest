@@ -1,6 +1,9 @@
 #ifndef MPI_HPP_
 #define MPI_HPP_
 
+#include <iostream>
+#include <vector>
+#include <string>
 #include <mpi.h>
 
 namespace EllipticForest {
@@ -24,6 +27,14 @@ public:
     int rank;
     int size;
 
+    MPIObject() :
+        comm(MPI_COMM_WORLD) {
+
+        MPI_Comm_size(comm, &size);
+        MPI_Comm_rank(comm, &rank);
+
+    }
+
     MPIObject(MPI_Comm comm) :
         comm(comm) {
 
@@ -35,6 +46,11 @@ public:
     virtual const MPI_Comm getComm() const { return comm; }
     virtual const int getRank() const { return rank; }
     virtual const int getSize() const { return size; }
+
+    friend std::ostream& operator<<(std::ostream& os, MPIObject& m) {
+        os << "[RANK " << m.getRank() << "/" << m.getSize() << "]  ";
+        return os;
+    }
 
 };
 
@@ -203,29 +219,32 @@ struct TypeTraits<std::string> {
 // }
 
 template<>
-int send<std::string>(std::string& str, int dest, int tag, MPI_Comm comm) {
-    int size = str.length();
-    send(size, dest, tag, comm);
-    return MPI_Send(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), dest, tag, comm);
-}
+int send<std::string>(std::string& str, int dest, int tag, MPI_Comm comm);
+// {
+//     int size = str.length();
+//     send(size, dest, tag, comm);
+//     return MPI_Send(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), dest, tag, comm);
+// }
 
 template<>
-int receive<std::string>(std::string& str, int src, int tag, MPI_Comm comm, MPI_Status* status) {
-    int size;
-    receive(size, src, tag, comm, status);
-    str.resize(size);
-    return MPI_Recv(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), src, tag, comm, status);
-}
+int receive<std::string>(std::string& str, int src, int tag, MPI_Comm comm, MPI_Status* status);
+// {
+//     int size;
+//     receive(size, src, tag, comm, status);
+//     str.resize(size);
+//     return MPI_Recv(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), src, tag, comm, status);
+// }
 
 template<>
-int broadcast<std::string>(std::string& str, int root, MPI_Comm comm) {
-    // std::cout << "Calling string broadcast" << std::endl;
-    int rank; MPI_Comm_rank(comm, &rank);
-    int size = str.length();
-    broadcast(size, root, comm);
-    if (rank != root) str = std::string(TypeTraits<std::string>::getAddress(str), size);
-    return MPI_Bcast(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), root, comm);
-}
+int broadcast<std::string>(std::string& str, int root, MPI_Comm comm);
+// {
+//     // std::cout << "Calling string broadcast" << std::endl;
+//     int rank; MPI_Comm_rank(comm, &rank);
+//     int size = str.length();
+//     broadcast(size, root, comm);
+//     if (rank != root) str = std::string(TypeTraits<std::string>::getAddress(str), size);
+//     return MPI_Bcast(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), root, comm);
+// }
 
 // template<>
 // int broadcast<std::string>(std::string& str, int root, MPI_Comm comm) {

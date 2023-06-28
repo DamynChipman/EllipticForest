@@ -437,7 +437,19 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Create patch solver
     EllipticForest::Petsc::PetscPatchSolver solver{};
+    solver.setAlphaFunction([&](double x, double y){
+        return 1.0;
+    });
+    solver.setBetaFunction([&](double x, double y){
+        return 1.0;
+    });
+    solver.setLambdaFunction([&](double x, double y){
+        return 0.0;
+    });
     // EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
+
+    // Create node factory
+    EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory;
 
     // Create and run HPS method
     // 1. Create the HPSAlgorithm instance
@@ -446,10 +458,10 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         EllipticForest::Petsc::PetscPatchSolver,
         EllipticForest::Petsc::PetscPatch,
         double>
-            HPS(rootPatch, solver);
+            HPS(MPI_COMM_WORLD, p4est, rootPatch, solver, &nodeFactory);
 
     // 2. Call the setup stage
-    HPS.setupStage(p4est);
+    HPS.setupStage();
 
     // 3. Call the build stage
     HPS.buildStage();
@@ -491,15 +503,15 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
                 case 2:
                     // South : Neumann
-                    *a = 0.0;
-                    *b = 1.0;
-                    return -pde.dudy(x,y);
+                    *a = 1.0;
+                    *b = 0.0;
+                    return pde.u(x,y);
 
                 case 3:
                     // North : Neumann
-                    *a = 0.0;
-                    *b = 1.0;
-                    return pde.dudy(x,y);
+                    *a = 1.0;
+                    *b = 0.0;
+                    return pde.u(x,y);
                 
                 default:
                     break;
@@ -569,7 +581,7 @@ int main(int argc, char** argv) {
     EllipticForest::EllipticForestApp app(&argc, &argv);
 
     // Set options
-    app.options.setOption("cache-operators", false);
+    app.options.setOption("cache-operators", true);
     app.options.setOption("homogeneous-rhs", false);
     app.options.setOption("refinement-threshold", 50.0);
 
@@ -592,8 +604,8 @@ int main(int argc, char** argv) {
     EggCartonPoissonProblem pde{};
 
     // Convergence sweep
-    std::vector<int> patchSizeVector = {8, 16, 32, 64};     // Size of patch
-    std::vector<int> levelVector {1, 2, 3, 4};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
+    std::vector<int> patchSizeVector = {16, 32};     // Size of patch
+    std::vector<int> levelVector {2, 3, 4};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
@@ -660,55 +672,55 @@ int main(int argc, char** argv) {
     }
 
     // Run adaptive parameter sweep
-    for (auto& M : patchSizeVector) {
+    // for (auto& M : patchSizeVector) {
 
-        PlotPair errorPair;
-        PlotPair buildPair;
-        PlotPair solvePair;
+    //     PlotPair errorPair;
+    //     PlotPair buildPair;
+    //     PlotPair solvePair;
 
-        for (auto& l : levelVector) {
+    //     for (auto& l : levelVector) {
 
-            app.log("ADAPTIVE: M = %i, l = %i", M, l);
-            int DOFs = pow(M, 2) * pow(2, 2*l);
-            if (DOFs >= maxResolution) {
-                app.log("Skipping...");
-                continue;
-            }
+    //         app.log("ADAPTIVE: M = %i, l = %i", M, l);
+    //         int DOFs = pow(M, 2) * pow(2, 2*l);
+    //         if (DOFs >= maxResolution) {
+    //             app.log("Skipping...");
+    //             continue;
+    //         }
 
-            // Set options
-            app.options.setOption("min-level", 0);
-            app.options.setOption("max-level", l);
-            app.options.setOption("nx", M);
-            app.options.setOption("ny", M);
+    //         // Set options
+    //         app.options.setOption("min-level", 0);
+    //         app.options.setOption("max-level", l);
+    //         app.options.setOption("nx", M);
+    //         app.options.setOption("ny", M);
 
-            // Solve via HPS
-            if (M == 128 && l == 4) vtkFlag = true;
-            else vtkFlag = false;
-            ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
-            int nDOFs = results.effective_resolution;
-            double error = results.lI_error;
-            resultsVector.push_back(results);
+    //         // Solve via HPS
+    //         if (M == 128 && l == 4) vtkFlag = true;
+    //         else vtkFlag = false;
+    //         ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+    //         int nDOFs = results.effective_resolution;
+    //         double error = results.lI_error;
+    //         resultsVector.push_back(results);
 
-            // Save info to plot
-            errorPair.first.push_back(nDOFs);
-            errorPair.second.push_back(error);
+    //         // Save info to plot
+    //         errorPair.first.push_back(nDOFs);
+    //         errorPair.second.push_back(error);
 
-            buildPair.first.push_back(nDOFs);
-            buildPair.second.push_back(app.timers["build-stage"].time());
+    //         buildPair.first.push_back(nDOFs);
+    //         buildPair.second.push_back(app.timers["build-stage"].time());
 
-            solvePair.first.push_back(nDOFs);
-            solvePair.second.push_back(app.timers["solve-stage"].time());
+    //         solvePair.first.push_back(nDOFs);
+    //         solvePair.second.push_back(app.timers["solve-stage"].time());
 
-            // Restart timers
-            app.timers["build-stage"].restart();
-            app.timers["upwards-stage"].restart();
-            app.timers["solve-stage"].restart();
-        }
+    //         // Restart timers
+    //         app.timers["build-stage"].restart();
+    //         app.timers["upwards-stage"].restart();
+    //         app.timers["solve-stage"].restart();
+    //     }
 
-        adaptiveErrorPlots.push_back(errorPair);
-        adaptiveBuildTimingPlots.push_back(buildPair);
-        adaptiveSolveTimingPlots.push_back(solvePair);
-    }
+    //     adaptiveErrorPlots.push_back(errorPair);
+    //     adaptiveBuildTimingPlots.push_back(buildPair);
+    //     adaptiveSolveTimingPlots.push_back(solvePair);
+    // }
 
     // Write results to console
     app.log(ResultsData::headers());
@@ -735,10 +747,10 @@ int main(int argc, char** argv) {
         counter++;
     }
     counter = 0;
-    for (auto& [nDOFs, error] : adaptiveErrorPlots) {
-        plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, error, "-o" + colors[counter]);
-        counter++;
-    }
+    // for (auto& [nDOFs, error] : adaptiveErrorPlots) {
+    //     plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, error, "-o" + colors[counter]);
+    //     counter++;
+    // }
     std::vector<int> xTicks = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
     std::vector<std::string> xTickLabels;
     for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));

@@ -14,6 +14,11 @@
 
 namespace EllipticForest {
 
+template<typename T> class Quadtree;
+
+template<typename T>
+static Quadtree<T>* quadtree_pointer = nullptr;
+
 template<typename T>
 class Quadtree : public MPI::MPIObject {
 
@@ -25,23 +30,29 @@ public:
 	T* rootDataPtr_;
 	AbstractNodeFactory<T>* nodeFactory;
 	std::function<int(Node<T>*)> visitNodeFn;
+	std::function<void(T&)> visitNodeDataFn;
 	std::function<int(Node<T>*, std::vector<Node<T>*>)> visitFamilyFn;
-	// std::function<T(Node<T>* parentNode, int siblingID, int pfirst, int plast)> initFromParentFunction_;
 
 	Quadtree() :
 		MPIObject(MPI_COMM_WORLD),
 		rootDataPtr_(nullptr),
-		nodeFactory(nullptr) {}
+		nodeFactory(nullptr) {
+			// std::cout << "CONSTRUCTOR 1 CALLED" << std::endl;
+		}
 	
-	Quadtree(MPI_Comm comm, p4est_t* p4est, T rootData, AbstractNodeFactory<T>& nodeFactory) :
+	Quadtree(MPI_Comm comm, p4est_t* p4est, T& rootData, AbstractNodeFactory<T>& nodeFactory) :
 		MPIObject(comm),
 		p4est(p4est),
 		rootDataPtr_(&rootData),
 		nodeFactory(&nodeFactory) {
 
+			// std::cout << "CONSTRUCTOR 2 CALLED" << std::endl;
+
 		// Save user pointer and store self in it
 		void* savedUserPointer = p4est->user_pointer;
-		p4est->user_pointer = this;
+		p4est->user_pointer = reinterpret_cast<void*>(this);
+		quadtree_pointer<T> = this;
+		// std::cout << "[Quadtree] user_pointer = " << p4est->user_pointer << std::endl;
 
 		// Use p4est_search_all to do depth first traversal and create quadtree map and nodes
 		int callPost = 0;
@@ -68,15 +79,10 @@ public:
 				if (owned) {
 					// Create node and metadata
 					Node<T>* node = new Node<T>;
-					// node->path = path;
-					// node->pfirst = pfirst;
-					// node->plast = plast;
-					// node->level = quadrant->level;
 
 					// Create node's data
 					if (quadrant->level == 0) {
 						// Quadrant is root; init with root data
-						// node->data = *quadtree.rootDataPtr_;
 						node = quadtree.nodeFactory->createNode(*quadtree.rootDataPtr_, path, quadrant->level, pfirst, plast);
 					}
 					else {
@@ -84,7 +90,6 @@ public:
 						Node<T>* parentNode = quadtree.getParentFromPath(path);
 						int siblingID = p4est_quadrant_child_id(quadrant);
 						node = quadtree.nodeFactory->createChildNode(parentNode, siblingID, pfirst, plast);
-						// node->data = parentNode->spawnChild(siblingID, pfirst, plast);
 					}
 					map[path] = node;
 				}
@@ -98,10 +103,14 @@ public:
 			NULL
 		);
 
+		// Restore p4est user pointer
+		// p4est->user_pointer = savedUserPointer;
+
 	}
 
 	~Quadtree() {
 		// Iterate through map and delete any owned nodes
+		// std::cout << "DESTRUCTOR CALLED" << std::endl;
 		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); iter++) {
 			if (iter->second != nullptr) {
 				delete iter->second;
@@ -109,9 +118,135 @@ public:
 		}
 	}
 
+	// Quadtree& operator=(Quadtree&& other) {
+	// 	std::cout << "ASSIGNMENT OPERATOR CALLED" << std::endl;
+	// 	if (this != &other) {
+	// 		map = other.map;
+	// 		p4est = other.p4est;
+	// 		rootDataPtr_ = other.rootDataPtr_;
+	// 		nodeFactory = other.nodeFactory;
+	// 	}
+	// 	return *this;
+	// }
+
+	// Quadtree(Quadtree&& other) :
+	// 	MPIObject(other->getComm()),
+	// 	map(other.map),
+	// 	p4est(other.p4est),
+	// 	rootDataPtr_(other.rootDataPtr_),
+	// 	nodeFactory(other.nodeFactory) {
+	// 			std::cout << "MOVE CONSTRUCTOR CALLED" << std::endl;
+	// 		}
+
+	void traversePreOrder(std::function<int(Node<T>*)> visit) {
+
+		visitNodeFn = visit;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			p4est_search_visit,
+			NULL,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void traversePreOrder(std::function<void(T&)> visit) {
+
+		visitNodeDataFn = visit;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			p4est_search_visit_data,
+			NULL,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void traversePostOrder(std::function<int(Node<T>*)> visit) {
+
+		visitNodeFn = visit;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			NULL,
+			p4est_search_visit,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void traversePostOrder(std::function<void(T&)> visit) {
+
+		visitNodeDataFn = visit;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			NULL,
+			p4est_search_visit_data,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void merge(std::function<int(Node<T>*)> visitLeaf, std::function<int(Node<T>*, std::vector<Node<T>*>)> visitFamily) {
+
+		visitNodeFn = visitLeaf;
+		visitFamilyFn = visitFamily;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			NULL,
+			p4est_search_merge,
+			NULL,
+			NULL
+		);
+
+	}
+
+	void split(std::function<int(Node<T>*)> visitLeaf, std::function<int(Node<T>*, std::vector<Node<T>*>)> visitFamily) {
+
+		visitNodeFn = visitLeaf;
+		visitFamilyFn = visitFamily;
+		int skipLevels = 0;
+		p4est_search_reorder(
+			p4est,
+			skipLevels,
+			NULL,
+			p4est_search_split,
+			NULL,
+			NULL,
+			NULL
+		);
+
+	}
+
+	Node<T>* getParentFromPath(std::string path) {
+		return map[path.substr(0, path.length() - 1)];
+	}
+
+	T& root() {
+		return map["0"]->data;
+	}
+
 	static int p4est_search_visit(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
 		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
 		auto& map = quadtree.map;
 		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
 		int cont = 1;
@@ -124,10 +259,28 @@ public:
 		return cont;
 	}
 
+	static int p4est_search_visit_data(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
+		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		auto& map = quadtree.map;
+		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
+		int cont = 1;
+		if (node != nullptr) {
+			bool owned = node->pfirst <= rank && rank <= node->plast;
+			if (owned) {
+				quadtree.visitNodeDataFn(node->data);
+			}
+		}
+		return cont;
+	}
+
 	static int p4est_search_merge(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
 		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 		int ranks; MPI_Comm_size(MPI_COMM_WORLD, &ranks);
-		auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		// std::cout << "[p4est_search_merge] user_pointer = " << p4est->user_pointer << std::endl;
+		// auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
+		// auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		auto& quadtree = *quadtree_pointer<T>;
 		auto& map = quadtree.map;
 		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
 		int cont = 1;
@@ -258,137 +411,6 @@ public:
 		return cont;
 
 	}
-
-	void traversePreOrder(std::function<int(Node<T>*)> visit) {
-
-		visitNodeFn = visit;
-		int skipLevels = 0;
-		p4est_search_reorder(
-			p4est,
-			skipLevels,
-			NULL,
-			p4est_search_visit,
-			NULL,
-			NULL,
-			NULL
-		);
-
-	}
-
-	void traversePostOrder(std::function<int(Node<T>*)> visit) {
-
-		visitNodeFn = visit;
-		int skipLevels = 0;
-		p4est_search_reorder(
-			p4est,
-			skipLevels,
-			NULL,
-			NULL,
-			p4est_search_visit,
-			NULL,
-			NULL
-		);
-
-	}
-
-	void merge(std::function<int(Node<T>*)> visitLeaf, std::function<int(Node<T>*, std::vector<Node<T>*>)> visitBranch) {
-
-		visitNodeFn = visitLeaf;
-		visitFamilyFn = visitBranch;
-		int skipLevels = 0;
-		p4est_search_reorder(
-			p4est,
-			skipLevels,
-			NULL,
-			NULL,
-			p4est_search_merge,
-			NULL,
-			NULL
-		);
-
-	}
-
-	void split(std::function<int(Node<T>*)> visitLeaf, std::function<int(Node<T>*, std::vector<Node<T>*>)> visitBranch) {
-
-		visitNodeFn = visitLeaf;
-		visitFamilyFn = visitBranch;
-		int skipLevels = 0;
-		p4est_search_reorder(
-			p4est,
-			skipLevels,
-			NULL,
-			p4est_search_split,
-			NULL,
-			NULL,
-			NULL
-		);
-
-	}
-
-	Node<T>* getParentFromPath(std::string path) {
-		return map[path.substr(0, path.length() - 1)];
-	}
-
-	// void initFromP4est(p4est_t* p4est, T rootData, std::function<T(Node<T>* parentNode, int siblingID, int pfirst, int plast)> initFromParentFunction) {
-
-	// 	// Save user pointer and store self in it
-	// 	void* savedUserPointer = p4est->user_pointer;
-	// 	p4est->user_pointer = this;
-
-	// 	// Use p4est_search_all to do depth first traversal and create quadtree map and nodes
-	// 	int callPost = 0;
-	// 	p4est_search_all(
-	// 		p4est,
-	// 		callPost,
-	// 		[](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
-
-	// 			// Get quadtree
-	// 			auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
-	// 			auto& map = quadtree.map;
-
-	// 			// Get MPI info
-	// 			int rank;
-	// 			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	// 			// Compute unique path
-	// 			std::string path = p4est::p4est_quadrant_path(quadrant);
-
-	// 			// Check if quadrant is owned by this rank
-	// 			bool owned = pfirst <= rank && rank <= plast;
-
-	// 			// If owned, create Node in map
-	// 			if (owned) {
-	// 				// Create node and metadata
-	// 				Node<T>* node = new Node<T>;
-	// 				node->path = path;
-	// 				node->pfirst = pfirst;
-	// 				node->plast = plast;
-	// 				node->level = quadrant->level;
-
-	// 				// Create node's data
-	// 				if (quadrant->level == 0) {
-	// 					// Quadrant is root; init with root data
-	// 					node->data = *quadtree.rootDataPtr_;
-	// 				}
-	// 				else {
-	// 					// Quadrant is not root; init from parent and sibling index
-	// 					Node<T>* parentNode = quadtree.getParent(node);
-	// 					int siblingID = p4est_quadrant_child_id(quadrant);
-	// 					node->data = quadtree.initFromParentFunction_(parentNode, siblingID, pfirst, plast);
-	// 				}
-	// 				map[path] = node;
-	// 			}
-	// 			else {
-	// 				map[path] = nullptr;
-	// 			}
-
-	// 			return 1;
-	// 		},
-	// 		NULL,
-	// 		NULL
-	// 	);
-
-	// }
 
 };
 

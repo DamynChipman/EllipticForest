@@ -8,35 +8,37 @@
 #include "PatchGrid.hpp"
 #include "PatchSolver.hpp"
 #include "Patch.hpp"
+#include "QuadNode.hpp"
+#include "MPI.hpp"
 
 namespace EllipticForest {
 
 namespace Petsc {
 
-class PetscVector : public Vector<double> {
+// class PetscVector : public Vector<double> {
 
-protected:
+// protected:
 
-    Vec vec_;
+//     Vec vec_;
 
-public:
+// public:
 
-    PetscVector();
-    PetscVector(MPI_Comm comm, int size);
-    PetscVector(MPI_Comm comm, Vector<double>& vector);
-
-
+//     PetscVector();
+//     PetscVector(MPI_Comm comm, int size);
+//     PetscVector(MPI_Comm comm, Vector<double>& vector);
 
 
-};
 
-class PetscMatrix : public Matrix<double> {
 
-protected:
+// };
 
-    Mat mat_;
+// class PetscMatrix : public Matrix<double> {
 
-};
+// protected:
+
+//     Mat mat_;
+
+// };
 
 class PetscGrid : public PatchGridBase<double> {
 
@@ -91,6 +93,7 @@ public:
     virtual Vector<double> solve(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
     virtual Vector<double> mapD2N(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
     virtual Matrix<double> buildD2N(PetscGrid& grid);
+    virtual Vector<double> particularNeumannData(PetscGrid& grid, Vector<double>& rhsData);
 
     void setAlphaFunction(std::function<double(double, double)> fn);
     void setBetaFunction(std::function<double(double, double)> fn);
@@ -151,7 +154,30 @@ private:
 
 };
 
+class PetscPatchNodeFactory : public AbstractNodeFactory<PetscPatch>, public ::EllipticForest::MPI::MPIObject {
+
+public:
+
+    PetscPatchNodeFactory();
+    PetscPatchNodeFactory(MPI_Comm comm);
+
+    Node<PetscPatch>* createNode(PetscPatch data, std::string path, int level, int pfirst, int plast);
+    Node<PetscPatch>* createChildNode(Node<PetscPatch>* parentNode, int siblingID, int pfirst, int plast);
+    Node<PetscPatch>* createParentNode(std::vector<Node<PetscPatch>*> childNodes, int pfirst, int plast);
+
+};
+
 } // NAMESPACE : Petsc
+
+namespace MPI {
+
+template<>
+int broadcast(Petsc::PetscGrid& grid, int root, MPI_Comm comm);
+
+template<>
+int broadcast(Petsc::PetscPatch& patch, int root, MPI_Comm comm);
+
+} // NAMESPACE : MPI
 
 } // NAMESPACE : EllipticForest
 

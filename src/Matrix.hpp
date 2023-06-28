@@ -66,6 +66,7 @@ public:
     std::size_t nRows() const { return nRows_; }
     std::size_t nCols() const { return nCols_; }
     std::vector<NumericalType> data() const { return data_; }
+    std::vector<NumericalType>& dataNoConst() { return data_; }
     NumericalType* dataPointer() { return data_.data(); }
 
     NumericalType getEntry(std::size_t i, std::size_t j) {
@@ -650,6 +651,49 @@ double matrixInfNorm(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
     return maxDiff;
 
 }
+
+namespace MPI {
+
+template<class T>
+int send(Matrix<T>& matrix, int dest, int tag, MPI_Comm comm) {
+    int rows, cols;
+    rows = static_cast<int>(matrix.nRows());
+    cols = static_cast<int>(matrix.nCols());
+    send(rows, dest, tag+1, comm);
+    send(cols, dest, tag+2, comm);
+    send(matrix.dataNoConst(), dest, tag, comm);
+    return 0;
+}
+
+template<class T>
+int receive(Matrix<T>& matrix, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+    int rows, cols;
+    std::vector<T> vec;
+    receive(rows, src, tag+1, comm, status);
+    receive(cols, src, tag+2, comm, status);
+    receive(vec, src, tag, comm, status);
+    matrix = Matrix<T>(rows, cols, vec);
+    return 0;
+}
+
+template<class T>
+int broadcast(Matrix<T>& matrix, int root, MPI_Comm comm) {
+    int rank; MPI_Comm_rank(comm, &rank);
+    int rows, cols;
+    std::vector<T> vec;
+    if (rank == root) {
+        rows = static_cast<int>(matrix.nRows());
+        cols = static_cast<int>(matrix.nCols());
+        vec = matrix.dataNoConst();
+    }
+    broadcast(rows, root, comm);
+    broadcast(cols, root, comm);
+    broadcast(vec, root, comm);
+    if (rank != root) matrix = Matrix<T>(rows, cols, vec);
+    return 0;
+}
+
+} // NAMESPACE : MPI
 
 } // NAMESPACE : EllipticForest
 

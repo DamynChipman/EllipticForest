@@ -52,6 +52,15 @@ public:
 		MPIObject(comm)
 			{}
 
+    Node(MPI_Comm comm, T data, std::string path, int level, int pfirst, int plast) :
+        MPIObject(comm),
+        data(data),
+        path(path),
+        level(level),
+        pfirst(pfirst),
+        plast(plast)
+            {}
+
 	bool isOwned() {
 		return pfirst <= this->getRank() && this->getRank() <= plast;
 	}

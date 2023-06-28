@@ -18,7 +18,7 @@ enum BoundaryConditionType {
 };
 
 template<typename PatchGridType, typename PatchSolverType, typename PatchType, typename NumericalType>
-class HPSAlgorithm {
+class HPSAlgorithm : public MPI::MPIObject {
 
 public:
 
@@ -47,6 +47,12 @@ public:
     PatchSolverType patchSolver;
 
     /**
+     * @brief Node factory to create nodes
+     * 
+     */
+    AbstractNodeFactory<PatchType>* nodeFactory;
+
+    /**
      * @brief Cache storage for vectors
      * 
      */
@@ -70,18 +76,36 @@ public:
      * @param rootPatch A patch representing the entire domain and leaf patch prototypes
      * @param patchSolver The elliptic solver for an individual patch
      */
-    HPSAlgorithm(PatchType rootPatch, PatchSolverType patchSolver) :
+    // HPSAlgorithm(PatchType rootPatch, PatchSolverType patchSolver) :
+    //     rootPatch(rootPatch),
+    //     patchSolver(patchSolver),
+    //     nodeFactory(nullptr)
+    //         {}
+
+    /**
+     * @brief Construct a new HPSAlgorithm object
+     * 
+     * @param comm MPI communicator
+     * @param rootPatch A patch representing the entire domain and leaf patch prototypes
+     * @param patchSolver The elliptic solver for an individual patch
+     * @param nodeFactory Node factory to produce new nodes
+     */
+    HPSAlgorithm(MPI_Comm comm, p4est_t* p4est, PatchType rootPatch, PatchSolverType patchSolver, AbstractNodeFactory<PatchType>* nodeFactory) :
+        MPIObject(comm),
+        p4est(p4est),
         rootPatch(rootPatch),
-        patchSolver(patchSolver)
+        patchSolver(patchSolver),
+        nodeFactory(nodeFactory),
+        quadtree(comm, p4est, rootPatch, *nodeFactory)
             {}
 
     /**
      * @brief Destroy the HPSAlgorithm object
      * 
      */
-    ~HPSAlgorithm() {
-        // delete quadtree;
-    }
+    // ~HPSAlgorithm() {
+    //     // delete quadtree;
+    // }
 
     /**
      * @brief Performs the setup stage of the HPS method
@@ -94,10 +118,10 @@ public:
      * 
      * @param p4est The p4est object with the tree topology
      */
-    virtual void setupStage(p4est_t* p4est) {
+    virtual void setupStage() {
 
         // Set internal p4est
-        p4est = p4est;
+        // this->p4est = p4est;
         
         // Get app and log
         EllipticForestApp& app = EllipticForestApp::getInstance();
@@ -107,30 +131,32 @@ public:
         app.timers["setup-stage"].start();
 
         // Build quadtree from p4est_t tree
-        quadtree = Quadtree<PatchType>(p4est);
-        quadtree.buildFromP4est(p4est, rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
-            // Function to init patch from parent patch (implemented in derived Patch class)
-            return parentPatch.buildChild(childIndex);
-        });
+        // quadtree = Quadtree<PatchType>(this->getComm(), p4est, rootPatch, *nodeFactory);
+        quadtree.p4est = p4est;
+        // quadtree = Quadtree<PatchType>(p4est);
+        // quadtree.buildFromP4est(p4est, rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
+        //     // Function to init patch from parent patch (implemented in derived Patch class)
+        //     return parentPatch.buildChild(childIndex);
+        // });
 
         // Set p4est ID (leaf level IDs) on patches
-        int currentID = 0;
-        quadtree.traversePostOrder([&](PatchType& patch){
-            // if (patch.isLeaf()) {
-            //     patch.leafID = currentID++;
-            // }
-            // else {
-            //     patch.leafID = -1;
-            // }
+        // int currentID = 0;
+        // quadtree.traversePostOrder([&](PatchType& patch){
+        //     // if (patch.isLeaf()) {
+        //     //     patch.leafID = currentID++;
+        //     // }
+        //     // else {
+        //     //     patch.leafID = -1;
+        //     // }
 
-            patch.isLeaf ? patch.leafID = currentID++ : patch.leafID = -1;
-        });
+        //     patch.isLeaf ? patch.leafID = currentID++ : patch.leafID = -1;
+        // });
 
         // Set global ID on patches
-        currentID = 0;
-        quadtree.traversePreOrder([&](PatchType& patch){
-            patch.globalID = currentID++;
-        });
+        // currentID = 0;
+        // quadtree.traversePreOrder([&](PatchType& patch){
+        //     patch.globalID = currentID++;
+        // });
 
         // // Set D2N matrices on leaf
         // quadtree.traversePostOrder([&](PatchType& patch){
@@ -172,8 +198,29 @@ public:
         app.timers["build-stage"].start();
 
         // Set D2N matrices on leaf
-        quadtree.traversePostOrder([&](PatchType& patch){
-            if (patch.isLeaf) {
+        // quadtree.traversePostOrder([&](PatchType& patch){
+        //     if (patch.isLeaf) {
+        //         if (std::get<bool>(app.options["cache-operators"])) {
+        //             if (!matrixCache.contains("T_leaf")) {
+        //                 matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
+        //             }
+        //             patch.matrixT() = matrixCache["T_leaf"];
+        //         }
+        //         else {
+        //             patch.matrixT() = patchSolver.buildD2N(patch.grid());
+        //         }
+        //     }
+        // });
+
+        // quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        //     merge4to1(tau, alpha, beta, gamma, omega);
+        // });
+
+        quadtree.merge(
+            [&](Node<PatchType>* leafNode){
+                // Leaf callback
+                PatchType& patch = leafNode->data;
+                patch.isLeaf = true;
                 if (std::get<bool>(app.options["cache-operators"])) {
                     if (!matrixCache.contains("T_leaf")) {
                         matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
@@ -183,12 +230,19 @@ public:
                 else {
                     patch.matrixT() = patchSolver.buildD2N(patch.grid());
                 }
+                return 1;
+            },
+            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // Family callback
+                PatchType& tau = parentNode->data;
+                PatchType& alpha = childNodes[0]->data;
+                PatchType& beta = childNodes[1]->data;
+                PatchType& gamma = childNodes[2]->data;
+                PatchType& omega = childNodes[3]->data;
+                merge4to1(tau, alpha, beta, gamma, omega);
+                return 1;
             }
-        });
-
-        quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-            merge4to1(tau, alpha, beta, gamma, omega);
-        });
+        );
 
         app.timers["build-stage"].stop();
         app.logHead("End HPS Build Stage");
@@ -217,19 +271,43 @@ public:
         app.addTimer("upwards-stage");
         app.timers["upwards-stage"].start();
 
-        quadtree.traversePostOrder([&](PatchType& patch){
-            if (patch.isLeaf) {
+        // quadtree.traversePostOrder([&](PatchType& patch){
+        //     if (patch.isLeaf) {
+        //         // Call callback function to set RHS data on patch
+        //         rhsPatchFunction(patch);
+
+        //         // Set particular Neumann data using patch solver function
+        //         patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
+        //     }
+        // });
+
+        // quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        //     upwards4to1(tau, alpha, beta, gamma, omega);
+        // });
+
+        quadtree.merge(
+            [&](Node<PatchType>* leafNode){
+                // Leaf callback
+                PatchType& patch = leafNode->data;
+
                 // Call callback function to set RHS data on patch
                 rhsPatchFunction(patch);
 
                 // Set particular Neumann data using patch solver function
                 patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
+                return 1;
+            },
+            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // Family callback
+                PatchType& tau = parentNode->data;
+                PatchType& alpha = childNodes[0]->data;
+                PatchType& beta = childNodes[1]->data;
+                PatchType& gamma = childNodes[2]->data;
+                PatchType& omega = childNodes[3]->data;
+                upwards4to1(tau, alpha, beta, gamma, omega);
+                return 1;
             }
-        });
-
-        quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-            upwards4to1(tau, alpha, beta, gamma, omega);
-        });
+        );
 
         app.timers["upwards-stage"].stop();
         app.logHead("End HPS Upwards Stage");
@@ -263,13 +341,31 @@ public:
         // Set Dirichlet data on root patch
         boundaryDataFunction(quadtree.root());
 
-        quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-            split1to4(tau, alpha, beta, gamma, omega);
-        });
+        // quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        //     split1to4(tau, alpha, beta, gamma, omega);
+        // });
 
-        quadtree.traversePreOrder([&](PatchType& patch){
-            leafSolve(patch);
-        });
+        // quadtree.traversePreOrder([&](PatchType& patch){
+        //     leafSolve(patch);
+        // });
+
+        quadtree.split(
+            [&](Node<PatchType>* leafNode){
+                // Leaf callback
+                leafSolve(leafNode->data);
+                return 1;
+            },
+            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // Family callback
+                PatchType& tau = parentNode->data;
+                PatchType& alpha = childNodes[0]->data;
+                PatchType& beta = childNodes[1]->data;
+                PatchType& gamma = childNodes[2]->data;
+                PatchType& omega = childNodes[3]->data;
+                split1to4(tau, alpha, beta, gamma, omega);
+                return 1;
+            }
+        );
 
         app.timers["solve-stage"].stop();
         app.logHead("End HPS Solve Stage");
@@ -355,14 +451,31 @@ public:
         }
 
         // Apply solution matrix down tree
-        quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-            split1to4(tau, alpha, beta, gamma, omega);
-        });
+        // quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        //     split1to4(tau, alpha, beta, gamma, omega);
+        // });
 
-        // Solve for interior data via leaf solver
-        quadtree.traversePreOrder([&](PatchType& patch){
-            leafSolve(patch);
-        });
+        // // Solve for interior data via leaf solver
+        // quadtree.traversePreOrder([&](PatchType& patch){
+        //     leafSolve(patch);
+        // });
+        quadtree.split(
+            [&](Node<PatchType>* leafNode){
+                // Leaf callback
+                leafSolve(leafNode->data);
+                return 1;
+            },
+            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // Family callback
+                PatchType& tau = parentNode->data;
+                PatchType& alpha = childNodes[0]->data;
+                PatchType& beta = childNodes[1]->data;
+                PatchType& gamma = childNodes[2]->data;
+                PatchType& omega = childNodes[3]->data;
+                split1to4(tau, alpha, beta, gamma, omega);
+                return 1;
+            }
+        );
 
         app.timers["solve-stage"].stop();
         app.logHead("End HPS Solve Stage");
@@ -377,13 +490,30 @@ public:
 
         setBoundaryData_(quadtree.root(), boundaryData, boundaryTypes);
 
-        quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-            split1to4(tau, alpha, beta, gamma, omega);
-        });
+        // quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
+        //     split1to4(tau, alpha, beta, gamma, omega);
+        // });
 
-        quadtree.traversePreOrder([&](PatchType& patch){
-            leafSolve(patch);
-        });
+        // quadtree.traversePreOrder([&](PatchType& patch){
+        //     leafSolve(patch);
+        // });
+        quadtree.split(
+            [&](Node<PatchType>* leafNode){
+                // Leaf callback
+                leafSolve(leafNode->data);
+                return 1;
+            },
+            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // Family callback
+                PatchType& tau = parentNode->data;
+                PatchType& alpha = childNodes[0]->data;
+                PatchType& beta = childNodes[1]->data;
+                PatchType& gamma = childNodes[2]->data;
+                PatchType& omega = childNodes[3]->data;
+                split1to4(tau, alpha, beta, gamma, omega);
+                return 1;
+            }
+        );
 
         app.timers["solve-stage"].stop();
         app.logHead("End HPS Solve Stage");

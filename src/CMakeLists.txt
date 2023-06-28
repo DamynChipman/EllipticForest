@@ -12,6 +12,7 @@ target_link_libraries(EllipticForest PUBLIC common)
 set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
     FISHPACK.cpp
+    MPI.cpp
     P4est.cpp
     PETSc.cpp
     VTK.cpp
@@ -51,6 +52,7 @@ install(FILES
     GenericSingleton.hpp
     HPSAlgorithm.hpp
     Matrix.hpp
+    MPI.hpp
     P4est.hpp
     Patch.hpp
     PatchGrid.hpp
