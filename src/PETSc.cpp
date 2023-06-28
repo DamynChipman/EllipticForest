@@ -458,7 +458,7 @@ void PetscPatchSolver::setRHSFunction(std::function<double(double, double)> fn) 
 }
 
 int PetscPatchSolver::gridIndex2MatrixIndex(int i, int j, int nx, int ny) {
-    return i + j*nx;
+    return j + i*ny;
 }
 
 PetscPatch::PetscPatch() {}

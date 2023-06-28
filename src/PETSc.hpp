@@ -15,6 +15,8 @@ namespace EllipticForest {
 
 namespace Petsc {
 
+#define DTN_OPTIMIZE 1
+
 // class PetscVector : public Vector<double> {
 
 // protected:
