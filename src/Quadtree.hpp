@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 
+#include "EllipticForestApp.hpp"
 #include "MPI.hpp"
 #include "P4est.hpp"
 #include "QuadNode.hpp"
@@ -91,9 +92,15 @@ public:
 						int siblingID = p4est_quadrant_child_id(quadrant);
 						node = quadtree.nodeFactory->createChildNode(parentNode, siblingID, pfirst, plast);
 					}
+
+					// Leaf flag
+					node->leaf = local_num >= 0;
+
+					// Put in map
 					map[path] = node;
 				}
 				else {
+					// Not owned by local rank, put in nullptr for this node
 					map[path] = nullptr;
 				}
 
@@ -275,6 +282,7 @@ public:
 	}
 
 	static int p4est_search_merge(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {
+		EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
 		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 		int ranks; MPI_Comm_size(MPI_COMM_WORLD, &ranks);
 		// std::cout << "[p4est_search_merge] user_pointer = " << p4est->user_pointer << std::endl;
@@ -285,6 +293,14 @@ public:
 		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
 		int cont = 1;
 		bool owned = node->pfirst <= rank && rank <= node->plast;
+		// std::string ppath;
+		// if (node == nullptr) {
+		// 	ppath = "NULL";
+		// }
+		// else {
+		// 	ppath = node->path;
+		// }
+		// app.log("Post-quadrant callback. " + node->str());
 
 		// printf("[RANK %i / %i]\n", rank, ranks);
 		// std::cout << "\tlocal_num = " << local_num << std::endl;
@@ -322,6 +338,7 @@ public:
 					bool amRoot = child != nullptr;
 					int pnode;
 					int maybeRoot = (amRoot ? nodeRank : 0);
+					// app.log("CALL MPI_Allreduce");
 					MPI_Allreduce(&maybeRoot, &pnode, 1, MPI_INT, MPI_MAX, nodeComm);
 
 					// Allocate memory on my rank to store incoming node data
@@ -330,11 +347,14 @@ public:
 					}
 
 					// Broadcast node
+					// app.log("Broadcasting child node %i, root = %i", i, pnode);
 					MPI::broadcast(*child, pnode, nodeComm);
 					
 					// Store child in children
 					children[i] = child;
 				}
+
+				node->freeMPIGroupComm(&nodeGroup, &nodeComm);
 			}
 
 			// If owned, call family branch callback

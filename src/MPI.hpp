@@ -10,6 +10,8 @@ namespace EllipticForest {
 
 namespace MPI {
 
+static int HEAD_RANK = 0;
+
 // Forward declarations
 // template<class T> int broadcast(T& data, int root, MPI_Comm comm);
 // template<class T> int broadcast_(T& data, int root, MPI_Comm comm, T*);
@@ -95,6 +97,7 @@ PRIMITIVE(unsigned long long,	MPI_UNSIGNED_LONG_LONG);
 PRIMITIVE(float, 				MPI_FLOAT);
 PRIMITIVE(double, 				MPI_DOUBLE);
 PRIMITIVE(long double,			MPI_LONG_DOUBLE);
+PRIMITIVE(bool,                 MPI_CXX_BOOL);
 #undef PRIMATIVE
 
 template<class T>

@@ -9,6 +9,7 @@
 
 #include <PlotUtils.hpp>
 #include <P4est.hpp>
+#include <FISHPACK.hpp>
 #include <PETSc.hpp>
 #include <EllipticForest.hpp>
 #include <QuadNode.hpp>
@@ -23,14 +24,14 @@ double besselJ(int n, double x) {
     return jn(n, x);
 }
 
-const double kappa = 80.0;
+const double kappa = 8.0;
 
 double uExact(double x, double y) {
     // Laplace 1
-    return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
+    // return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
 
     // Poisson 1
-    // return sin(2.0*M_PI*x) + cos(2.0*M_PI*y);
+    return sin(2.0*M_PI*x) + cos(2.0*M_PI*y);
 
     // Helmholtz 1
     // double x0 = -2;
@@ -43,10 +44,10 @@ double uExact(double x, double y) {
 
 double fRHS(double x, double y) {
     // Laplace 1
-    return 0.0;
+    // return 0.0;
 
     // Poisson 1
-    // return -4.0*pow(M_PI, 2)*uExact(x, y);
+    return -4.0*pow(M_PI, 2)*uExact(x, y);
 
     // Helmholtz 1
     // return 0.0;
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
 
     EllipticForest::EllipticForestApp app(&argc, &argv);
 
-    std::vector<int> ns = {16, 32, 64, 128, 256};
+    std::vector<int> ns = {16, 32, 64, 128, 256, 512};
     std::vector<double> errors;
     EllipticForest::Vector<double> u_exact, u_petsc;
     int nx, ny;
@@ -77,8 +78,9 @@ int main(int argc, char** argv) {
         return 1.0;
     });
     solver.setLambdaFunction([&](double x, double y){
-        return 0.0;
+        return pow(kappa,2);
     });
+    // EllipticForest::FISHPACK::FISHPACKFVSolver solver;
 
     for (auto n : ns) {
 
@@ -89,6 +91,7 @@ int main(int argc, char** argv) {
         double y_lower = -1;
         double y_upper = 1;
         EllipticForest::Petsc::PetscGrid grid(nx, ny, x_lower, x_upper, y_lower, y_upper);
+        // EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, x_lower, x_upper, y_lower, y_upper);
 
         EllipticForest::Vector<double> g_west(nx);
         EllipticForest::Vector<double> g_east(nx);
@@ -112,7 +115,8 @@ int main(int argc, char** argv) {
             for (int j = 0; j < ny; j++) {
                 double x = grid(0, i);
                 double y = grid(1, j);
-                int I = i + j*nx;
+                // int I = i + j*nx;
+                int I = j + i*ny;
                 f[I] = fRHS(x, y);
                 u_exact[I] = uExact(x, y);
             }

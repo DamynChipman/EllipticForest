@@ -10,7 +10,7 @@ PetscGrid::PetscGrid(int nx, int ny, double xLower, double xUpper, double yLower
     nx_(nx), ny_(ny), xLower_(xLower), xUpper_(xUpper), yLower_(yLower), yUpper_(yUpper) {
 
     dx_ = (xUpper_ - xLower_) / (nx_);
-    dy_ = (yUpper_ - xLower_) / (ny_);
+    dy_ = (yUpper_ - yLower_) / (ny_); // AHHHHHHHH!!!! This was yUpper_ - xUpper_... Three days lost to debugging...
 
 }
 

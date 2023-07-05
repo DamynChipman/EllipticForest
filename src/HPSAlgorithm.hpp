@@ -70,6 +70,10 @@ public:
      */
     bool isBuilt = false;
 
+    HPSAlgorithm() :
+        MPIObject(MPI_COMM_WORLD)
+            {}
+
     /**
      * @brief Construct a new HPSAlgorithm object
      * 
@@ -218,6 +222,7 @@ public:
 
         quadtree.merge(
             [&](Node<PatchType>* leafNode){
+                // app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 PatchType& patch = leafNode->data;
                 patch.isLeaf = true;
@@ -233,6 +238,7 @@ public:
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;
@@ -287,6 +293,7 @@ public:
 
         quadtree.merge(
             [&](Node<PatchType>* leafNode){
+                // app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 PatchType& patch = leafNode->data;
 
@@ -298,6 +305,7 @@ public:
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;
@@ -351,11 +359,13 @@ public:
 
         quadtree.split(
             [&](Node<PatchType>* leafNode){
+                app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 leafSolve(leafNode->data);
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;
@@ -461,11 +471,13 @@ public:
         // });
         quadtree.split(
             [&](Node<PatchType>* leafNode){
+                // app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 leafSolve(leafNode->data);
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+                // app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;
@@ -616,18 +628,19 @@ public:
                 // Need to set RHS to zeros for patch patchSolver b/c it won't be set already
                 patch.vectorF() = Vector<double>(patch.grid().nPointsX() * patch.grid().nPointsY(), 0);
             }
-            patch.vectorU() = Vector<double>(patch.grid().nPointsX()*patch.grid().nPointsY());
-            Vector<double> u = patchSolver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
-            for (auto i = 0; i < patch.grid().nPointsX(); i++) {
-                for (auto j = 0; j < patch.grid().nPointsY(); j++) {
-                    int index = i + j*patch.grid().nPointsY();
-                    int index_T = j + i*patch.grid().nPointsY();
-                    double x = patch.grid()(0, i);
-                    double y = patch.grid()(0, j);
-                    patch.vectorU()[index] = u[index_T];
-                    // patch.f[index] = pde_.f(x,y);
-                }
-            }
+            patch.vectorU() = patchSolver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
+            // patch.vectorU() = Vector<double>(patch.grid().nPointsX()*patch.grid().nPointsY());
+            // Vector<double> u = patchSolver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
+            // for (auto i = 0; i < patch.grid().nPointsX(); i++) {
+            //     for (auto j = 0; j < patch.grid().nPointsY(); j++) {
+            //         int index = i + j*patch.grid().nPointsY();
+            //         int index_T = j + i*patch.grid().nPointsY();
+            //         double x = patch.grid()(0, i);
+            //         double y = patch.grid()(0, j);
+            //         patch.vectorU()[index] = u[index_T];
+            //         // patch.f[index] = pde_.f(x,y);
+            //     }
+            // }
         }
     }
 

@@ -90,6 +90,13 @@ public:
      */
     virtual FloatingPointType operator()(std::size_t DIM, std::size_t index) = 0;
 
+    std::string str() {
+        std::string out = "";
+        out += "X: [" + std::to_string(xLower()) + ":" + std::to_string(xUpper()) + "], nx = " + std::to_string(nPointsX()) + ", dx = " + std::to_string(dx()) + "  ";
+        out += "Y: [" + std::to_string(yLower()) + ":" + std::to_string(yUpper()) + "], ny = " + std::to_string(nPointsY()) + ", dy = " + std::to_string(dy()) + "\n";
+        return out;
+    }
+
 #if USE_MATPLOTLIBCPP
     void plot(std::string name = "", bool plotBox = true, bool plotPoints = true, bool plotEdges = true, bool plotName = true, std::string edgeColor = "b", std::string pointColor = "r") {
 

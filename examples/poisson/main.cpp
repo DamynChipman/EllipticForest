@@ -13,6 +13,7 @@
 #include <fstream>
 
 #include <EllipticForest.hpp>
+#include <MPI.hpp>
 #include <PETSc.hpp>
 
 #ifdef USE_MATPLOTLIBCPP
@@ -187,11 +188,17 @@ public:
     double lambda() { return 0.0; }
 
     double u(double x, double y) override {
+        // return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
         return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
+        // return jn(0, 80.0*sqrt(pow(x+2,2) + pow(y,2)));
+        // return sin(x) + sin(y);
     }
 
     double f(double x, double y) override {
+        // return 0.0;
         return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
+        // return 0.0;
+        // return pow(cos(y),2)*sin(x) + pow(cos(x),2)*sin(y) - sin(x)*(2 + sin(x)*sin(y)) - sin(y)*(2 + sin(x)*sin(y));
     }
 
     double dudx(double x, double y) override {
@@ -396,6 +403,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         yUpper = vxyz[1];
 
         // Create quadrant grid
+        // EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
         EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
 
         // Iterate over grid and check for refinement threshold
@@ -416,6 +424,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Balance the p4est
     p4est_balance(p4est, P4EST_CONNECT_CORNER, NULL);
+    p4est_partition(p4est, 0, NULL);
 
     // Save initial mesh
     if (vtkFlag) {
@@ -428,35 +437,42 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double xUpper = 1;
     double yLower = -1;
     double yUpper = 1;
-    EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-    // EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-    EllipticForest::Petsc::PetscPatch rootPatch(grid);
-    // EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
-    rootPatch.level = 0;
-    rootPatch.isLeaf = true;
+    // EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    // EllipticForest::Petsc::PetscPatch rootPatch(grid);
+    EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
+    // rootPatch.level = 0;
+    // rootPatch.isLeaf = true;
 
     // Create patch solver
-    EllipticForest::Petsc::PetscPatchSolver solver{};
-    solver.setAlphaFunction([&](double x, double y){
-        return 1.0;
-    });
-    solver.setBetaFunction([&](double x, double y){
-        return 1.0;
-    });
-    solver.setLambdaFunction([&](double x, double y){
-        return 0.0;
-    });
-    // EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
+    // EllipticForest::Petsc::PetscPatchSolver solver{};
+    // solver.setAlphaFunction([&](double x, double y){
+    //     return 1.0;
+    // });
+    // solver.setBetaFunction([&](double x, double y){
+    //     return sin(x)*sin(y) + 2.0;
+    // });
+    // solver.setLambdaFunction([&](double x, double y){
+    //     return 0.0;
+    // });
+    EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
     // Create node factory
-    EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory;
+    // EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory;
+    EllipticForest::FISHPACK::FISHPACKPatchNodeFactory nodeFactory;
 
     // Create and run HPS method
     // 1. Create the HPSAlgorithm instance
+    // EllipticForest::HPSAlgorithm
+    //     <EllipticForest::Petsc::PetscGrid,
+    //     EllipticForest::Petsc::PetscPatchSolver,
+    //     EllipticForest::Petsc::PetscPatch,
+    //     double>
+    //         HPS(MPI_COMM_WORLD, p4est, rootPatch, solver, &nodeFactory);
     EllipticForest::HPSAlgorithm
-        <EllipticForest::Petsc::PetscGrid,
-        EllipticForest::Petsc::PetscPatchSolver,
-        EllipticForest::Petsc::PetscPatch,
+        <EllipticForest::FISHPACK::FISHPACKFVGrid,
+        EllipticForest::FISHPACK::FISHPACKFVSolver,
+        EllipticForest::FISHPACK::FISHPACKPatch,
         double>
             HPS(MPI_COMM_WORLD, p4est, rootPatch, solver, &nodeFactory);
 
@@ -471,8 +487,10 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     for (auto n = 0; n < nSolves; n++) {
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-            HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& leafPatch){
-                EllipticForest::Petsc::PetscGrid& grid = leafPatch.grid();
+            // HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& leafPatch){
+            HPS.upwardsStage([&](EllipticForest::FISHPACK::FISHPACKPatch& leafPatch){
+                // EllipticForest::Petsc::PetscGrid& grid = leafPatch.grid();
+                EllipticForest::FISHPACK::FISHPACKFVGrid& grid = leafPatch.grid();
                 leafPatch.vectorF() = EllipticForest::Vector<double>(grid.nPointsX() * grid.nPointsY());
                 for (auto i = 0; i < grid.nPointsX(); i++) {
                     double x = grid(0, i);
@@ -516,6 +534,8 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
                 default:
                     break;
             }
+
+            return 0.0;
         });
     }
 
@@ -524,16 +544,26 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double l2_error = 0;
     double lI_error = 0;
     int nLeafPatches = 0;
-    HPS.quadtree.traversePostOrder([&](EllipticForest::Petsc::PetscPatch& patch){
-        if (patch.isLeaf) {
-            EllipticForest::Petsc::PetscGrid& grid = patch.grid();
+    // HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+    HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::FISHPACK::FISHPACKPatch>* node){
+        if (node->leaf) {
+            // EllipticForest::Petsc::PetscPatch& patch = node->data;
+            // EllipticForest::Petsc::PetscGrid& grid = patch.grid();
+            EllipticForest::FISHPACK::FISHPACKPatch& patch = node->data;
+            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
                 double x = grid(XDIM, i);
                 for (auto j = 0; j < grid.nPointsY(); j++) {
                     double y = grid(YDIM, j);
                     int index = j + i*grid.nPointsY();
                     int index_T = i + j*grid.nPointsY();
-                    double diff = patch.vectorU()[index_T] - pde.u(x, y);
+                    // double un = patch.vectorU()[index];
+                    // double ue = pde.u(x,y);
+                    // double diff = un - ue;
+                    // printf("i = %4i, j = %4i, x = %8.4f, y = %8.4f\n", i, j, x, y);
+                    // patch.vectorU()[index] = ue;
+                    // app.log("un = %12.4f    ue = %12.4f    diff = %12.4e", un, ue, diff);
+                    double diff = patch.vectorU()[index] - pde.u(x, y);
                     l1_error += (grid.dx()*grid.dy())*fabs(diff);
                     l2_error += (grid.dx()*grid.dy())*pow(fabs(diff), 2);
                     lI_error = fmax(lI_error, fabs(diff));
@@ -541,6 +571,7 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
             }
             nLeafPatches++;
         }
+        return 1;
     });
     double area = (xUpper - xLower) * (yUpper - yLower);
     l1_error = l1_error / area;
@@ -550,9 +581,9 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
 
     // Compute size of quadtree and data
     double size_MB = 0;
-    HPS.quadtree.traversePostOrder([&](EllipticForest::Petsc::PetscPatch& patch){
-        size_MB += patch.dataSize();
-    });
+    // HPS.quadtree.traversePostOrder([&](EllipticForest::Petsc::PetscPatch& patch){
+    //     size_MB += patch.dataSize();
+    // });
 
     // Store and return results
     ResultsData results;
@@ -571,6 +602,26 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     results.solve_time = app.timers["solve-stage"].time();
     results.size_MB = size_MB;
 
+    // PyObject* pyObj;
+    // HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+    // // HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::FISHPACK::FISHPACKPatch>* node){
+    //     if (node->leaf) {
+    //         EllipticForest::Petsc::PetscPatch& patch = node->data;
+    //         EllipticForest::Petsc::PetscGrid& grid = patch.grid();
+    //         // EllipticForest::FISHPACK::FISHPACKPatch& patch = node->data;
+    //         // EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
+    //         EllipticForest::Vector<float> uFloat(patch.vectorU().size());
+    //         for (int i = 0; i < uFloat.size(); i++) {
+    //             uFloat[i] = static_cast<float>(patch.vectorU()[i]);
+    //         }
+    //         plt::imshow(uFloat.dataPointer(), grid.nPointsX(), grid.nPointsY(), 1, {}, &pyObj);
+    //         plt::colorbar(pyObj);
+    //         plt::title(std::to_string(grid.nPointsX()) + ": [" + std::to_string(grid.xLower()) + "," + std::to_string(grid.xUpper()) + "] x [" + std::to_string(grid.yLower()) + "," + std::to_string(grid.yUpper()) + "]");
+    //         plt::show();
+    //     }
+    //     return 1;
+    // });
+
     return results;
 
 }
@@ -579,9 +630,10 @@ int main(int argc, char** argv) {
 
     // Initialize app
     EllipticForest::EllipticForestApp app(&argc, &argv);
+    EllipticForest::MPI::MPIObject mpi(MPI_COMM_WORLD);
 
     // Set options
-    app.options.setOption("cache-operators", true);
+    app.options.setOption("cache-operators", false);
     app.options.setOption("homogeneous-rhs", false);
     app.options.setOption("refinement-threshold", 50.0);
 
@@ -604,8 +656,8 @@ int main(int argc, char** argv) {
     EggCartonPoissonProblem pde{};
 
     // Convergence sweep
-    std::vector<int> patchSizeVector = {16, 32};     // Size of patch
-    std::vector<int> levelVector {2, 3, 4};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
+    std::vector<int> patchSizeVector = {128};     // Size of patch
+    std::vector<int> levelVector {4};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
@@ -629,7 +681,7 @@ int main(int argc, char** argv) {
 
         for (auto& l : levelVector) {
 
-            app.log("UNIFORM: M = %i, l = %i", M, l);
+            app.logHead("UNIFORM: M = %i, l = %i", M, l);
             int DOFs = pow(M, 2) * pow(2, 2*l);
             if (DOFs >= maxResolution) {
                 app.log("Skipping...");
@@ -645,6 +697,7 @@ int main(int argc, char** argv) {
             // Solve via HPS
             if (M == 128 && l == 4) vtkFlag = true;
             else vtkFlag = false;
+            vtkFlag = true;
             ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
             int nDOFs = results.effective_resolution;
             double error = results.lI_error;
@@ -736,75 +789,77 @@ int main(int argc, char** argv) {
         csvFile << results.csv() << std::endl;
     }
     csvFile.close();
-
+    
     #ifdef USE_MATPLOTLIBCPP
-    // Error plot
-    int fig1 = plt::figure(1);
-    int counter = 0;
-    std::vector<std::string> colors = {"r", "g", "b", "y", "c", "m"};
-    for (auto& [nDOFs, error] : uniformErrorPlots) {
-        plt::named_loglog("Uniform: N = " + std::to_string(patchSizeVector[counter]), nDOFs, error, "--s" + colors[counter]);
-        counter++;
-    }
-    counter = 0;
-    // for (auto& [nDOFs, error] : adaptiveErrorPlots) {
-    //     plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, error, "-o" + colors[counter]);
-    //     counter++;
-    // }
-    std::vector<int> xTicks = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
-    std::vector<std::string> xTickLabels;
-    for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));
-    plt::xlabel("Effective Resolution");
-    plt::ylabel("Inf-Norm Error");
-    plt::xticks(xTicks, xTickLabels);
-    plt::legend({{"loc", "upper right"}});
-    plt::grid(true);
-    plt::save("plot_poisson_error_" + pde.name() + "_no_title.pdf");
-    plt::title("Convergence Study - Uniform vs. Adaptive Mesh");
-    plt::save("plot_poisson_error_" + pde.name() + ".pdf");
-    plt::show();
+    if (mpi.getRank() == EllipticForest::MPI::HEAD_RANK) {
+        // Error plot
+        int fig1 = plt::figure(1);
+        int counter = 0;
+        std::vector<std::string> colors = {"r", "g", "b", "y", "c", "m"};
+        for (auto& [nDOFs, error] : uniformErrorPlots) {
+            plt::named_loglog("Uniform: N = " + std::to_string(patchSizeVector[counter]), nDOFs, error, "--s" + colors[counter]);
+            counter++;
+        }
+        counter = 0;
+        // for (auto& [nDOFs, error] : adaptiveErrorPlots) {
+        //     plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, error, "-o" + colors[counter]);
+        //     counter++;
+        // }
+        std::vector<int> xTicks = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
+        std::vector<std::string> xTickLabels;
+        for (auto& t : xTicks) xTickLabels.push_back(std::to_string(t));
+        plt::xlabel("Effective Resolution");
+        plt::ylabel("Inf-Norm Error");
+        plt::xticks(xTicks, xTickLabels);
+        plt::legend({{"loc", "upper right"}});
+        plt::grid(true);
+        plt::save("plot_poisson_error_" + pde.name() + "_no_title.pdf");
+        plt::title("Convergence Study - Uniform vs. Adaptive Mesh");
+        plt::save("plot_poisson_error_" + pde.name() + ".pdf");
+        plt::show();
 
-    int fig2 = plt::figure(2);
-    counter = 0;
-    for (auto& [nDOFs, build] : uniformBuildTimingPlots) {
-        plt::named_loglog("Uniform: N = " + std::to_string(patchSizeVector[counter]), nDOFs, build, "--s" + colors[counter]);
-        counter++;
-    }
-    counter = 0;
-    for (auto& [nDOFs, build] : adaptiveBuildTimingPlots) {
-        plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, build, "-o" + colors[counter]);
-        counter++;
-    }
-    plt::xlabel("Effective Resolution");
-    plt::ylabel("Time [sec]");
-    plt::xticks(xTicks, xTickLabels);
-    plt::legend({{"loc", "lower right"}});
-    plt::grid(true);
-    plt::save("plot_poisson_build_time_" + pde.name() + "_no_title.pdf");
-    plt::title("Timing Study - Uniform vs. Adaptive Mesh - Build Stage");
-    plt::save("plot_poisson_build_time_" + pde.name() + ".pdf");
-    plt::show();
+        int fig2 = plt::figure(2);
+        counter = 0;
+        for (auto& [nDOFs, build] : uniformBuildTimingPlots) {
+            plt::named_loglog("Uniform: N = " + std::to_string(patchSizeVector[counter]), nDOFs, build, "--s" + colors[counter]);
+            counter++;
+        }
+        counter = 0;
+        for (auto& [nDOFs, build] : adaptiveBuildTimingPlots) {
+            plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, build, "-o" + colors[counter]);
+            counter++;
+        }
+        plt::xlabel("Effective Resolution");
+        plt::ylabel("Time [sec]");
+        plt::xticks(xTicks, xTickLabels);
+        plt::legend({{"loc", "lower right"}});
+        plt::grid(true);
+        plt::save("plot_poisson_build_time_" + pde.name() + "_no_title.pdf");
+        plt::title("Timing Study - Uniform vs. Adaptive Mesh - Build Stage");
+        plt::save("plot_poisson_build_time_" + pde.name() + ".pdf");
+        plt::show();
 
-    int fig3 = plt::figure(3);
-    counter = 0;
-    for (auto& [nDOFs, solve] : uniformSolveTimingPlots) {
-        plt::named_loglog("Uniform: N = " + std::to_string(patchSizeVector[counter]), nDOFs, solve, "--s" + colors[counter]);
-        counter++;
+        int fig3 = plt::figure(3);
+        counter = 0;
+        for (auto& [nDOFs, solve] : uniformSolveTimingPlots) {
+            plt::named_loglog("Uniform: N = " + std::to_string(patchSizeVector[counter]), nDOFs, solve, "--s" + colors[counter]);
+            counter++;
+        }
+        counter = 0;
+        for (auto& [nDOFs, solve] : adaptiveSolveTimingPlots) {
+            plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, solve, "-o" + colors[counter]);
+            counter++;
+        }
+        plt::xlabel("Effective Resolution");
+        plt::ylabel("Time [sec]");
+        plt::xticks(xTicks, xTickLabels);
+        plt::legend({{"loc", "lower right"}});
+        plt::grid(true);
+        plt::save("plot_poisson_solve_time_" + pde.name() + "_no_title.pdf");
+        plt::title("Timing Study - Uniform vs. Adaptive Mesh - Solve Stage");
+        plt::save("plot_poisson_solve_time_" + pde.name() + ".pdf");
+        plt::show();
     }
-    counter = 0;
-    for (auto& [nDOFs, solve] : adaptiveSolveTimingPlots) {
-        plt::named_loglog("Adaptive: N = " + std::to_string(patchSizeVector[counter]), nDOFs, solve, "-o" + colors[counter]);
-        counter++;
-    }
-    plt::xlabel("Effective Resolution");
-    plt::ylabel("Time [sec]");
-    plt::xticks(xTicks, xTickLabels);
-    plt::legend({{"loc", "lower right"}});
-    plt::grid(true);
-    plt::save("plot_poisson_solve_time_" + pde.name() + "_no_title.pdf");
-    plt::title("Timing Study - Uniform vs. Adaptive Mesh - Solve Stage");
-    plt::save("plot_poisson_solve_time_" + pde.name() + ".pdf");
-    plt::show();
     #endif
 
     return EXIT_SUCCESS;
