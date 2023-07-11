@@ -128,6 +128,7 @@ public:
         // this->p4est = p4est;
         
         // Get app and log
+        MPI_Barrier(MPI_COMM_WORLD);
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Setup Stage");
 
@@ -196,6 +197,7 @@ public:
      */
     virtual void buildStage() {
 
+        MPI_Barrier(MPI_COMM_WORLD);
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Build Stage");
         app.addTimer("build-stage");
@@ -222,7 +224,7 @@ public:
 
         quadtree.merge(
             [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+                app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 PatchType& patch = leafNode->data;
                 patch.isLeaf = true;
@@ -238,7 +240,7 @@ public:
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+                app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;
@@ -272,6 +274,7 @@ public:
      */
     virtual void upwardsStage(std::function<void(PatchType& leafPatch)> rhsPatchFunction) {
 
+        MPI_Barrier(MPI_COMM_WORLD);
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
@@ -293,7 +296,7 @@ public:
 
         quadtree.merge(
             [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+                app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 PatchType& patch = leafNode->data;
 
@@ -305,7 +308,7 @@ public:
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+                app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;
@@ -384,6 +387,7 @@ public:
 
     virtual void solveStage(std::function<NumericalType(int side, NumericalType x, NumericalType y, NumericalType* a, NumericalType* b)> boundaryFunction) {
 
+        MPI_Barrier(MPI_COMM_WORLD);
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
@@ -471,13 +475,13 @@ public:
         // });
         quadtree.split(
             [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+                app.log("Leaf callback: path = " + leafNode->path);
                 // Leaf callback
                 leafSolve(leafNode->data);
                 return 1;
             },
             [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+                app.log("Family callback: parent path = " + parentNode->path);
                 // Family callback
                 PatchType& tau = parentNode->data;
                 PatchType& alpha = childNodes[0]->data;

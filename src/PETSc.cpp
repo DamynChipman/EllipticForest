@@ -76,12 +76,19 @@ double PetscGrid::operator()(std::size_t DIM, std::size_t index) {
     }
 }
 
-PetscPatchSolver::PetscPatchSolver() {}
+PetscPatchSolver::PetscPatchSolver() :
+    MPIObject(MPI_COMM_WORLD)
+        {}
+
+PetscPatchSolver::PetscPatchSolver(MPI_Comm comm) :
+    MPIObject(comm)
+        {}
 
 std::string PetscPatchSolver::name() { return "PETScPatchSolver"; }
 
 Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
+    // std::this_thread::sleep_for(std::chrono::seconds(this->getRank()));
     // Unpack Dirichlet data
     int nSide = grid.nPointsX();
     Vector<double> gWest = dirichletData.getSegment(0*nSide, nSide);
@@ -98,14 +105,14 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
 
     // Get Petsc data
     Mat A;
-    MatCreate(MPI_COMM_WORLD, &A);
-    MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE, N, N);
+    MatCreate(MPI_COMM_SELF, &A);
+    MatSetSizes(A, N, N, N, N);
     MatSetFromOptions(A);
     MatSetUp(A);
 
     Vec f;
-    VecCreate(MPI_COMM_WORLD, &f);
-    VecSetSizes(f, PETSC_DECIDE, N);
+    VecCreate(MPI_COMM_SELF, &f);
+    VecSetSizes(f, N, N);
     VecSetFromOptions(f);
 
     Vec x;
@@ -251,7 +258,7 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
     // Solve the linear system
     KSP ksp;
     PC pc;
-    KSPCreate(MPI_COMM_WORLD, &ksp);
+    KSPCreate(MPI_COMM_SELF, &ksp);
     KSPSetType(ksp, KSPPREONLY);
     KSPGetPC(ksp, &pc);
     PCSetType(pc, PCLU);
@@ -480,7 +487,53 @@ PetscPatch PetscPatch::buildChild(std::size_t childIndex) {
 }
 
 double PetscPatch::dataSize() {
-    return 0.0;
+    double BYTE_2_MEGABYTE = 1024*1024;
+    double size_MB = (4*sizeof(int) + sizeof(bool)) / BYTE_2_MEGABYTE;
+
+    size_MB += (T.nRows() * T.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (H.nRows() * H.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (S.nRows() * S.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (X.nRows() * X.nCols() * sizeof(double)) / BYTE_2_MEGABYTE;
+
+    size_MB += (u.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (g.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (v.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (f.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (h.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+    size_MB += (w.size() * sizeof(double)) / BYTE_2_MEGABYTE;
+
+    return size_MB;
+}
+
+std::string PetscPatch::str() {
+    std::string res;
+
+    res += "globalID = " + std::to_string(globalID) + "\n";
+    res += "leafID = " + std::to_string(leafID) + "\n";
+    res += "level = " + std::to_string(level) + "\n";
+    res += "isLeaf = " + std::to_string(isLeaf) + "\n";
+    res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
+
+    res += "grid:\n";
+    res += "  nx = " + std::to_string(grid().nPointsX()) + "\n";
+    res += "  ny = " + std::to_string(grid().nPointsY()) + "\n";
+    res += "  xLower = " + std::to_string(grid().xLower()) + "\n";
+    res += "  xUpper = " + std::to_string(grid().xUpper()) + "\n";
+    res += "  yLower = " + std::to_string(grid().yLower()) + "\n";
+    res += "  yUpper = " + std::to_string(grid().yUpper()) + "\n";
+
+    res += "data:\n";
+    res += "  X = [" + std::to_string(matrixX().nRows()) + ", " + std::to_string(matrixX().nCols()) + "]\n";
+    res += "  S = [" + std::to_string(matrixS().nRows()) + ", " + std::to_string(matrixS().nCols()) + "]\n";
+    res += "  T = [" + std::to_string(matrixT().nRows()) + ", " + std::to_string(matrixT().nCols()) + "]\n";
+    res += "  u = [" + std::to_string(vectorU().size()) + "]\n";
+    res += "  g = [" + std::to_string(vectorG().size()) + "]\n";
+    res += "  v = [" + std::to_string(vectorV().size()) + "]\n";
+    res += "  f = [" + std::to_string(vectorF().size()) + "]\n";
+    res += "  h = [" + std::to_string(vectorH().size()) + "]\n";
+    res += "  w = [" + std::to_string(vectorW().size()) + "]\n";
+
+    return res;
 }
 
 Matrix<double>& PetscPatch::matrixX() {
@@ -547,28 +600,32 @@ Node<PetscPatch>* PetscPatchNodeFactory::createChildNode(Node<PetscPatch>* paren
     double yUpper = parentGrid.yUpper();
     double yMid = (yLower + yUpper) / 2.0;
 
+    // Create grid communicator
+    // MPI_Group gridGroup, parentGroup;
+    // MPI_Comm gridComm;
+    
+
     // Create child grid
     PetscGrid childGrid;
-    switch (siblingID)
-    {
-    case 0:
-        // Lower left
-        childGrid = PetscGrid(nx, ny, xLower, xMid, yLower, yMid);
-        break;
-    case 1:
-        // Lower right
-        childGrid = PetscGrid(nx, ny, xMid, xUpper, yLower, yMid);
-        break;
-    case 2:
-        // Upper left
-        childGrid = PetscGrid(nx, ny, xLower, xMid, yMid, yUpper);
-        break;
-    case 3:
-        // Upper right
-        childGrid = PetscGrid(nx, ny, xMid, xUpper, yMid, yUpper);
-        break;
-    default:
-        break;
+    switch (siblingID) {
+        case 0:
+            // Lower left
+            childGrid = PetscGrid(nx, ny, xLower, xMid, yLower, yMid);
+            break;
+        case 1:
+            // Lower right
+            childGrid = PetscGrid(nx, ny, xMid, xUpper, yLower, yMid);
+            break;
+        case 2:
+            // Upper left
+            childGrid = PetscGrid(nx, ny, xLower, xMid, yMid, yUpper);
+            break;
+        case 3:
+            // Upper right
+            childGrid = PetscGrid(nx, ny, xMid, xUpper, yMid, yUpper);
+            break;
+        default:
+            break;
     }
 
     // Create child patch
@@ -608,20 +665,26 @@ namespace MPI {
 
 template<>
 int broadcast(Petsc::PetscGrid& grid, int root, MPI_Comm comm) {
-    int nx, ny;
-    double xLower, xUpper, yLower, yUpper;
+    int nx = grid.nPointsX();
+    int ny = grid.nPointsY();
+    double xLower = grid.xLower();
+    double xUpper = grid.xUpper();
+    double yLower = grid.yLower();
+    double yUpper = grid.yUpper();
     broadcast(nx, root, comm);
     broadcast(ny, root, comm);
     broadcast(xLower, root, comm);
     broadcast(xUpper, root, comm);
     broadcast(yLower, root, comm);
     broadcast(yUpper, root, comm);
-    grid = Petsc::PetscGrid(nx, ny, xLower, xUpper, yLower, yUpper);
+    int rank; MPI_Comm_rank(comm, &rank);
+    if (rank!= root) grid = Petsc::PetscGrid(nx, ny, xLower, xUpper, yLower, yUpper);
     return 1;
 } 
 
 template<>
 int broadcast(Petsc::PetscPatch& patch, int root, MPI_Comm comm) {
+    broadcast(patch.nCoarsens, root, comm);
     broadcast(patch.grid(), root, comm);
     broadcast(patch.matrixX(), root, comm);
     broadcast(patch.matrixH(), root, comm);

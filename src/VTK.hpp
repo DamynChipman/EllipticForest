@@ -72,6 +72,26 @@ class PRectilinearGridVTK {
 
 };
 
+class UnstructuredGridVTK {
+
+public:
+
+    UnstructuredGridVTK();
+
+    void buildMesh(DataArrayNodeBase& pointsDataArray, DataArrayNodeBase& connectivityDataArray, DataArrayNodeBase& offsetsDataArray, DataArrayNodeBase& typesDataArray);
+    void addPointData(DataArrayNodeBase& pointData);
+    void addCellData(DataArrayNodeBase& cellData);
+    void toVTK(std::string filename);
+
+private:
+
+    bool meshComplete_;
+    XMLNode root_;
+    std::vector<DataArrayNodeBase*> pointDataVector_;
+    std::vector<DataArrayNodeBase*> cellDataVector_;
+
+};
+
 } // NAMESPACE : EllipticForest
 
 #endif // VTK_HPP_

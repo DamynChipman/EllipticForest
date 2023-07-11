@@ -188,15 +188,15 @@ public:
     double lambda() { return 0.0; }
 
     double u(double x, double y) override {
-        // return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
-        return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
+        return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
+        // return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
         // return jn(0, 80.0*sqrt(pow(x+2,2) + pow(y,2)));
         // return sin(x) + sin(y);
     }
 
     double f(double x, double y) override {
-        // return 0.0;
-        return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
+        return 0.0;
+        // return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
         // return 0.0;
         // return pow(cos(y),2)*sin(x) + pow(cos(x),2)*sin(y) - sin(x)*(2 + sin(x)*sin(y)) - sin(y)*(2 + sin(x)*sin(y));
     }
@@ -402,9 +402,16 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         xUpper = vxyz[0];
         yUpper = vxyz[1];
 
+        if (yLower < -0.9 || yUpper > 0.9) {
+            return 1;
+        }
+        else {
+            return 0;
+        }
+
         // Create quadrant grid
-        // EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-        EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+        EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+        // EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
 
         // Iterate over grid and check for refinement threshold
         for (auto i = 0; i < nx; i++) {
@@ -437,44 +444,44 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double xUpper = 1;
     double yLower = -1;
     double yUpper = 1;
-    // EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-    EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
-    // EllipticForest::Petsc::PetscPatch rootPatch(grid);
-    EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
+    EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    // EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
+    EllipticForest::Petsc::PetscPatch rootPatch(grid);
+    // EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
     // rootPatch.level = 0;
     // rootPatch.isLeaf = true;
 
     // Create patch solver
-    // EllipticForest::Petsc::PetscPatchSolver solver{};
-    // solver.setAlphaFunction([&](double x, double y){
-    //     return 1.0;
-    // });
-    // solver.setBetaFunction([&](double x, double y){
-    //     return sin(x)*sin(y) + 2.0;
-    // });
-    // solver.setLambdaFunction([&](double x, double y){
-    //     return 0.0;
-    // });
-    EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
+    EllipticForest::Petsc::PetscPatchSolver solver{};
+    solver.setAlphaFunction([&](double x, double y){
+        return 1.0;
+    });
+    solver.setBetaFunction([&](double x, double y){
+        return 1.0;
+    });
+    solver.setLambdaFunction([&](double x, double y){
+        return 0.0;
+    });
+    // EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
     // Create node factory
-    // EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory;
-    EllipticForest::FISHPACK::FISHPACKPatchNodeFactory nodeFactory;
+    EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory;
+    // EllipticForest::FISHPACK::FISHPACKPatchNodeFactory nodeFactory;
 
     // Create and run HPS method
     // 1. Create the HPSAlgorithm instance
-    // EllipticForest::HPSAlgorithm
-    //     <EllipticForest::Petsc::PetscGrid,
-    //     EllipticForest::Petsc::PetscPatchSolver,
-    //     EllipticForest::Petsc::PetscPatch,
-    //     double>
-    //         HPS(MPI_COMM_WORLD, p4est, rootPatch, solver, &nodeFactory);
     EllipticForest::HPSAlgorithm
-        <EllipticForest::FISHPACK::FISHPACKFVGrid,
-        EllipticForest::FISHPACK::FISHPACKFVSolver,
-        EllipticForest::FISHPACK::FISHPACKPatch,
+        <EllipticForest::Petsc::PetscGrid,
+        EllipticForest::Petsc::PetscPatchSolver,
+        EllipticForest::Petsc::PetscPatch,
         double>
             HPS(MPI_COMM_WORLD, p4est, rootPatch, solver, &nodeFactory);
+    // EllipticForest::HPSAlgorithm
+    //     <EllipticForest::FISHPACK::FISHPACKFVGrid,
+    //     EllipticForest::FISHPACK::FISHPACKFVSolver,
+    //     EllipticForest::FISHPACK::FISHPACKPatch,
+    //     double>
+    //         HPS(MPI_COMM_WORLD, p4est, rootPatch, solver, &nodeFactory);
 
     // 2. Call the setup stage
     HPS.setupStage();
@@ -487,10 +494,10 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     for (auto n = 0; n < nSolves; n++) {
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
-            // HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& leafPatch){
-            HPS.upwardsStage([&](EllipticForest::FISHPACK::FISHPACKPatch& leafPatch){
-                // EllipticForest::Petsc::PetscGrid& grid = leafPatch.grid();
-                EllipticForest::FISHPACK::FISHPACKFVGrid& grid = leafPatch.grid();
+            HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& leafPatch){
+            // HPS.upwardsStage([&](EllipticForest::FISHPACK::FISHPACKPatch& leafPatch){
+                EllipticForest::Petsc::PetscGrid& grid = leafPatch.grid();
+                // EllipticForest::FISHPACK::FISHPACKFVGrid& grid = leafPatch.grid();
                 leafPatch.vectorF() = EllipticForest::Vector<double>(grid.nPointsX() * grid.nPointsY());
                 for (auto i = 0; i < grid.nPointsX(); i++) {
                     double x = grid(0, i);
@@ -544,13 +551,13 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     double l2_error = 0;
     double lI_error = 0;
     int nLeafPatches = 0;
-    // HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
-    HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::FISHPACK::FISHPACKPatch>* node){
+    HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+    // HPS.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::FISHPACK::FISHPACKPatch>* node){
         if (node->leaf) {
-            // EllipticForest::Petsc::PetscPatch& patch = node->data;
-            // EllipticForest::Petsc::PetscGrid& grid = patch.grid();
-            EllipticForest::FISHPACK::FISHPACKPatch& patch = node->data;
-            EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
+            EllipticForest::Petsc::PetscPatch& patch = node->data;
+            EllipticForest::Petsc::PetscGrid& grid = patch.grid();
+            // EllipticForest::FISHPACK::FISHPACKPatch& patch = node->data;
+            // EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
                 double x = grid(XDIM, i);
                 for (auto j = 0; j < grid.nPointsY(); j++) {
@@ -656,8 +663,8 @@ int main(int argc, char** argv) {
     EggCartonPoissonProblem pde{};
 
     // Convergence sweep
-    std::vector<int> patchSizeVector = {128};     // Size of patch
-    std::vector<int> levelVector {4};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
+    std::vector<int> patchSizeVector = {32};     // Size of patch
+    std::vector<int> levelVector {2, 3, 4, 5};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
@@ -689,7 +696,7 @@ int main(int argc, char** argv) {
             }
 
             // Set options
-            app.options.setOption("min-level", l);
+            app.options.setOption("min-level", 0);
             app.options.setOption("max-level", l);
             app.options.setOption("nx", M);
             app.options.setOption("ny", M);

@@ -593,6 +593,7 @@ int broadcast(FISHPACK::FISHPACKFVGrid& grid, int root, MPI_Comm comm) {
 
 template<>
 int broadcast(FISHPACK::FISHPACKPatch& patch, int root, MPI_Comm comm) {
+    broadcast(patch.nCoarsens, root, comm);
     broadcast(patch.grid(), root, comm);
     broadcast(patch.matrixX(), root, comm);
     broadcast(patch.matrixH(), root, comm);

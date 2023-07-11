@@ -79,7 +79,7 @@ public:
 
 };
 
-class PetscPatchSolver {
+class PetscPatchSolver : public MPI::MPIObject {
 
 protected:
 
@@ -90,6 +90,7 @@ protected:
 public:
 
     PetscPatchSolver();
+    PetscPatchSolver(MPI_Comm comm);
 
     virtual std::string name();
     virtual Vector<double> solve(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData);
@@ -146,6 +147,7 @@ public:
     virtual Vector<double>& vectorW();
 
     double dataSize();
+    std::string str();
 
 private:
 
