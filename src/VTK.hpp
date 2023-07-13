@@ -2,9 +2,11 @@
 #define VTK_HPP_
 
 #include <string>
+#include <format>
 #include <vector>
 
 #include "XMLTree.hpp"
+#include "MPI.hpp"
 
 namespace EllipticForest {
 
@@ -21,6 +23,7 @@ public:
     virtual std::string getData() = 0;
 
     XMLNode* toVTK();
+    XMLNode* toPVTK();
 
 };
 
@@ -79,22 +82,21 @@ public:
 
 };
 
-class PRectilinearGridVTK {
-
-
-
-};
-
 class UnstructuredGridVTK {
 
 public:
 
     UnstructuredGridVTK();
+    
+    UnstructuredGridNodeBase& mesh();
+    std::vector<DataArrayNodeBase*>& pointDataVector();
+    std::vector<DataArrayNodeBase*>& cellDataVector();
 
     void buildMesh(UnstructuredGridNodeBase& mesh);
     void addPointData(DataArrayNodeBase& pointData);
     void addCellData(DataArrayNodeBase& cellData);
     void toVTK(std::string filename);
+
 
 private:
 
@@ -105,6 +107,26 @@ private:
     UnstructuredGridNodeBase* mesh_;
     std::vector<DataArrayNodeBase*> pointDataVector_;
     std::vector<DataArrayNodeBase*> cellDataVector_;
+
+};
+
+class PUnstructuredGridVTK : public MPI::MPIObject {
+
+public:
+
+    UnstructuredGridVTK vtu{};
+
+    PUnstructuredGridVTK();
+    PUnstructuredGridVTK(MPI_Comm comm);
+
+    void buildMesh(UnstructuredGridNodeBase& mesh);
+    void addPointData(DataArrayNodeBase& pointData);
+    void addCellData(DataArrayNodeBase& cellData);
+    void toVTK(std::string filenameBase);
+
+private:
+
+    XMLNode root_;
 
 };
 

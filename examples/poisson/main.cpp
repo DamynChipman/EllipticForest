@@ -574,11 +574,11 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         uMesh.name() = "u_soln";
         fMesh.name() = "f_rhs";
 
-        EllipticForest::UnstructuredGridVTK vtu{};
-        vtu.buildMesh(mesh);
-        vtu.addCellData(uMesh);
-        vtu.addCellData(fMesh);
-        vtu.toVTK("dummy.vtu");
+        EllipticForest::PUnstructuredGridVTK pvtu{};
+        pvtu.buildMesh(mesh);
+        pvtu.addCellData(uMesh);
+        pvtu.addCellData(fMesh);
+        pvtu.toVTK("elliptic");
 
     }
 
@@ -699,7 +699,7 @@ int main(int argc, char** argv) {
     EggCartonPoissonProblem pde{};
 
     // Convergence sweep
-    std::vector<int> patchSizeVector = {32};     // Size of patch
+    std::vector<int> patchSizeVector = {8};     // Size of patch
     std::vector<int> levelVector {5};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
 
     // Create storage for plotting

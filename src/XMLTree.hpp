@@ -15,6 +15,7 @@ struct XMLNode {
     std::string data;
     std::vector<XMLNode*> children;
 
+    XMLNode() : name("") {}
     XMLNode(std::string nodeName) : name(nodeName) {}
 
     void addAttribute(std::string key, std::string value) {
