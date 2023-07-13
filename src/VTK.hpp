@@ -66,6 +66,19 @@ private:
 
 };
 
+class UnstructuredGridNodeBase {
+
+public:
+
+    virtual std::string getNumberOfPoints() = 0;
+    virtual std::string getNumberOfCells() = 0;
+    virtual DataArrayNodeBase& getPoints() = 0;
+    virtual DataArrayNodeBase& getConnectivity() = 0;
+    virtual DataArrayNodeBase& getOffsets() = 0;
+    virtual DataArrayNodeBase& getTypes() = 0;
+
+};
+
 class PRectilinearGridVTK {
 
 
@@ -78,7 +91,7 @@ public:
 
     UnstructuredGridVTK();
 
-    void buildMesh(DataArrayNodeBase& pointsDataArray, DataArrayNodeBase& connectivityDataArray, DataArrayNodeBase& offsetsDataArray, DataArrayNodeBase& typesDataArray);
+    void buildMesh(UnstructuredGridNodeBase& mesh);
     void addPointData(DataArrayNodeBase& pointData);
     void addCellData(DataArrayNodeBase& cellData);
     void toVTK(std::string filename);
@@ -86,7 +99,10 @@ public:
 private:
 
     bool meshComplete_;
+    int npoints_;
+    int ncells_;
     XMLNode root_;
+    UnstructuredGridNodeBase* mesh_;
     std::vector<DataArrayNodeBase*> pointDataVector_;
     std::vector<DataArrayNodeBase*> cellDataVector_;
 

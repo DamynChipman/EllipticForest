@@ -117,4 +117,79 @@ void RectilinearGridVTK::toVTK(std::string filename) {
 
 }
 
+UnstructuredGridVTK::UnstructuredGridVTK() :
+    meshComplete_(false),
+    pointDataVector_(0),
+    cellDataVector_(0),
+    root_("VTKFile") {
+    root_.addAttribute("type", "UnstructuredGrid");
+    root_.addAttribute("version", "0.1");
+    root_.addAttribute("byte_order", "LittleEndian");
+}
+
+void UnstructuredGridVTK::buildMesh(UnstructuredGridNodeBase& mesh) {
+
+    mesh_ = &mesh;
+    meshComplete_ = true;
+
+}
+
+void UnstructuredGridVTK::addPointData(DataArrayNodeBase& pointData) {
+    pointDataVector_.push_back(&pointData);
+}
+
+void UnstructuredGridVTK::addCellData(DataArrayNodeBase& cellData) {
+    cellDataVector_.push_back(&cellData);
+}
+
+void UnstructuredGridVTK::toVTK(std::string filename) {
+
+    if (meshComplete_) {
+
+        XMLNode nodeUnstructuredGrid("UnstructuredGrid");
+
+        XMLNode nodePiece("Piece");
+        nodePiece.addAttribute("NumberOfPoints", mesh_->getNumberOfPoints());
+        nodePiece.addAttribute("NumberOfCells", mesh_->getNumberOfCells());
+
+        XMLNode nodePoints("Points");
+        XMLNode nodeCells("Cells");
+
+        XMLNode nodeCellData("CellData");
+        if (!cellDataVector_.empty()) {
+            std::string names = "";
+            for (auto& cellData : cellDataVector_) names += cellData->getName() + " ";
+            nodeCellData.addAttribute("Scalars", names);
+        }
+
+        XMLNode nodePointData("PointData");
+        if (!pointDataVector_.empty()) {
+            std::string names = "";
+            for (auto& pointData : pointDataVector_) names += pointData->getName() + " ";
+            nodePointData.addAttribute("Scalars", names);
+        }
+
+        root_.addChild(nodeUnstructuredGrid);
+            nodeUnstructuredGrid.addChild(nodePiece);
+                nodePiece.addChild(nodePoints);
+                    nodePoints.addChild(mesh_->getPoints().toVTK());
+                nodePiece.addChild(nodeCells);
+                    nodeCells.addChild(mesh_->getConnectivity().toVTK());
+                    nodeCells.addChild(mesh_->getOffsets().toVTK());
+                    nodeCells.addChild(mesh_->getTypes().toVTK());
+                if (!cellDataVector_.empty()) nodePiece.addChild(nodeCellData);
+                    for (auto& cellData : cellDataVector_) nodeCellData.addChild(cellData->toVTK());
+                if (!pointDataVector_.empty()) nodePiece.addChild(nodePointData);
+                    for (auto& pointData : pointDataVector_) nodePointData.addChild(pointData->toVTK());
+
+        XMLTree tree(root_);
+        tree.write(filename);
+        
+    }
+    else {
+        throw std::invalid_argument("[UnstructuredGridVTK::toVTK] mesh and data not complete");
+    }
+
+}
+
 } // NAMESPACE : EllipticForest

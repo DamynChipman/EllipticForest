@@ -15,6 +15,7 @@
 #include <EllipticForest.hpp>
 #include <MPI.hpp>
 #include <PETSc.hpp>
+#include <Mesh.hpp>
 
 #ifdef USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
@@ -146,6 +147,8 @@ public:
 
     std::string name() override { return "gaussian"; }
 
+    double lambda() { return 0.0; }
+
     double u(double x, double y) override {
         return exp(-(sigma_x*pow(x - x0, 2) + sigma_y*pow(y - y0, 2)));
     }
@@ -188,17 +191,17 @@ public:
     double lambda() { return 0.0; }
 
     double u(double x, double y) override {
-        return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
+        // return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
         // return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
-        // return jn(0, 80.0*sqrt(pow(x+2,2) + pow(y,2)));
-        // return sin(x) + sin(y);
+        // return jn(0, 40.0*sqrt(pow(x+2,2) + pow(y,2)));
+        return sin(x) + sin(y);
     }
 
     double f(double x, double y) override {
-        return 0.0;
+        // return 0.0;
         // return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
         // return 0.0;
-        // return pow(cos(y),2)*sin(x) + pow(cos(x),2)*sin(y) - sin(x)*(2 + sin(x)*sin(y)) - sin(y)*(2 + sin(x)*sin(y));
+        return pow(cos(y),2)*sin(x) + pow(cos(x),2)*sin(y) - sin(x)*(2 + sin(x)*sin(y)) - sin(y)*(2 + sin(x)*sin(y));
     }
 
     double dudx(double x, double y) override {
@@ -256,6 +259,8 @@ public:
             {}
 
     std::string name() override { return "polar_star"; }
+
+    double lambda() { return 0.0; }
 
     double u(double x, double y) override {
         double res = 0;
@@ -402,12 +407,12 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         xUpper = vxyz[0];
         yUpper = vxyz[1];
 
-        if (yLower < -0.9 || yUpper > 0.9) {
-            return 1;
-        }
-        else {
-            return 0;
-        }
+        // if (yLower < -0.9 || yUpper > 0.9) {
+        //     return 1;
+        // }
+        // else {
+        //     return 0;
+        // }
 
         // Create quadrant grid
         EllipticForest::Petsc::PetscGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
@@ -436,7 +441,11 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
     // Save initial mesh
     if (vtkFlag) {
         std::string VTKFilename = "poisson_mesh_" + mode + "_" + pde.name();
-        p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
+        p4est_vtk_context_t* vtk_context = p4est_vtk_context_new(p4est, VTKFilename.c_str());
+        p4est_vtk_context_set_scale(vtk_context, 1.0);
+        vtk_context = p4est_vtk_write_header(vtk_context);
+        p4est_vtk_write_footer(vtk_context);
+        // p4est_vtk_write_file(p4est, NULL, VTKFilename.c_str());
     }
 
     // Create leaf level root patch
@@ -546,6 +555,33 @@ ResultsData solvePoissonViaHPS(EllipticForest::FISHPACK::FISHPACKProblem& pde, b
         });
     }
 
+    // Output mesh
+    if (vtkFlag) {
+
+        EllipticForest::Mesh<EllipticForest::Petsc::PetscPatch> mesh{HPS.quadtree};
+        EllipticForest::Vector<double> uMesh{};
+        EllipticForest::Vector<double> fMesh{};
+        mesh.quadtree->traversePreOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+            if (node->leaf) {
+                auto& patch = node->data;
+                auto& grid = patch.grid();
+
+                uMesh.append(patch.vectorU());
+                fMesh.append(patch.vectorF());
+            }
+            return 1;
+        });
+        uMesh.name() = "u_soln";
+        fMesh.name() = "f_rhs";
+
+        EllipticForest::UnstructuredGridVTK vtu{};
+        vtu.buildMesh(mesh);
+        vtu.addCellData(uMesh);
+        vtu.addCellData(fMesh);
+        vtu.toVTK("dummy.vtu");
+
+    }
+
     // Compute error of solution
     double l1_error = 0;
     double l2_error = 0;
@@ -642,7 +678,7 @@ int main(int argc, char** argv) {
     // Set options
     app.options.setOption("cache-operators", false);
     app.options.setOption("homogeneous-rhs", false);
-    app.options.setOption("refinement-threshold", 50.0);
+    app.options.setOption("refinement-threshold", 2.0);
 
     // Create PDE to solve
     // PolarStarPoissonProblem pde(
@@ -655,16 +691,16 @@ int main(int argc, char** argv) {
     //     0.001                       // epsilon
     // );
     // GaussianPoissonProblem pde(
-    //     0.2,            // x0
-    //     0.2,            // y0
-    //     10,              // sigma_x
-    //     40               // sigma_y
+    //     0,            // x0
+    //     0,            // y0
+    //     80,              // sigma_x
+    //     10               // sigma_y
     // );
     EggCartonPoissonProblem pde{};
 
     // Convergence sweep
     std::vector<int> patchSizeVector = {32};     // Size of patch
-    std::vector<int> levelVector {2, 3, 4, 5};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
+    std::vector<int> levelVector {5};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;

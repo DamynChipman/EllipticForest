@@ -20,6 +20,8 @@ protected:
     std::size_t size_;
     std::vector<NumericalType> data_;
     std::string name_ = "Vector";
+    std::string vtkComponents_ = "1";
+    std::string vtkType_ = "Float32";
 
 public:
 
@@ -312,6 +314,11 @@ public:
         }
     }
 
+    void append(const Vector<NumericalType>& vec) {
+        size_ += vec.size();
+        data_.insert(data_.end(), vec.data().begin(), vec.data().end());
+    }
+
     /**
      * @brief Create a new vector from an index set
      * 
@@ -577,33 +584,41 @@ public:
         return *this;
     }
 
-    std::string getType() {
-        return "Float32";
+    void setType(std::string t) {
+        vtkType_ = t;
     }
 
-    std::string getName() {
+    virtual std::string getType() {
+        return vtkType_;
+    }
+
+    virtual std::string getName() {
         return name_;
     }
 
-    std::string getNumberOfComponents() {
-        return "1";
+    void setNumberOfComponents(std::string n) {
+        vtkComponents_ = n;
     }
 
-    std::string getFormat() {
+    virtual std::string getNumberOfComponents() {
+        return vtkComponents_;
+    }
+
+    virtual std::string getFormat() {
         return "ascii";
     }
 
-    std::string getRangeMin() {
+    virtual std::string getRangeMin() {
         NumericalType min = *std::min_element(data_.begin(), data_.end());
         return std::to_string(min);
     }
 
-    std::string getRangeMax() {
+    virtual std::string getRangeMax() {
         NumericalType max = *std::max_element(data_.begin(), data_.end());
         return std::to_string(max);
     }
 
-    std::string getData() {
+    virtual std::string getData() {
         std::string str = "";
         for (auto p : data_) { str += std::to_string(p) + " "; }
         return str;

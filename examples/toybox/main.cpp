@@ -17,6 +17,8 @@
 #include <Quadtree.hpp>
 #include <Vector.hpp>
 #include <Matrix.hpp>
+#include <VTK.hpp>
+#include <Mesh.hpp>
 
 namespace ef = EllipticForest;
 
@@ -24,39 +26,84 @@ namespace ef = EllipticForest;
 namespace plt = matplotlibcpp;
 #endif
 
-int main(int argc, char** argv) {
+class Mesh : public ef::UnstructuredGridNodeBase {
 
-    // Create app
-    ef::EllipticForestApp app(&argc, &argv);
-    ef::MPI::MPIObject mpi(MPI_COMM_WORLD);
+public:
 
-    app.logHead("Creating grid and patch");
-    ef::FISHPACK::FISHPACKFVGrid grid;
-    ef::FISHPACK::FISHPACKPatch patch;
-    if (mpi.getRank() == ef::MPI::HEAD_RANK) {
-        // Create grid
-        int nx = 8;
-        int ny = 14;
-        double xlower = -1;
-        double xupper = 1;
-        double ylower = -2;
-        double yupper = 3;
-        grid = ef::FISHPACK::FISHPACKFVGrid(nx, ny, xlower, xupper, ylower, yupper);
+    ef::Vector<double> points;
+    ef::Vector<int> connectivity;
+    ef::Vector<int> offsets;
+    ef::Vector<int> types;
 
-        // Create patch
-        patch = ef::FISHPACK::FISHPACKPatch(grid);
-        patch.matrixT() = ef::Matrix<double>(2, 3, 4.22);
-        patch.vectorF() = ef::Vector<double>({1, 2, 3, 4});
+    Mesh() {
+        points = {
+            0.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+            1.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,
+            1.0, 0.0, 0.0,
+            2.0, 0.0, 0.0,
+            2.0, 1.0, 0.0,
+            1.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,
+            1.0, 1.0, 0.0,
+            1.0, 2.0, 0.0,
+            0.0, 2.0, 0.0,
+            1.0, 1.0, 0.0,
+            2.0, 1.0, 0.0,
+            2.0, 2.0, 0.0,
+            1.0, 2.0, 0.0
+        };
+        points.setNumberOfComponents("3");
+        points.name() = "points";
+
+        connectivity = {
+            0, 1, 2, 3,
+            4, 5, 6, 7,
+            8, 9, 10, 11,
+            12, 13, 14, 15
+        };
+        connectivity.name() = "connectivity";
+        connectivity.setType("Int64");
+
+        offsets = {
+            4, 8, 12, 16
+        };
+        offsets.name() = "offsets";
+        offsets.setType("Int64");
+
+        types = {
+            9, 9, 9, 9
+        };
+        types.name() = "types";
+        types.setType("Int64");
     }
 
-    // Broadcast patch
-    std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
-    app.log("patch = \n====================\n" + patch.str());
-    ef::MPI::broadcast(patch, 0, mpi.getComm());
+    std::string getNumberOfPoints() { return "16"; }
+    std::string getNumberOfCells() { return "4"; }
+    ef::DataArrayNodeBase& getPoints() { return points; }
+    ef::DataArrayNodeBase& getConnectivity() { return connectivity; }
+    ef::DataArrayNodeBase& getOffsets() { return offsets; }
+    ef::DataArrayNodeBase& getTypes() { return types; }
 
-    // Print to console
-    std::this_thread::sleep_for(std::chrono::seconds(mpi.getRank()));
-    app.log("patch = \n====================\n" + patch.str());
+};
+
+int main(int argc, char** argv) {
+
+    ef::EllipticForestApp app(&argc, &argv);
+
+    Mesh mesh{};
+
+    ef::Vector<double> pressure = {10.0, 40.0, 80.0, 160.0};
+    pressure.name() = "pressure";
+    ef::Vector<double> temperature = {-0.2, 3.4, 9.3, 10.3};
+    temperature.name() = "temperature";
+
+    ef::UnstructuredGridVTK vtu{};
+    vtu.buildMesh(mesh);
+    vtu.addCellData(pressure);
+    vtu.addCellData(temperature);
+    vtu.toVTK("test.vtu");
 
     return EXIT_SUCCESS;
 }
