@@ -678,29 +678,30 @@ int main(int argc, char** argv) {
     // Set options
     app.options.setOption("cache-operators", false);
     app.options.setOption("homogeneous-rhs", false);
-    app.options.setOption("refinement-threshold", 2.0);
+    app.options.setOption("refinement-threshold", 10.0);
 
     // Create PDE to solve
-    // PolarStarPoissonProblem pde(
-    //     2,              // Number of polar stars
-    //     {-0.5, 0.5, 0.5, -0.5},     // x0
-    //     {-0.5, -0.5, 0.5, 0.5},     // y0
-    //     {0.1, 0.2, 0.3, 0.4},       // r0
-    //     {0.2, 0.3, 0.4, 0.5},       // r1
-    //     {3, 4, 5, 8},               // n
-    //     0.001                       // epsilon
-    // );
+    // PolarStarPoissonProblem pde{};
+    PolarStarPoissonProblem pde(
+        4,              // Number of polar stars
+        {-0.5, 0.5, -0.5, 0.5},     // x0
+        {-0.5, -0.5, 0.5, 0.5},     // y0
+        {0.3, 0.1, 0.1, 0.2},       // r0
+        {0.4, 0.2, 0.2, 0.4},       // r1
+        {5, 4, 8, 3},               // n
+        0.02                       // epsilon
+    );
     // GaussianPoissonProblem pde(
     //     0,            // x0
     //     0,            // y0
     //     80,              // sigma_x
     //     10               // sigma_y
     // );
-    EggCartonPoissonProblem pde{};
+    // EggCartonPoissonProblem pde{};
 
     // Convergence sweep
     std::vector<int> patchSizeVector = {8};     // Size of patch
-    std::vector<int> levelVector {5};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
+    std::vector<int> levelVector {6};              // Maximum level of refinement (uniform: L-L, adaptive: 0-L)
 
     // Create storage for plotting
     std::vector<PlotPair> uniformErrorPlots;
