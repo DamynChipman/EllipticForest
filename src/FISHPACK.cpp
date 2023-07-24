@@ -408,7 +408,7 @@ FISHPACKPatch FISHPACKPatch::buildChild(std::size_t childIndex) {
     FISHPACKFVGrid childGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
     FISHPACKPatch childPatch(childGrid);
-    childPatch.level = level - 1;
+    childPatch.level = level + 1;
     childPatch.isLeaf = true;
     isLeaf = false;
 

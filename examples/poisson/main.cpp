@@ -190,6 +190,8 @@ public:
 
     double lambda() { return 0.0; }
 
+    double a = 4.0;
+
     double u(double x, double y) override {
         // return sin(2.0*M_PI*x) * sinh(2.0*M_PI*y);
         // return sin(4.0*M_PI*x) + cos(4.0*M_PI*y);
@@ -202,14 +204,17 @@ public:
         // return -16.0*pow(M_PI, 2)*(cos(4.0*M_PI*y) + sin(4.0*M_PI*x));
         // return 0.0;
         return pow(cos(y),2)*sin(x) + pow(cos(x),2)*sin(y) - sin(x)*(2 + sin(x)*sin(y)) - sin(y)*(2 + sin(x)*sin(y));
+        // return sin(a*M_PI*x*x) + cos(a*M_PI*y*y);
     }
 
     double dudx(double x, double y) override {
-        return 4.0*M_PI*cos(4.0*M_PI*x);
+        // return 4.0*M_PI*cos(4.0*M_PI*x);
+        return 2.0*a*M_PI*x*cos(a*M_PI*x*x);
     }
 
     double dudy(double x, double y) override {
-        return -4.0*M_PI*sin(4.0*M_PI*y);
+        // return -4.0*M_PI*sin(4.0*M_PI*y);
+        return -2.0*a*M_PI*y*sin(a*M_PI*y*y);
     }
 
 };
@@ -678,7 +683,11 @@ int main(int argc, char** argv) {
     // Set options
     app.options.setOption("cache-operators", false);
     app.options.setOption("homogeneous-rhs", false);
+<<<<<<< HEAD
     app.options.setOption("refinement-threshold", 10.0);
+=======
+    app.options.setOption("refinement-threshold", 500.0);
+>>>>>>> feature-forestclaw
 
     // Create PDE to solve
     // PolarStarPoissonProblem pde{};
@@ -718,6 +727,7 @@ int main(int argc, char** argv) {
     bool vtkFlag = true;
     int maxResolution = pow(128, 2) * pow(2, 2*5); // About 16M DOFs
     for (auto& M : patchSizeVector) {
+        continue;
 
         PlotPair errorPair;
         PlotPair buildPair;
@@ -739,7 +749,7 @@ int main(int argc, char** argv) {
             app.options.setOption("ny", M);
 
             // Solve via HPS
-            if (M == 128 && l == 4) vtkFlag = true;
+            if (M == 64 && l == 4) vtkFlag = true;
             else vtkFlag = false;
             vtkFlag = true;
             ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
@@ -790,6 +800,7 @@ int main(int argc, char** argv) {
     //         app.options.setOption("nx", M);
     //         app.options.setOption("ny", M);
 
+<<<<<<< HEAD
     //         // Solve via HPS
     //         if (M == 128 && l == 4) vtkFlag = true;
     //         else vtkFlag = false;
@@ -797,6 +808,16 @@ int main(int argc, char** argv) {
     //         int nDOFs = results.effective_resolution;
     //         double error = results.lI_error;
     //         resultsVector.push_back(results);
+=======
+            // Solve via HPS
+            // if (M == 64 && l == 4) vtkFlag = true;
+            // else vtkFlag = false;
+            vtkFlag = true;
+            ResultsData results = solvePoissonViaHPS(pde, vtkFlag);
+            int nDOFs = results.effective_resolution;
+            double error = results.lI_error;
+            resultsVector.push_back(results);
+>>>>>>> feature-forestclaw
 
     //         // Save info to plot
     //         errorPair.first.push_back(nDOFs);

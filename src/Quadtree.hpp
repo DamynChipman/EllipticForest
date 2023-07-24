@@ -474,6 +474,10 @@ protected:
 	 */
     LevelArray childIndices_{};
 
+	LevelArray leafIndices_{};
+
+	int globalCounter = 0;
+
 	/**
 	 * @brief Storage for node data
 	 * 
@@ -508,20 +512,21 @@ protected:
 
 	} quadtree_traversal_wrapper_t;
 
+public:
+
 	/**
 	 * @brief Capsulated data structure for returning a node's information
 	 * 
 	 */
 	struct QuadtreeNode {
-		T data;
+		T* data;
 		int level;
 		int levelID;
 		int globalID;
 		int parentID;
-		std::vector<int> childrenIDs{4};
+		std::vector<int> childrenIDs = {-1, -1, -1, -1};
+		int leafID;
 	};
-
-public:
 
     Quadtree() :
 		MPIObject(MPI_COMM_WORLD), p4est_(nullptr)
@@ -531,12 +536,23 @@ public:
 		MPIObject(MPI_COMM_WORLD), p4est_(p4est) 
 			{}
 
-	LevelArray globalIndices() const { return globalIndices_; }
-	LevelArray parentIndices() const { return parentIndices_; }
-	LevelArray childIndices() const { return childIndices_; }
+	LevelArray& globalIndices() { return globalIndices_; }
+	const LevelArray& globalIndices() const { return globalIndices_; }
+
+	LevelArray& parentIndices() { return parentIndices_; }
+	const LevelArray& parentIndices() const { return parentIndices_; }
+
+	LevelArray& childIndices() { return childIndices_; }
+	const LevelArray& childIndices() const { return childIndices_; }
+
+	LevelArray& leafIndices() { return leafIndices_; }
+	const LevelArray& leafIndices() const { return leafIndices_; }
+
 	T& root() { return data_[0]; }
 	const T& root() const { return data_[0]; }
+
 	std::vector<T>& data() { return data_; }
+	const std::vector<T>& data() const { return data_; }
 
 	/**
 	 * @brief Utility function that gets node data given the global ID
@@ -556,24 +572,45 @@ public:
 			for (int i = 0; i < globalIndices_[l].size(); i++) {
 				if (globalIndices_[l][i] == ID) {
 					// Node found, get data and return
-					node.level = l;
-					node.levelID = i;
-					node.globalID = globalIndices_[l][i];
-					node.parentID = parentIndices_[l][i];
-					node.childrenIDs[0] = childIndices_[l][i];
-					if (node.childrenIDs[0] != -1) {
-						auto it = std::find(globalIndices_[l+1].begin(), globalIndices_[l+1].end(), node.childrenIDs[0]);
-						int c_idx = it - globalIndices_[l+1].begin();
-						node.childrenIDs[1] = globalIndices_[l+1][c_idx+1];
-						node.childrenIDs[2] = globalIndices_[l+1][c_idx+2];
-						node.childrenIDs[3] = globalIndices_[l+1][c_idx+3];
-					}
-					node.data = data_[node.globalID];
-					return node;
+					// node.level = l;
+					// node.levelID = i;
+					// node.globalID = globalIndices_[l][i];
+					// node.parentID = parentIndices_[l][i];
+					// node.childrenIDs[0] = childIndices_[l][i];
+					// if (node.childrenIDs[0] != -1) {
+					// 	auto it = std::find(globalIndices_[l+1].begin(), globalIndices_[l+1].end(), node.childrenIDs[0]);
+					// 	int c_idx = it - globalIndices_[l+1].begin();
+					// 	node.childrenIDs[1] = globalIndices_[l+1][c_idx+1];
+					// 	node.childrenIDs[2] = globalIndices_[l+1][c_idx+2];
+					// 	node.childrenIDs[3] = globalIndices_[l+1][c_idx+3];
+					// }
+					// node.leafID = leafIndices_[l][i];
+					// node.data = &data_[node.globalID];
+					// return node;
+					return getNode(l, i);
 				}
 			}
 		}
 
+	}
+
+	QuadtreeNode getNode(int level, int idx) {
+		QuadtreeNode node;
+		node.level = level;
+		node.levelID = idx;
+		node.globalID = globalIndices_[level][idx];
+		node.parentID = parentIndices_[level][idx];
+		node.childrenIDs[0] = childIndices_[level][idx];
+		if (node.childrenIDs[0] != -1) {
+			auto it = std::find(globalIndices_[level+1].begin(), globalIndices_[level+1].end(), node.childrenIDs[0]);
+			int c_idx = it - globalIndices_[level+1].begin();
+			node.childrenIDs[1] = globalIndices_[level+1][c_idx+1];
+			node.childrenIDs[2] = globalIndices_[level+1][c_idx+2];
+			node.childrenIDs[3] = globalIndices_[level+1][c_idx+3];
+		}
+		node.leafID = leafIndices_[level][idx];
+		node.data = &data_[node.globalID];
+		return node;
 	}
 
 	/**
@@ -602,6 +639,7 @@ public:
 		globalIndices_.push_back({0});
 		parentIndices_.push_back({-1});
 		childIndices_.push_back({-1});
+		leafIndices_.push_back({0});
 	}
 
 	/**
@@ -615,6 +653,32 @@ public:
 
 	}
 
+	void traversePreOrder(std::function<bool(QuadtreeNode node)> visit) {
+
+		_traversePreOrder(visit, 0, 0, true);
+
+		// QuadtreeNode node;
+		// for (int l = 0; l < globalIndices_.size(); l++) {
+		// 	for (int i = 0; i < globalIndices_[l].size(); i++) {
+		// 		node.level = l;
+		// 		node.levelID = i;
+		// 		node.globalID = globalIndices_[l][i];
+		// 		node.parentID = parentIndices_[l][i];
+		// 		node.childrenIDs[0] = childIndices_[l][i];
+		// 		if (node.childrenIDs[0] != -1) {
+		// 			auto it = std::find(globalIndices_[l+1].begin(), globalIndices_[l+1].end(), node.childrenIDs[0]);
+		// 			int c_idx = it - globalIndices_[l+1].begin();
+		// 			node.childrenIDs[1] = globalIndices_[l+1][c_idx+1];
+		// 			node.childrenIDs[2] = globalIndices_[l+1][c_idx+2];
+		// 			node.childrenIDs[3] = globalIndices_[l+1][c_idx+3];
+		// 		}
+		// 		node.data = &data_[node.globalID];
+		// 		visit(node);
+		// 	}
+		// }
+
+	}
+
 	/**
 	 * @brief Traverses the quadtree in post-order fashion
 	 * 
@@ -623,6 +687,31 @@ public:
 	void traversePostOrder(std::function<void(T&)> visit) {
 
 		_traversePostOrder(visit, 0, 0);
+
+	}
+
+	bool isValid() {
+
+		bool dataGood = false;
+		bool nodesGood = false;
+
+		// Get total number of nodes stored via global level array
+		int nNodes = 0;
+		for (auto& la : globalIndices_) {
+			nNodes += la.size();
+		}
+
+		// Check if number of nodes is equal to number of data entries
+		dataGood = nNodes == data_.size();
+
+		// Traverse tree via post-order and check if all nodes are visited
+		int nCounter = 0;
+		this->traversePostOrder([&](T& nodeData){
+			nCounter++;
+		});
+		nodesGood = nNodes == nCounter;
+
+		return dataGood && nodesGood;
 
 	}
 
@@ -717,7 +806,9 @@ public:
 		QuadtreeNode node = getNode(nodeID);
 
 		if (node.childrenIDs[0] != -1) {
-			return;
+			std::string errorMessage = "[EllipticForest::Quadtree::refineNode] Selected node to refine is not a leaf node; cannot refine.";
+			std::cerr << errorMessage << std::endl;
+			throw std::invalid_argument(errorMessage);
 		}
 
 		// Create new fine nodes (children)
@@ -728,13 +819,15 @@ public:
 		LevelArray newGlobalIndices = globalIndices_;
 		LevelArray newParentIndices = parentIndices_;
 		LevelArray newChildIndices = childIndices_;
+		LevelArray newLeafIndices = leafIndices_;
 		std::vector<T> newData(data_.size() + 4);
-		int shift = 0;
-		bool nodeVisited = false;
 		for (int l = 0; l < globalIndices_.size(); l++) {
 			for (int i = 0; i < globalIndices_[l].size(); i++) {
 				if (globalIndices_[l][i] > nodeID) {
 					newGlobalIndices[l][i] = globalIndices_[l][i] + 4;
+					if (newLeafIndices[l][i] != -1) {
+						newLeafIndices[l][i] = leafIndices_[l][i] + 3;
+					}
 				}
 				if (parentIndices_[l][i] > nodeID) {
 					newParentIndices[l][i] = parentIndices_[l][i] + 4;
@@ -752,16 +845,19 @@ public:
 		int l = node.level;
 		int i = node.levelID;
 		newChildIndices[l][i] = nodeID + 1;
+		newLeafIndices[l][i] = -1;
 					
 		std::vector<int> childrenGIDS = {nodeID + 1, nodeID + 2, nodeID + 3, nodeID + 4};
 		std::vector<int> childrenPIDS(4, nodeID);
 		std::vector<int> childrenCIDS(4, -1);
+		std::vector<int> childrenLIDS = {node.leafID + 0, node.leafID + 1, node.leafID + 2, node.leafID + 3};
 
 		if (l == globalIndices_.size()-1) {
 			// New level needs to be created
 			newGlobalIndices.push_back(childrenGIDS);
 			newParentIndices.push_back(childrenPIDS);
 			newChildIndices.push_back(childrenCIDS);
+			newLeafIndices.push_back(childrenLIDS);
 		}
 		else {
 			// Nodes inserted before ones on same level
@@ -776,10 +872,12 @@ public:
 			std::vector<int>::iterator iterG = std::find(newGlobalIndices[l+1].begin(), newGlobalIndices[l+1].end(), nextLevelFirstChildNode.globalID+4);
 			std::vector<int>::iterator iterP = std::find(newParentIndices[l+1].begin(), newParentIndices[l+1].end(), nextLevelFirstChildNode.parentID+4);
 			std::vector<int>::iterator iterC = std::find(newChildIndices[l+1].begin(), newChildIndices[l+1].end(), nextLevelFirstChildNode.childrenIDs[0]);
+			std::vector<int>::iterator iterL = std::find(newLeafIndices[l+1].begin(), newLeafIndices[l+1].end(), nextLevelFirstChildNode.leafID+3);
 			
 			newGlobalIndices[l+1].insert(iterG, childrenGIDS.begin(), childrenGIDS.end());
 			newParentIndices[l+1].insert(iterP, childrenPIDS.begin(), childrenPIDS.end());
 			newChildIndices[l+1].insert(iterC, childrenCIDS.begin(), childrenCIDS.end());
+			newLeafIndices[l+1].insert(iterL, childrenLIDS.begin(), childrenLIDS.end());
 		}
 
 		newData[newGlobalIndices[l][i]] = data_[globalIndices_[l][i]];
@@ -791,6 +889,7 @@ public:
 		globalIndices_ = newGlobalIndices;
 		parentIndices_ = newParentIndices;
 		childIndices_ = newChildIndices;
+		leafIndices_ = newLeafIndices;
 		data_ = newData;
 
 		return;
@@ -816,22 +915,30 @@ public:
 		T& c3 = data_[node.childrenIDs[3]];
 		T newNodeData = children2parentFunction(c0, c1, c2, c3);
 
+		// Update leaf ID of node to coarse with first child's leaf ID
+		leafIndices_[node.level][node.levelID] = firstChildNode.leafID;
+
 		// Erase child nodes from level arrays
 		int l = firstChildNode.level;
 		int i = firstChildNode.levelID;
 		globalIndices_[l].erase(globalIndices_[l].begin() + i, globalIndices_[l].begin() + i + 4);
 		parentIndices_[l].erase(parentIndices_[l].begin() + i, parentIndices_[l].begin() + i + 4);
 		childIndices_[l].erase(childIndices_[l].begin() + i, childIndices_[l].begin() + i + 4);
+		leafIndices_[l].erase(leafIndices_[l].begin() + i, leafIndices_[l].begin() + i + 4);
 
 		// Iterate through tree via level arrays and create new ones
 		LevelArray newGlobalIndices = globalIndices_;
 		LevelArray newParentIndices = parentIndices_;
 		LevelArray newChildIndices = childIndices_;
+		LevelArray newLeafIndices = leafIndices_;
 		std::vector<T> newData(data_.size() - 4);
 		for (int l = 0; l < globalIndices_.size(); l++) {
 			for (int i = 0; i < globalIndices_[l].size(); i++) {
 				if (globalIndices_[l][i] > nodeID) {
 					newGlobalIndices[l][i] = globalIndices_[l][i] - 4;
+					if (newLeafIndices[l][i] != -1) {
+						newLeafIndices[l][i] = leafIndices_[l][i] - 3;
+					}
 				}
 				if (parentIndices_[l][i] > nodeID) {
 					newParentIndices[l][i] = parentIndices_[l][i] - 4;
@@ -853,9 +960,55 @@ public:
 		globalIndices_ = newGlobalIndices;
 		parentIndices_ = newParentIndices;
 		childIndices_ = newChildIndices;
+		leafIndices_ = newLeafIndices;
 		data_ = newData;
 
 		return;
+
+	}
+
+	std::string str() const {
+
+		std::string out = "";
+		const auto& G = globalIndices_;
+		const auto& P = parentIndices_;
+		const auto& C = childIndices_;
+		const auto& L = leafIndices_;
+
+		out += "Global Indices:\n";
+		for (int l = 0; l < G.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < G[l].size(); i++) {
+				out += std::to_string(G[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+		out += "Parent Indices:\n";
+		for (int l = 0; l < P.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < P[l].size(); i++) {
+				out += std::to_string(P[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+		out += "Child Indices:\n";
+		for (int l = 0; l < C.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < C[l].size(); i++) {
+				out += std::to_string(C[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+		out += "Leaf Indices:\n";
+		for (int l = 0; l < L.size(); l++) {
+			out += "l = " + std::to_string(l) + ": [";
+			for (int i = 0; i < L[l].size(); i++) {
+				out += std::to_string(L[l][i]) + ", ";
+			}
+			out += "]\n";
+		}
+
+		return out;
 
 	}
 
@@ -871,6 +1024,7 @@ public:
 		const auto& G = quadtree.globalIndices();
 		const auto& P = quadtree.parentIndices();
 		const auto& C = quadtree.childIndices();
+		const auto& L = quadtree.leafIndices();
 
 		os << "Global Indices:" << std::endl;
 		for (int l = 0; l < G.size(); l++) {
@@ -893,6 +1047,14 @@ public:
 			os << "l = " << l << ": [";
 			for (int i = 0; i < C[l].size(); i++) {
 				os << C[l][i] << ", ";
+			}
+			os << "]\n";
+		}
+		os << "Leaf Indices:" << std::endl;
+		for (int l = 0; l < L.size(); l++) {
+			os << "l = " << l << ": [";
+			for (int i = 0; i < L[l].size(); i++) {
+				os << L[l][i] << ", ";
 			}
 			os << "]\n";
 		}
@@ -946,7 +1108,7 @@ protected:
 		
 
 		// Populate global index array
-		globalIndices[quadrant->level].push_back(wrapper->global_counter++);
+		globalIndices[quadrant->level].push_back(quadtree.globalCounter++);
 
 		// Populate parent index array
 		int pID;
@@ -1011,15 +1173,18 @@ private:
         globalIndices_.reserve(nLevels);
         parentIndices_.reserve(nLevels);
         childIndices_.reserve(nLevels);
+		leafIndices_.reserve(nLevels);
 
         for (auto l = 0; l < nLevels; l++) {
             globalIndices_.push_back(std::vector<int>{});
             parentIndices_.push_back(std::vector<int>{});
             childIndices_.push_back(std::vector<int>{});
+			leafIndices_.push_back(std::vector<int>{});
 
             globalIndices_[l].reserve((std::size_t) pow(2, 2*l));
             parentIndices_[l].reserve((std::size_t) pow(2, 2*l));
             childIndices_[l].reserve((std::size_t) pow(2, 2*l));
+			leafIndices_[l].reserve((std::size_t) pow(2, 2*l));
         }
 
         // Set up user pointer
@@ -1103,6 +1268,38 @@ private:
 			}
 			visit(data_[gID]);
 		}
+	}
+
+	bool _traversePreOrder(std::function<bool(QuadtreeNode)> visit, int level, int idx, bool cont) {
+
+		bool continueTraversal;
+		if (cont) {
+			// Get node by level and index
+			QuadtreeNode node = getNode(level, idx);
+
+			// Visit node
+			cont = visit(node);
+
+			// Visit children
+			if (cont) {
+				if (node.childrenIDs[0] != -1) {
+					auto it = std::find(globalIndices_[level+1].begin(), globalIndices_[level+1].end(), node.childrenIDs[0]);
+					int c_idx = it - globalIndices_[level+1].begin();
+					for (int i = 0; i < 4; i++) {
+						cont = _traversePreOrder(visit, level+1, c_idx+i, cont);
+					}
+				}
+			}
+			else {
+				return false;
+			}
+		}
+		else {
+			return false;
+		}
+
+		return cont;
+
 	}
 
 };

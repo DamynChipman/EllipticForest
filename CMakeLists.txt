@@ -12,8 +12,8 @@ add_subdirectory(external)
 add_subdirectory(src)
 
 # --=== EllipticForest Test Suite ===--
-# add_subdirectory(test)
-# enable_testing()
+add_subdirectory(test)
+enable_testing()
 
 # --=== EllipticForest Examples ===--
 add_subdirectory(examples)

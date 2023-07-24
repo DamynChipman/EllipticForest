@@ -1,5 +1,6 @@
 add_subdirectory(hello)
 add_subdirectory(poisson)
 add_subdirectory(helmholtz)
-add_subdirectory(elliptic)
 add_subdirectory(toybox)
+add_subdirectory(heat)
+add_subdirectory(papers/p1-serial)
