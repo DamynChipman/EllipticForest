@@ -11,6 +11,7 @@ target_link_libraries(EllipticForest PUBLIC common)
 
 set(ELLIPTIC_FOREST_SOURCES
     EllipticForestApp.cpp
+    Interpolation.cpp
     FISHPACK.cpp
     P4est.cpp
     VTK.cpp
