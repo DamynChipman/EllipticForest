@@ -4,34 +4,18 @@
 
 A "Hello World" test that imports the `EllipticForestApp` header, creates the app, checks for `matplotlibcpp`, then ends.
 
-```bash
-cd hello
-./hello
-```
+## Patch Solver
 
-## Poisson
+Solves Poisson's equation on a single patch. Solves the BVP with the PETSc patch solver.
 
-Solves a user defined Poisson problem (implemented by deriving from the base `EllipticForest::EllipticProblemBase` class). Runs a convergence analysis and generates error and timing plots.
+## Elliptic Single
 
-```bash
-cd poisson
-./poisson
-```
+Solves an elliptic PDE with the adaptive HPS method.
 
-## Helmholtz
+## Elliptic Multiple
 
-Solves a Helmholtz problem (implemented by deriving from the base `EllipticForest::EllipticProblemBase` class). Runs a parameter sweep of the patch size, the level of refinement, and varying values of `lambda`.
+Solves an elliptic PDE with a sweep of refinement levels and patch sizes to check convergence of EllipticForest.
 
-```bash
-cd helmholtz
-./helmholtz
-```
+## Thermal
 
-## Toybox
-
-Where I do a bunch of my testing and debugging. Right now, it has a refine and coarsen test for the adaptive quadtree features.
-
-```bash
-cd toybox
-./toybox
-```
+Solves a variable coefficient heat equation with EllipticForest to show the ability to split the build and solve stages.
