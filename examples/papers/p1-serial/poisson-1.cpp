@@ -116,12 +116,23 @@ ResultsData run(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     // Create patch solver
     EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
 
+    // Create node factory
+    EllipticForest::FISHPACK::FISHPACKPatchNodeFactory nodeFactory{};
+
+    // Create mesh from p4est and patch solver
+    EllipticForest::Mesh<EllipticForest::FISHPACK::FISHPACKPatch> mesh{MPI_COMM_WORLD, p4est, rootPatch, nodeFactory};
+
     // Create and run HPS method
     // 1. Create the HPSAlgorithm instance
-    EllipticForest::HPSAlgorithm<EllipticForest::FISHPACK::FISHPACKFVGrid, EllipticForest::FISHPACK::FISHPACKFVSolver, EllipticForest::FISHPACK::FISHPACKPatch, double> HPS(rootPatch, solver);
+    EllipticForest::HPSAlgorithm
+        <EllipticForest::FISHPACK::FISHPACKFVGrid,
+        EllipticForest::FISHPACK::FISHPACKFVSolver,
+        EllipticForest::FISHPACK::FISHPACKPatch,
+        double>
+            HPS(MPI_COMM_WORLD, mesh, solver);
 
     // 2. Call the setup stage
-    HPS.setupStage(p4est);
+    HPS.setupStage();
 
     // 3. Call the build stage
     HPS.buildStage();
@@ -184,7 +195,7 @@ ResultsData run(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     double l2_error = 0;
     double lI_error = 0;
     int nLeafPatches = 0;
-    HPS.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+    mesh.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
         if (patch.isLeaf) {
             EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
@@ -210,7 +221,7 @@ ResultsData run(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
 
     // Compute size of quadtree and data
     double size_MB = 0;
-    HPS.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
+    mesh.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
         size_MB += patch.dataSize();
     });
 
