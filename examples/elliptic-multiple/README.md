@@ -28,8 +28,8 @@ and solve time plots will be shown.
 
 ## Output
 
-![](plot_elliptic_error.pdf)
+![](plot_elliptic_error.png)
 
-![](plot_elliptic_build_time.pdf)
+![](plot_elliptic_build_time.png)
 
-![](plot_elliptic_solve_time.pdf)
+![](plot_elliptic_solve_time.png)
