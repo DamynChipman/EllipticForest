@@ -21,7 +21,6 @@ int receive<std::string>(std::string& str, int src, int tag, MPI_Comm comm, MPI_
 
 template<>
 int broadcast<std::string>(std::string& str, int root, MPI_Comm comm) {
-    // std::cout << "Calling string broadcast" << std::endl;
     int rank; MPI_Comm_rank(comm, &rank);
     int size = str.length();
     broadcast(size, root, comm);

@@ -10,25 +10,62 @@ namespace EllipticForest {
 
 namespace MPI {
 
+/**
+ * @brief Global head rank of zero
+ * 
+ */
 static int HEAD_RANK = 0;
 
-// Forward declarations
-// template<class T> int broadcast(T& data, int root, MPI_Comm comm);
-// template<class T> int broadcast_(T& data, int root, MPI_Comm comm, T*);
-// template<class T> int broadcast_(std::vector<T>& data, int root, MPI_Comm comm, std::vector<T>*);
-// template<> int broadcast_<std::string>(std::string& data, int root, MPI_Comm comm, std::string*);
-// template<class T> int send_(T& data, int dest, int tag, MPI_Comm comm, T*);
-// template<class T> int receive_(T& data, int src, int tag, MPI_Comm comm, MPI_Status* status, T*);
-// template<class T> int broadcast_(T& data, int root, MPI_Comm comm, T*);
+/**
+ * @brief Type alias for MPI_Comm
+ * 
+ */
+using Communicator = MPI_Comm;
 
+/**
+ * @brief Type alias for MPI_Status
+ * 
+ */
+using Status = MPI_Status;
+
+/**
+ * @brief Type alias for MPI_Datatype
+ * 
+ */
+using Datatype = MPI_Datatype;
+
+/**
+ * @brief Class for any MPI based object; can also be used by itself for global MPI utility
+ * 
+ */
 class MPIObject {
+
+protected:
+
+    /**
+     * @brief MPI communicator of object
+     * 
+     */
+    Communicator comm;
+
+    /**
+     * @brief MPI rank
+     * 
+     */
+    int rank;
+
+    /**
+     * @brief MPI size
+     * 
+     */
+    int size;
 
 public:
 
-    MPI_Comm comm;
-    int rank;
-    int size;
-
+    /**
+     * @brief Construct a new MPIObject object with default MPI_COMM_WORLD communicator
+     * 
+     */
     MPIObject() :
         comm(MPI_COMM_WORLD) {
 
@@ -37,7 +74,12 @@ public:
 
     }
 
-    MPIObject(MPI_Comm comm) :
+    /**
+     * @brief Construct a new MPIObject object with specified communicator
+     * 
+     * @param comm MPI communicator
+     */
+    MPIObject(Communicator comm) :
         comm(comm) {
 
         MPI_Comm_size(comm, &size);
@@ -45,14 +87,26 @@ public:
 
     }
 
-    virtual const MPI_Comm getComm() const { return comm; }
-    virtual const int getRank() const { return rank; }
-    virtual const int getSize() const { return size; }
+    /**
+     * @brief Returns the MPI communicator
+     * 
+     * @return const Communicator 
+     */
+    virtual const Communicator getComm() const { return comm; }
 
-    friend std::ostream& operator<<(std::ostream& os, MPIObject& m) {
-        os << "[RANK " << m.getRank() << "/" << m.getSize() << "]  ";
-        return os;
-    }
+    /**
+     * @brief Returns the MPI rank
+     * 
+     * @return const int 
+     */
+    virtual const int getRank() const { return rank; }
+
+    /**
+     * @brief Returns the MPI size of the communicator
+     * 
+     * @return const int 
+     */
+    virtual const int getSize() const { return size; }
 
 };
 
@@ -70,17 +124,36 @@ public:
 template<class T>
 struct TypeTraits {
 
-    static inline MPI_Datatype getType(T& raw);
-    static inline std::size_t getSize(T& raw) { return 1; }
-    static inline T* getAddress(T& raw) { return &raw; }
+    /**
+     * @brief Returns the MPI datatype of the object
+     * 
+     * @param data Reference to data
+     * @return Datatype 
+     */
+    static inline Datatype getType(T& data);
+
+    /**
+     * @brief Returns the size of the data; defaults to 1
+     * 
+     * @param data Reference to data
+     * @return std::size_t 
+     */
+    static inline std::size_t getSize(T& data) { return 1; }
+
+    /**
+     * @brief Returns the address of the start of the data
+     * 
+     * @param data Reference to data
+     * @return T* 
+     */
+    static inline T* getAddress(T& data) { return &data; }
 
 };
 
-// --=== Template Specializations for TypeTraits ===--
 // Specialization of the MPITypeTraits for primitive types 
 #define PRIMITIVE(Type, MpiType) \
 	template<> \
-	inline MPI_Datatype TypeTraits<Type>::getType(Type&) { \
+	inline Datatype TypeTraits<Type>::getType(Type&) { \
 		return MpiType; \
 	}
 PRIMITIVE(char, 				MPI_CHAR);
@@ -100,44 +173,66 @@ PRIMITIVE(long double,			MPI_LONG_DOUBLE);
 PRIMITIVE(bool,                 MPI_CXX_BOOL);
 #undef PRIMATIVE
 
+/**
+ * @brief Wrapper for MPI_Send
+ * 
+ * @tparam T Type of object to communicate
+ * @param data Reference to data
+ * @param dest Destination rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @return int
+ */
 template<class T>
-int send(T& data, int dest, int tag, MPI_Comm comm) {
+int send(T& data, int dest, int tag, Communicator comm) {
     return MPI_Send(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), dest, tag, comm);
 }
 
-// template<class T>
-// int send_(T& data, int dest, int tag, MPI_Comm comm, T*) {
-//     return MPI_Send(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), dest, tag, comm);
-// }
-
+/**
+ * @brief Wrapper for MPI_Recv
+ * 
+ * @tparam T Type of object to communicate
+ * @param data Reference to data
+ * @param src Source rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @param status MPI status
+ * @return int 
+ */
 template<class T>
-int receive(T& data, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+int receive(T& data, int src, int tag, Communicator comm, Status* status) {
     return MPI_Recv(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), src, tag, comm, status);
 }
 
-// template<class T>
-// int receive_(T& data, int src, int tag, MPI_Comm comm, MPI_Status* status, T*) {
-//     return MPI_Recv(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), src, tag, comm, status);
-// }
-
+/**
+ * @brief Wrapper for MPI_Bcast
+ * 
+ * @tparam T Type of object to communicate
+ * @param data Reference to data
+ * @param root Root rank
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
-int broadcast(T& data, int root, MPI_Comm comm) {
-    // return broadcast_(data, root, comm, static_cast<T*>(nullptr));
-    // std::cout << "Calling default broadcast" << std::endl;
+int broadcast(T& data, int root, Communicator comm) {
     return MPI_Bcast(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), root, comm);
 }
 
+/**
+ * @brief Wrapper for MPI_Allreduce
+ * 
+ * @tparam T Type of object to communicate
+ * @param send Reference of data to send
+ * @param recv Reference of data to recieve
+ * @param op MPI operator
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
-int allreduce(T& send, T& recv, MPI_Op op, MPI_Comm comm) {
+int allreduce(T& send, T& recv, MPI_Op op, Communicator comm) {
     assert(TypeTraits<T>::getSize(send) == TypeTraits<T>::getSize(recv));
     return MPI_Allreduce(TypeTraits<T>::getAddress(send), TypeTraits<T>::getAddress(recv), TypeTraits<T>::getSize(send), TypeTraits<T>::getType(send), op, comm);
 }
-
-// template<class T>
-// int broadcast_(T& data, int root, MPI_Comm comm, T*) {
-//     std::cout << "Calling default broadcast" << std::endl;
-//     return MPI_Bcast(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), root, comm);
-// }
 
 /**
  * @brief Specialization of std::vector<T> for TypeTraits
@@ -147,134 +242,157 @@ int allreduce(T& send, T& recv, MPI_Op op, MPI_Comm comm) {
 template<class T>
 struct TypeTraits<std::vector<T>> {
 
-    static inline MPI_Datatype getType(std::vector<T>& vec) { return TypeTraits<T>::getType(vec[0]); }
+    /**
+     * @brief Returns the MPI datatype: type of T
+     * 
+     * @param vec Reference to std::vector
+     * @return Datatype 
+     */
+    static inline Datatype getType(std::vector<T>& vec) { return TypeTraits<T>::getType(vec[0]); }
+
+    /**
+     * @brief Returns the size of the std::vector
+     * 
+     * @param vec Reference to std::vector
+     * @return std::size_t 
+     */
     static inline std::size_t getSize(std::vector<T>& vec) { return vec.size(); }
+
+    /**
+     * @brief Returns the beginning address of the data in `vec`
+     * 
+     * @param vec Reference to std::vector
+     * @return T* 
+     */
     static inline T* getAddress(std::vector<T>& vec) { return &vec.front(); }
 
 };
 
-// template<class T>
-// int send_(std::vector<T>& vec, int d)
-
-// template<class T>
-// int send<std::vector<T>>(std::vector<T>& vec, int dest, int tag, MPI_Comm comm) {
-//     return MPI_Send(TypeTraits<std::vector<T>>::getAddress(vec), TypeTraits<std::vector<T>>::getSize(vec), TypeTraits<std::vector<T>>::getType(vec), dest, tag, comm);
-// }
-
+/**
+ * @brief Function overload of @sa `send` for std::vector<T>
+ * 
+ * @tparam T Type of data to communicate
+ * @param data Reference to data
+ * @param dest Destination rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
-int send(std::vector<T>& data, int dest, int tag, MPI_Comm comm) {
+int send(std::vector<T>& data, int dest, int tag, Communicator comm) {
     int size = data.size();
     send(size, dest, tag, comm);
     return MPI_Send(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), dest, tag, comm);
 }
 
-// template<class T>
-// int receive<std::vector<T>>(std::vector<T>& data, int src, int tag, MPI_Comm comm, MPI_Status* status) {
-//     return MPI_Recv(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), src, tag, comm, status);
-// }
-
+/**
+ * @brief Function overload of @sa `receive` for std::vector<T>
+ * 
+ * @tparam T Type of data to communicate
+ * @param data Reference to data
+ * @param src Source rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @param status MPI status
+ * @return int 
+ */
 template<class T>
-int receive(std::vector<T>& data, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+int receive(std::vector<T>& data, int src, int tag, Communicator comm, Status* status) {
     int size;
     receive(size, src, tag, comm, status);
     data.resize(size);
     return MPI_Recv(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), src, tag, comm, status);
 }
 
+/**
+ * @brief Function overload of @sa `broadcast` for std::vector<T>
+ * 
+ * @tparam T Type of data to communicate
+ * @param data Reference to data
+ * @param root Root rank
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
-int broadcast(std::vector<T>& data, int root, MPI_Comm comm) {
-    // std::cout << "Calling vector broadcast" << std::endl;
+int broadcast(std::vector<T>& data, int root, Communicator comm) {
     int rank; MPI_Comm_rank(comm, &rank);
     int size = data.size();
     broadcast(size, root, comm);
-    // if (rank != root) data = std::vector<T>(TypeTraits<std::vector<T>>::getAddress(data), size);
     if (rank != root) data.resize(size);
-    MPI_Bcast(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), root, comm);
+    return MPI_Bcast(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), root, comm);
 }
 
-// template<typename T>
-// int broadcast_(std::vector<T>& data, int root, MPI_Comm comm, std::vector<T>*) {
-//     std::cout << "Calling vector broadcast" << std::endl;
-//     int rank; MPI_Comm_rank(comm, &rank);
-//     int size = data.size();
-//     broadcast(size, root, comm);
-//     // if (rank != root) data = std::vector<T>(TypeTraits<std::vector<T>>::getAddress(data), size);
-//     if (rank != root) data.resize(size);
-//     MPI_Bcast(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), root, comm);
-// }
-
+/**
+ * @brief Specialization of std::string for TypeTraits
+ * 
+ */
 template<>
 struct TypeTraits<std::string> {
 
-    static inline MPI_Datatype getType(std::string& str) { return MPI_CHAR; }
+    /**
+     * @brief Returns the MPI datatype: MPI_CHAR
+     * 
+     * @param str Reference to std::string
+     * @return Datatype 
+     */
+    static inline Datatype getType(std::string& str) { return MPI_CHAR; }
+
+    /**
+     * @brief Returns the size of the std::string
+     * 
+     * @param str Reference to std::string
+     * @return std::size_t 
+     */
     static inline std::size_t getSize(std::string& str) { return str.length(); }
+
+    /**
+     * @brief Returns the address of the std::string
+     * 
+     * @param str Reference to std::string
+     * @return char* 
+     */
     static inline char* getAddress(std::string& str) { return str.data(); }
 
 };
 
-// template<>
-// int receive<std::string>(std::string& str, int src, int tag, MPI_Comm comm, MPI_Status* status) {
-//     int count;
-//     MPI_Probe(src, tag, comm, status);
-//     MPI_Get_count(status, TypeTraits<std::string>::getType(str), &count);
-//     str = std::string(TypeTraits<std::string>::getAddress(str), count);
-//     return MPI_Recv(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), src, tag, comm, status);
-// }
-
+/**
+ * @brief Template overload for @sa `send` for std::string
+ * 
+ * @param str Reference to std::string
+ * @param dest Destination rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<>
-int send<std::string>(std::string& str, int dest, int tag, MPI_Comm comm);
-// {
-//     int size = str.length();
-//     send(size, dest, tag, comm);
-//     return MPI_Send(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), dest, tag, comm);
-// }
+int send<std::string>(std::string& str, int dest, int tag, Communicator comm);
 
+/**
+ * @brief Template overload for @sa `receive` for std::string
+ * 
+ * @param str Reference to std::string
+ * @param src Source rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @param status MPI status
+ * @return int 
+ */
 template<>
-int receive<std::string>(std::string& str, int src, int tag, MPI_Comm comm, MPI_Status* status);
-// {
-//     int size;
-//     receive(size, src, tag, comm, status);
-//     str.resize(size);
-//     return MPI_Recv(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), src, tag, comm, status);
-// }
+int receive<std::string>(std::string& str, int src, int tag, Communicator comm, Status* status);
 
+/**
+ * @brief Template overload for @sa `broadcast` for std::string
+ * 
+ * @param str Reference to std::string
+ * @param root Root rank
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<>
-int broadcast<std::string>(std::string& str, int root, MPI_Comm comm);
-// {
-//     // std::cout << "Calling string broadcast" << std::endl;
-//     int rank; MPI_Comm_rank(comm, &rank);
-//     int size = str.length();
-//     broadcast(size, root, comm);
-//     if (rank != root) str = std::string(TypeTraits<std::string>::getAddress(str), size);
-//     return MPI_Bcast(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), root, comm);
-// }
-
-// template<>
-// int broadcast<std::string>(std::string& str, int root, MPI_Comm comm) {
-//     int ret = MPI_Bcast(TypeTraits<std::string>::getAddress(str), TypeTraits<std::string>::getSize(str), TypeTraits<std::string>::getType(str), root, comm);
-//     str = std::string(TypeTraits<std::string>::getAddress(str));
-// }
-
-// class MPISerializable {
-
-// public:
-
-//     MPI_Datatype mpiDatatype;
-
-//     virtual void serialize() = 0;
-    
-//     void commit() {
-//         MPI_Type_commit(&mpiDatatype);
-//     }
-
-//     void free() {
-//         MPI_Type_free(&mpiDatatype);
-//     }
-
-// };
-
-} // NAMESPACE : EllipticForest
+int broadcast<std::string>(std::string& str, int root, Communicator comm);
 
 } // NAMESPACE : MPI
+
+} // NAMESPACE : EllipticForest
 
 #endif // MPI_HPP_
