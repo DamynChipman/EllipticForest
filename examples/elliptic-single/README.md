@@ -2,22 +2,31 @@
 
 ## Elliptic-Single
 
-Solves a user-defined elliptic PDE in a rectangular domain on an adaptive mesh.
+Solves Poisson's equation:
 
-The PDE to solve is the following:
+$$\Delta u = f$$
 
-$\alpha(x,y) \nabla \cdot \big[ \beta(x,y) \nabla u(x,y) \big] + \lambda(x,y) u(x, y) = f(x,y), x,y \in \Omega=[x_{lower}, x_{upper}] \times [y_{lower}, y_{upper}]$
+subject to Dirichlet boundary conditions provided by the exact solution.
 
-subject to Dirichlet boundary conditions:
+By default, this is set to solve for the exact solution:
 
-$u(x,y) = g(x,y), x,y \in \Gamma = \partial \Omega$
+$$u(x,y) = sin(x) + sin(y)$$
 
-or Neumann boundary conditions:
+thus,
 
-$\frac{\partial u(x,y)}{\partial n} = v(x,y), x,y \in \Gamma = \partial \Omega$
+$$f(x,y) = -sin(x) - sin(y) = -u(x,y).$$
+
+EllipticForest solves this by creating a mesh and refining it according to the curvature of the
+solution (i.e., the right-hand side function `f`). The build, upwards, and solve stages are used
+to do the factorization and application of the solution operators. The solution is output to VTK
+files to be viewed with your favorite visualization tool (VisIt is mine!)
 
 ## Usage
 
 ```Bash
 mpirun -n <number_of_processes> ./elliptic-single
 ```
+
+## Output
+
+![](output.png)
