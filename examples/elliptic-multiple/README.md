@@ -23,7 +23,7 @@ and solve time plots will be shown.
 ## Usage
 
 ```Bash
-./poisson
+mpirun -n <number_of_processes> ./elliptic-multiple
 ```
 
 ## Output
