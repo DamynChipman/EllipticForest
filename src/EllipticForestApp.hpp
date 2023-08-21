@@ -2,26 +2,57 @@
 #define ELLIPTIC_FOREST_APP_HPP_
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <chrono>
 #include <map>
 #include <variant>
+#include <algorithm>
 #include <cstdarg>
 #include <cctype>
 
 #include <mpi.h>
+
+#if USE_PETSC
 #include <petsc.h>
+#endif
+
 #include <p4est.h>
 #include "GenericSingleton.hpp"
 
 namespace EllipticForest {
 
+static int HEAD_RANK = 0;
+
+/**
+ * @brief Structure for writing messages to a log file or the console
+ * 
+ * @TODO: Add ability to log according to the logging level
+ * @TODO: Add ability to change logging location (file, console, other)
+ * 
+ */
 struct Logger {
 
-    Logger() {}
-    ~Logger() {}
+    /**
+     * @brief Construct a new Logger object
+     * 
+     */
+    Logger();
 
+    /**
+     * @brief Destroy the Logger object
+     * 
+     */
+    ~Logger();
+
+    /**
+     * @brief Outputs a message to the log
+     * 
+     * @tparam Args Variable argument holder for variable formatting
+     * @param message Message to log
+     * @param args Variables to format into string
+     */
     template<class... Args>
     void log(std::string message, Args... args) {
     
@@ -32,233 +63,353 @@ struct Logger {
 
     }
 
+    /**
+     * @brief Outputs a message to the head rank log
+     * 
+     * @tparam Args Variable argument holder for variable formatting
+     * @param message Message to log
+     * @param args Variables to format into string
+     */
+    template<class... Args>
+    void logHead(std::string message, Args... args) {
+    
+        int myRank = -1;
+        MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+        if (myRank == HEAD_RANK) {
+            std::string toPrint = "[EllipticForest " + std::to_string(myRank) + "] " + message + "\n";
+            printf(toPrint.c_str(), args...);
+        }
+
+    }
+
 };
 
+/**
+ * @brief Class for handling a list of options as key-value pairs in a map
+ * 
+ * Supports the following datatypes for options: {std::string, bool, int, double}
+ * 
+ */
+class Options {
 
-struct Options {
+public:
     
+    /**
+     * @brief Acceptable types for options
+     * 
+     */
     using OptionTypes = std::variant<std::string, bool, int, double>;
+
+    /**
+     * @brief Map of options
+     * 
+     */
     std::map<std::string, OptionTypes> optionsMap;
 
-    Options() {
-        setDefaultOptions();
-    }
-    Options(std::map<std::string, OptionTypes> map) : optionsMap(map) {
-        setDefaultOptions();
-    }
+    /**
+     * @brief Construct a new Options object
+     * 
+     */
+    Options();
 
-    OptionTypes& operator[](std::string const key) {
-        return optionsMap[key];
-    }
+    /**
+     * @brief Construct a new Options object
+     * 
+     * @param map Map to copy into @sa optionsMap
+     */
+    Options(std::map<std::string, OptionTypes> map);
 
-    void setOption(std::string const key, OptionTypes const value) {
-        optionsMap[key] = value;
-    }
+    /**
+     * @brief Accesses an option from the option name
+     * 
+     * @param key Option name
+     * @return OptionTypes& 
+     */
+    OptionTypes& operator[](std::string const key);
 
-    void setFromFile(std::string filename) {
+    /**
+     * @brief Set an option by key-value pair
+     * 
+     * @param key Name of option
+     * @param value Value of option
+     */
+    void setOption(std::string const key, OptionTypes const value);
 
-    }
+    /**
+     * @brief Sets a list of options from a supplied .in file
+     * 
+     * @param filename Name of .in file
+     */
+    void setFromFile(std::string filename);
 
-    void setDefaultOptions() {
-        optionsMap["min-level"] = 0;
-        optionsMap["max-level"] = 1;
-        optionsMap["nx"] = 16;
-        optionsMap["ny"] = 16;
-        optionsMap["cache-operators"] = true;
-        optionsMap["homogeneous-rhs"] = true;
-        optionsMap["refinement-threshold"] = 0;
-    }
+    /**
+     * @brief Checks if the option is in the map
+     * 
+     * @param optionName Name of option
+     * @return true if option exists
+     * @return false otherwise
+     */
+    bool optionExists(std::string optionName);
 
-    friend std::ostream& operator<<(std::ostream& os, const Options& options) {
-        for (const auto& [key, value] : options.optionsMap) {
-            os << "[EllipticForest]   " << key << " : ";
-            std::visit([&] (auto&& v)
-                {os << v << std::endl; }, value);
-        }
-        return os;
-    }
+    // TODO: Add set from command line options here
+
+    /**
+     * @brief Checks and returns the type of the option
+     * 
+     * @param value Value of option
+     * @return OptionTypes 
+     */
+    OptionTypes checkValue(std::string value);
+
+    /**
+     * @brief Checks if the string is a floating point number (i.e., contains a decimal)
+     * 
+     * @param str Number as string
+     * @return true 
+     * @return false 
+     */
+    bool isDouble(std::string& str);
+
+    /**
+     * @brief Checks if the string is an integer (i.e., does not have a decimal)
+     * 
+     * @param str Number as string
+     * @return true 
+     * @return false 
+     */
+    bool isInt(std::string& str);
+
+    /**
+     * @brief Writes the options to an ostream
+     * 
+     * @param os ostream to write to
+     * @param options Options instance
+     * @return std::ostream& 
+     */
+    friend std::ostream& operator<<(std::ostream& os, const Options& options);
+
+private:
+
+    /**
+     * @brief Reads an .ini file to Options
+     * 
+     * The .ini file should have the `[EllipticForest]` header for the section corresponding to the
+     * EllipticForest options
+     * 
+     * @param filename Name of .ini file
+     * @param section Name of section to read
+     */
+    void readINIFile(std::string filename, std::string section);
+
+    /**
+     * @brief Removes whitespace from string
+     * 
+     * @param str String with whitespace
+     */
+    void stripWhitespace(std::string& str);
 
 };
 
+/**
+ * @brief Handles the input parsing of command-line arguments
+ * 
+ * @TODO: Add ability for user to add arguments
+ */
 class InputParser {
 
 public:
 
+    /**
+     * @brief List of command-line arguments
+     * 
+     */
     std::vector<std::string> args;
 
-    InputParser(int& argc, char**& argv) :
-        args{argv+1, argv + argc}
-            {}
+    /**
+     * @brief Construct a new Input Parser object
+     * 
+     * @param argc Reference to argc from main
+     * @param argv Reference to argv from main
+     */
+    InputParser(int& argc, char**& argv);
 
-    void parse(Options& options) {
-        for (const auto& arg : args) {
-            if (arg[0] == '-') {
-                if (arg[1] == '-') {
-                    // Long option
-                    std::string option = arg.substr(2);
-                    if (option.find('=') != std::string::npos) {
-                        std::string value = option.substr(option.find('=') + 1);
-                        option = option.substr(0, option.find('='));
-                        options[option] = checkValue(value);
-                    }
-                    else {
-                        options[option] = "";
-                    }
-                }
-                else {
-                    // Short option
-                    std::string option = arg.substr(1);
-                    if (option.find('=') != std::string::npos) {
-                        std::string value = option.substr(option.find('=') + 1);
-                        option = option.substr(0, option.find('='));
-                        options[option] = value;
-                    }
-                    else {
-                        options[option] = "";
-                    }
-                }
-            }
-        }
-    }
-
-    Options::OptionTypes checkValue(std::string value) {
-        if (value == "true") {
-            return (bool) true;
-        }
-        else if (value == "false") {
-            return (bool) false;
-        }
-        else if (isDouble(value)) {
-            return (double) std::stod(value);
-        }
-        else if (isInt(value)) {
-            return (int) std::stoi(value);
-        }
-    }
-
-private:
-
-    bool isDouble(std::string& str) {
-        return str.find('.') != std::string::npos;
-    }
-
-    bool isInt(std::string& str) {
-        for (auto c : str) {
-            if (!std::isdigit(c)) return false;
-        }
-        return true;
-    }
+    /**
+     * @brief Parses the input arguments into an Options instance
+     * 
+     * @param options 
+     */
+    void parse(Options& options);
 
 };
 
-
+/**
+ * @brief Class for timing different pieces of execution
+ * 
+ */
 class Timer {
 
 public:
 
+    /**
+     * @brief Alias for clock backend
+     * 
+     */
     using Clock = std::chrono::steady_clock;
 
-    Timer() {}
+    /**
+     * @brief Construct a new Timer object
+     * 
+     */
+    Timer();
 
-    void start() {
-        startTime_ = Clock::now();
-    }
+    /**
+     * @brief Starts the timer
+     * 
+     */
+    void start();
 
-    double stop() {
-        endTime_ = Clock::now();
-        std::chrono::duration<double> diff = endTime_ - startTime_;
-        accumulatedTime_ += diff.count();
-        return diff.count();
-    }
+    /**
+     * @brief Stops the timer and returns the elapsed time
+     * 
+     * @return double 
+     */
+    double stop();
 
-    double time() { return accumulatedTime_; }
+    /**
+     * @brief Returns the total accumulated time of this timer
+     * 
+     * @return double 
+     */
+    double time();
 
-    void restart() {
-        accumulatedTime_ = 0;
-    }
+    /**
+     * @brief Restarts the timer accumulated time
+     * 
+     */
+    void restart();
 
 private:
 
+    /**
+     * @brief Storage for the accumulated time of this timer
+     * 
+     */
     double accumulatedTime_ = 0;
+
+    /**
+     * @brief Start time of trigger
+     * 
+     */
     std::chrono::time_point<Clock> startTime_;
+
+    /**
+     * @brief End time of trigger
+     * 
+     */
     std::chrono::time_point<Clock> endTime_;
 
 };
 
-
+/**
+ * @brief The main, single instance of the EllipticForest app
+ * 
+ * This singleton class handles the options, logging, and timing of various components of an
+ * EllipticForest runtime application. Upon construction, MPI and PETSc are initialized and input
+ * arguments are read in from the command-line. When destructed, it handles the finalizing of MPI
+ * and PETSc.
+ * 
+ * @note This should always be created in main.
+ * 
+ */
 class EllipticForestApp : public GenericSingleton<EllipticForestApp> {
 
 public:
     
+    /**
+     * @brief Logger instance for outputting messages to a log
+     * 
+     */
     Logger logger{};
+
+    /**
+     * @brief Options instance for storing app-global options
+     * 
+     */
     Options options{};
+
+    /**
+     * @brief Timer instance for managing timers
+     * 
+     */
     std::map<std::string, Timer> timers{};
 
-    EllipticForestApp() : argc_(nullptr), argv_(nullptr) {}
+    /**
+     * @brief Construct a new Elliptic Forest App object
+     * 
+     */
+    EllipticForestApp();
     
-    EllipticForestApp(int* argc, char*** argv) : argc_(argc), argv_(argv) {
-        addTimer("app-lifetime");
-        timers["app-lifetime"].start();
+    /**
+     * @brief Construct a new Elliptic Forest App object
+     * 
+     * @param argc Pointer to argc from main
+     * @param argv Pointer to argv from main
+     */
+    EllipticForestApp(int* argc, char*** argv);
 
-        int isMPIIntialized;
-        MPI_Initialized(&isMPIIntialized);
-        if (!isMPIIntialized) MPI_Init(argc_, argv_);
-        PetscInitialize(argc_, argv_, NULL, NULL);
-        PetscGetArgs(argc_, argv_);
+    /**
+     * @brief Destroy the Elliptic Forest App object
+     * 
+     */
+    ~EllipticForestApp();
 
-        // Create options
-        InputParser inputParser(*argc_, *argv_);
-        inputParser.parse(options);
-        
-        int myRank = -1;
-        MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-        if (myRank == 0) {
-            std::cout << "[EllipticForest] Welcome to EllipticForest!" << std::endl;
-            std::cout << "[EllipticForest] Options:" << std::endl << options << std::endl;
-        }
-        this->actualClassPointer_ = this;
-    }
-
-    ~EllipticForestApp() {
-        timers["app-lifetime"].stop();
-
-        int myRank = 0;
-        int isMPIFinalized;
-        MPI_Finalized(&isMPIFinalized);
-        if (!isMPIFinalized) {
-            MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-        }
-        
-        if (myRank == 0) {
-            std::cout << "[EllipticForest] End of app life cycle, finalizing..." << std::endl;
-            std::cout << "[EllipticForest] Timers: " << std::endl;
-            for (auto& [key, value] : timers) {
-                std::cout << "[EllipticForest]   " << key << " : " << value.time() << " [sec]" << std::endl;
-            }
-            std::cout << "[EllipticForest] Done!" << std::endl;
-        }
-
-        if (!isMPIFinalized) {
-            PetscFinalize();
-            MPI_Finalize();
-        }
-    }
-
-    int argc() { return *argc_; }
-    char** argv() { return *argv_; }
-
+    /**
+     * @brief Logs a message to the log output
+     * 
+     * Wraps @sa Logger::log
+     * 
+     * @tparam Args Variable argument holder for variable formatting
+     * @param message Message to log
+     * @param args Variables to format into string
+     */
     template<class... Args>
     void log(std::string message, Args... args) {
         logger.log(message, args...);
     }
 
-    void addTimer(std::string name) {
-        timers[name] = Timer();
+    /**
+     * @brief Logs a message to the head rank log output
+     * 
+     * Wraps @sa Logger::logHead
+     * 
+     * @tparam Args Variable argument holder for variable formatting
+     * @param message Message to log
+     * @param args Variables to format into string
+     */
+    template<class... Args>
+    void logHead(std::string message, Args... args) {
+        logger.logHead(message, args...);
     }
+
+    /**
+     * @brief Adds a timer to the timer map
+     * 
+     * @param name Name of timer
+     */
+    void addTimer(std::string name);
 
 private:
 
+    /**
+     * @brief Pointer to argc from main
+     * 
+     */
     int* argc_;
+
+    /**
+     * @brief Pointer to argv from main
+     * 
+     */
     char*** argv_;
 
 };

@@ -8,75 +8,130 @@
 
 namespace EllipticForest {
 
+/**
+ * @brief XML node with storage for name, attributes, and data
+ * 
+ * An XML node has the following structure:
+ * 
+ * <Node attribute1="value1" attribute2="value2">
+ *   000 111 222
+ * </Node>
+ * 
+ * where:
+ * 
+ * name = "Node"
+ * attributes = { {"attribute1", "value1"}, {"attribute2", "value2"} }
+ * data = "000 111 222"
+ * 
+ * Any children are also nodes and come before the end of the node (right after the data block).
+ */
 struct XMLNode {
 
+    /**
+     * @brief Name of node
+     * 
+     */
     std::string name;
+
+    /**
+     * @brief Vector of pairs of attribute names and info
+     * 
+     */
     std::vector<std::pair<std::string, std::string>> attributes;
+
+    /**
+     * @brief Data block
+     * 
+     */
     std::string data;
+
+    /**
+     * @brief 
+     * 
+     */
     std::vector<XMLNode*> children;
 
-    XMLNode(std::string nodeName) : name(nodeName) {}
+    /**
+     * @brief Construct an empty XMLNode object
+     * 
+     */
+    XMLNode();
 
-    void addAttribute(std::string key, std::string value) {
-        attributes.push_back({key, value});
-    }
+    /**
+     * @brief Construct a new XMLNode object
+     * 
+     * @param nodeName Name of node
+     */
+    XMLNode(std::string node_name);
 
-    void addChild(XMLNode& child) {
-        children.push_back(&child);
-    }
+    /**
+     * @brief Add attribute pair to node
+     * 
+     * @param key Name of attribute
+     * @param value Value of attribute
+     */
+    void addAttribute(std::string key, std::string value);
 
-    void addChild(XMLNode* child) {
-        children.push_back(child);
-    }
+    /**
+     * @brief Add child node
+     * 
+     * @param child Reference to child node
+     */
+    void addChild(XMLNode& child);
+
+    /**
+     * @brief Add child noe
+     * 
+     * @param child Pointer to child node
+     */
+    void addChild(XMLNode* child);
 
 };
 
+/**
+ * @brief A tree structure for building an XML file
+ * 
+ */
 class XMLTree {
 
 public:
 
-    XMLTree() : root_(nullptr) {}
-    XMLTree(XMLNode& root) : root_(&root) {}
+    /**
+     * @brief Construct an empty XMLTree object
+     * 
+     */
+    XMLTree();
 
-    void write(std::string filename) {
-        std::ofstream file;
-        file.open(filename);
-        file << "<?xml version=\"1.0\"?>" << std::endl;
-        write_(file, *root_, "");
-        file.close();
-    }
+    /**
+     * @brief Construct a new XMLTree object
+     * 
+     * @param root Reference to root node
+     */
+    XMLTree(XMLNode& root);
+
+    /**
+     * @brief Write the contents of the tree to file
+     * 
+     * @param filename Name of file
+     */
+    void write(std::string filename);
 
 private:
 
+    /**
+     * @brief Address of root node
+     * 
+     */
     XMLNode* root_;
 
-    void write_(std::ofstream& file, XMLNode& node, std::string prefix) {
-
-        // Write header
-        std::string header = prefix;
-        header += "<" + node.name + " ";
-        for (auto& attributePair : node.attributes) {
-            header += attributePair.first + "=\"" + attributePair.second + "\" ";
-        }
-        header.pop_back(); // Remove last space
-        header += ">";
-        file << header << std::endl;
-
-        // Write data
-        if (node.data != "") {
-            file << node.data << std::endl;
-        }
-
-        // Write children
-        for (auto& child : node.children) {
-            write_(file, *child, prefix + "  ");
-        }
-
-        // Write footer
-        file << prefix << "</" << node.name << ">" << std::endl;
-
-        return;
-    }
+    /**
+     * @brief Write the contents of the tree recursively
+     * 
+     * @param file 
+     * @param node 
+     * @param prefix 
+     */
+    void write_(std::ofstream& file, XMLNode& node, std::string prefix);
 
 };
 

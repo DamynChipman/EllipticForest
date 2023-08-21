@@ -2,7 +2,6 @@
 #define ELLIPTIC_FOREST_HPP_
 
 #include "DataCache.hpp"
-#include "EllipticForest.hpp"
 #include "EllipticForestApp.hpp"
 #include "EllipticProblem.hpp"
 #include "FISHPACK.hpp"
@@ -19,5 +18,8 @@
 #include "VTK.hpp"
 #include "Vector.hpp"
 #include "XMLTree.hpp"
+#include "MPI.hpp"
+#include "PETSc.hpp"
+#include "Mesh.hpp"
 
 #endif // ELLIPTIC_FOREST_HPP_

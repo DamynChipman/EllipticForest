@@ -10,9 +10,13 @@ set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
 target_link_libraries(EllipticForest PUBLIC common)
 
 set(ELLIPTIC_FOREST_SOURCES
+    XMLTree.cpp
     EllipticForestApp.cpp
+    Interpolation.cpp
     FISHPACK.cpp
+    MPI.cpp
     P4est.cpp
+    PETSc.cpp
     VTK.cpp
 )
 
@@ -25,13 +29,21 @@ target_include_directories(EllipticForest PUBLIC
     ${EXTERNAL_PKGS_INCLUDE}
 )
 
+set(${PROJECT_NAME}_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR} ${EXTERNAL_PKGS_INCLUDE} CACHE INTERNAL "EllipticForest's include directories" FORCE)
+
 target_link_directories(EllipticForest PUBLIC
     ${EXTERNAL_PKGS_LIB}
 )
 
-target_link_libraries(EllipticForest PUBLIC
-    fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas
-)
+if(WITH_PETSC)
+    target_link_libraries(EllipticForest PUBLIC
+        fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas z
+    )
+else()
+    target_link_libraries(EllipticForest PUBLIC
+        fishpack90 sc p4est ${PYTHON_VERSION} lapack blas z
+    )
+endif()
 
 install(FILES
     DataCache.hpp
@@ -42,10 +54,12 @@ install(FILES
     GenericSingleton.hpp
     HPSAlgorithm.hpp
     Matrix.hpp
+    MPI.hpp
     P4est.hpp
     Patch.hpp
     PatchGrid.hpp
     PatchSolver.hpp
+    PETSc.hpp
     PlotUtils.hpp
     Quadtree.hpp
     SpecialMatrices.hpp
@@ -60,4 +74,5 @@ install(TARGETS EllipticForest fishpack90
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
+    PUBLIC_HEADER DESTINATION include
 )

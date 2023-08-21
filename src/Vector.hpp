@@ -8,17 +8,20 @@
 #include <string>
 
 #include "VTK.hpp"
+#include "MPI.hpp"
 
 namespace EllipticForest {
 
 template<typename NumericalType>
-class Vector : public DataArrayNodeBase {
+class Vector : public DataArrayNodeBase, public MPI::MPIObject {
 
 protected:
 
     std::size_t size_;
     std::vector<NumericalType> data_;
     std::string name_ = "Vector";
+    std::string vtkComponents_ = "1";
+    std::string vtkType_ = "Float32";
 
 public:
 
@@ -216,6 +219,8 @@ public:
      */
     const std::vector<NumericalType>& data() const { return data_; }
 
+    std::vector<NumericalType>& dataNoConst() { return data_; }
+
     /**
      * @brief Return the pointer of the data array of the std::vector
      * 
@@ -307,6 +312,11 @@ public:
         for (auto i = startIndex; i < startIndex + vec.size(); i++) {
             data_[i] = vec[i - startIndex];
         }
+    }
+
+    void append(const Vector<NumericalType>& vec) {
+        size_ += vec.size();
+        data_.insert(data_.end(), vec.data().begin(), vec.data().end());
     }
 
     /**
@@ -574,33 +584,41 @@ public:
         return *this;
     }
 
-    std::string getType() {
-        return "Float32";
+    void setType(std::string t) {
+        vtkType_ = t;
     }
 
-    std::string getName() {
+    virtual std::string getType() {
+        return vtkType_;
+    }
+
+    virtual std::string getName() {
         return name_;
     }
 
-    std::string getNumberOfComponents() {
-        return "1";
+    void setNumberOfComponents(std::string n) {
+        vtkComponents_ = n;
     }
 
-    std::string getFormat() {
+    virtual std::string getNumberOfComponents() {
+        return vtkComponents_;
+    }
+
+    virtual std::string getFormat() {
         return "ascii";
     }
 
-    std::string getRangeMin() {
+    virtual std::string getRangeMin() {
         NumericalType min = *std::min_element(data_.begin(), data_.end());
         return std::to_string(min);
     }
 
-    std::string getRangeMax() {
+    virtual std::string getRangeMax() {
         NumericalType max = *std::max_element(data_.begin(), data_.end());
         return std::to_string(max);
     }
 
-    std::string getData() {
+    virtual std::string getData() {
         std::string str = "";
         for (auto p : data_) { str += std::to_string(p) + " "; }
         return str;
@@ -622,6 +640,22 @@ Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
     Vector<NumericalType> res(rhs.size());
     for (auto i = 0; i < res.size(); i++) {
         res[i] = lhs * rhs[i];
+    }
+    return res;
+}
+
+template<typename NumericalType>
+Vector<NumericalType> operator*(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
+    if (lhs.size() != rhs.size()) {
+        std::string errorMessage = "[EllipticForest::Vector::operator*] Sizes of `lhs` and `rhs` are not the same:\n";
+        errorMessage += "\tlhs.size = " + std::to_string(lhs.size()) + "\n";
+        errorMessage += "\trhs.size = " + std::to_string(rhs.size()) + "\n";
+        std::cerr << errorMessage << std::endl;
+        throw std::invalid_argument(errorMessage);
+    }
+    Vector<NumericalType> res(lhs.size());
+    for (auto i = 0; i < res.size(); i++) {
+        res[i] = lhs[i] * rhs[i];
     }
     return res;
 }
@@ -680,14 +714,51 @@ double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 
 }
 
-// template<typename NumericalType>
-// Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
-//     Vector<NumericalType> res(rhs.size());
-//     for (auto i = 0; i < res.size(); i++) {
-//         res[i] = lhs * rhs[i];
-//     }
-//     return res;
-// }
+template<typename NumericalType>
+double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
+    if (a.size() != b.size()) {
+        std::string errorMessage = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
+        errorMessage += "\ta.size = " + std::to_string(a.size()) + "\n";
+        errorMessage += "\tb.size = " + std::to_string(b.size()) + "\n";
+        std::cerr << errorMessage << std::endl;
+        throw std::invalid_argument(errorMessage);
+    }
+
+    double norm = 0.;
+    for (int i = 0; i < a.size(); i++) {
+        norm += pow(a[i] - b[i], 2);
+    }
+    return sqrt(norm);
+
+}
+
+namespace MPI {
+
+template<class T>
+int send(Vector<T>& vector, int dest, int tag, MPI_Comm comm) {
+    send(vector.dataNoConst(), dest, tag, comm);
+    return 0;
+}
+
+template<class T>
+int receive(Vector<T>& vector, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+    std::vector<T> vec;
+    receive(vec, src, tag, comm, status);
+    vector = Vector<T>(vec);
+    return 0;
+}
+
+template<class T>
+int broadcast(Vector<T>& vector, int root, MPI_Comm comm) {
+    int rank; MPI_Comm_rank(comm, &rank);
+    std::vector<T> vec;
+    if (rank == root) vec = vector.dataNoConst();
+    broadcast(vec, root, comm);
+    if (rank != root) vector = Vector<T>(vec);
+    return 0;
+}
+
+} // NAMESPACE : MPI
  
 } // NAMESPACE : EllipticForest
 
