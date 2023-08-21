@@ -45,7 +45,7 @@ double PetscGrid::yUpper() { return yUpper_; }
 
 double PetscGrid::dx() { return dx_; }
 
-double PetscGrid::dy() { return dx_; }
+double PetscGrid::dy() { return dy_; }
 
 double PetscGrid::operator()(std::size_t DIM, std::size_t index) {
     if (DIM == XDIM) {
@@ -444,7 +444,7 @@ Matrix<double> PetscPatchSolver::buildD2N(PetscGrid& grid) {
 }
 
 Vector<double> PetscPatchSolver::particularNeumannData(PetscGrid& grid, Vector<double>& rhsData) {
-    Vector<double> gZero(2*grid.nPointsX() + 2*grid.nPointsX(), 0);
+    Vector<double> gZero(2*grid.nPointsX() + 2*grid.nPointsY(), 0);
     return mapD2N(grid, gZero, rhsData);
 }
 
@@ -483,7 +483,7 @@ PetscGrid& PetscPatch::grid() {
 }
 
 PetscPatch PetscPatch::buildChild(std::size_t childIndex) {
-    
+    return {};   
 }
 
 double PetscPatch::dataSize() {

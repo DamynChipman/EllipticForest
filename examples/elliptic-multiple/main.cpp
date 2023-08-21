@@ -112,7 +112,7 @@ double lambdaFunction(double x, double y) {
  */
 std::string number2string(double x, std::string format="%.4f") {
     char buffer[32];
-    sprintf(buffer, format.c_str(), x);
+    snprintf(buffer, 32, format.c_str(), x);
     return std::string(buffer);
 }
 

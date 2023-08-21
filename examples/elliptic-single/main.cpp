@@ -144,10 +144,10 @@ int main(int argc, char** argv) {
     double y_upper = 10.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 10;
+    int nx = 4;
     app.options.setOption("nx", nx);
     
-    int ny = 10;
+    int ny = 4;
     app.options.setOption("ny", ny);
 
     // ====================================================

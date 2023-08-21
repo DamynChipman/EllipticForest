@@ -206,10 +206,10 @@ int main(int argc, char** argv) {
     double y_upper = 10.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 8;
+    int nx = 16;
     app.options.setOption("nx", nx);
     
-    int ny = 8;
+    int ny = 16;
     app.options.setOption("ny", ny);
 
     double t_start = 0.0;
@@ -224,7 +224,7 @@ int main(int argc, char** argv) {
     double dt = (t_end - t_start) / (nt);
     app.options.setOption("dt", dt);
 
-    int n_vtk = 10;
+    int n_vtk = 2;
     app.options.setOption("n-vtk", n_vtk);
 
     double T_L = 40;

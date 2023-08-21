@@ -37,17 +37,14 @@ public:
 	Quadtree() :
 		MPIObject(MPI_COMM_WORLD),
 		rootDataPtr_(nullptr),
-		nodeFactory(nullptr) {
-			// std::cout << "CONSTRUCTOR 1 CALLED" << std::endl;
-		}
+		nodeFactory(nullptr)
+			{}
 	
 	Quadtree(MPI_Comm comm, p4est_t* p4est, T& rootData, AbstractNodeFactory<T>& nodeFactory) :
 		MPIObject(comm),
 		p4est(p4est),
 		rootDataPtr_(&rootData),
 		nodeFactory(&nodeFactory) {
-
-			// std::cout << "CONSTRUCTOR 2 CALLED" << std::endl;
 
 		// Save user pointer and store self in it
 		void* savedUserPointer = p4est->user_pointer;
@@ -111,30 +108,32 @@ public:
 		);
 
 		// Restore p4est user pointer
-		// p4est->user_pointer = savedUserPointer;
+		p4est->user_pointer = savedUserPointer;
 
 	}
 
 	~Quadtree() {
 		// Iterate through map and delete any owned nodes
-		// std::cout << "DESTRUCTOR CALLED" << std::endl;
-		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); iter++) {
+		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
 			if (iter->second != nullptr) {
 				delete iter->second;
 			}
 		}
 	}
 
-	// Quadtree& operator=(Quadtree&& other) {
-	// 	std::cout << "ASSIGNMENT OPERATOR CALLED" << std::endl;
-	// 	if (this != &other) {
-	// 		map = other.map;
-	// 		p4est = other.p4est;
-	// 		rootDataPtr_ = other.rootDataPtr_;
-	// 		nodeFactory = other.nodeFactory;
-	// 	}
-	// 	return *this;
-	// }
+	Quadtree& operator=(Quadtree&& other) {
+		if (this != &other) {
+			map = other.map;
+			// Set map seconds to nullptr so destructor doesn't delete them
+			for (typename NodeMap::iterator iter = other.map.begin(); iter != other.map.end(); ++iter) {
+				iter->second = nullptr;
+			}
+			p4est = other.p4est;
+			rootDataPtr_ = other.rootDataPtr_;
+			nodeFactory = other.nodeFactory;
+		}
+		return *this;
+	}
 
 	// Quadtree(Quadtree&& other) :
 	// 	MPIObject(other->getComm()),
@@ -147,6 +146,7 @@ public:
 
 	void traversePreOrder(std::function<int(Node<T>*)> visit) {
 
+		p4est->user_pointer = (void*) this;
 		visitNodeFn = visit;
 		int skipLevels = 0;
 		p4est_search_reorder(
@@ -255,7 +255,8 @@ public:
 		int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
 		auto& map = quadtree.map;
-		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
+		auto path = p4est::p4est_quadrant_path(quadrant);
+		auto* node = map[path];
 		int cont = 1;
 		if (node != nullptr) {
 			bool owned = node->pfirst <= rank && rank <= node->plast;
@@ -288,7 +289,8 @@ public:
 		// std::cout << "[p4est_search_merge] user_pointer = " << p4est->user_pointer << std::endl;
 		// auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
 		// auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
-		auto& quadtree = *quadtree_pointer<T>;
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		// auto& quadtree = *quadtree_pointer<T>;
 		auto& map = quadtree.map;
 		auto* node = map[p4est::p4est_quadrant_path(quadrant)];
 		int cont = 1;
