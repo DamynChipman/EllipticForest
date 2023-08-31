@@ -9,11 +9,6 @@ namespace EllipticForest {
 
 using NodePathKey = std::string;
 
-enum QuadtreeParallelDataPolicy {
-	COPY,
-	STRIPE
-};
-
 // Forward declaration of QuadNode for AbstractNodeFactory
 template<typename T> class Node;
 
@@ -86,21 +81,9 @@ public:
 	// }
 
 	void getMPIGroupComm(MPI_Group* newGroup, MPI_Comm* newComm) {
-		EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
 		MPI_Group group; MPI_Comm_group(comm, &group);
 		int ranges[1][3] = {pfirst, plast, 1};
 		MPI_Group_range_incl(group, 1, ranges, newGroup);
-
-		// int pdiff = plast - pfirst + 1;
-		// std::vector<int> ranks{pdiff};
-		// for (int i = 0; i < pdiff; i++) {
-		// 	ranks[i] = pfirst + i;
-		// 	app.log("ranks[%i] = %i", i, ranks[i]);
-		// }
-		// app.log("CALL MPI_Group_incl");
-		// MPI_Group_incl(group, pdiff, ranks.data(), newGroup);
-
-		// app.log("CALL MPI_Comm_create_group");
 		MPI_Comm_create_group(comm, *newGroup, 20+level, newComm);
 	}
 

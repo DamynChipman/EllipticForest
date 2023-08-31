@@ -110,8 +110,8 @@ ResultsData run(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     double yUpper = 1;
     EllipticForest::FISHPACK::FISHPACKFVGrid grid(nx, ny, xLower, xUpper, yLower, yUpper);
     EllipticForest::FISHPACK::FISHPACKPatch rootPatch(grid);
-    rootPatch.level = 0;
-    rootPatch.isLeaf = true;
+    // rootPatch.level = 0;
+    // rootPatch.isLeaf = true;
 
     // Create patch solver
     EllipticForest::FISHPACK::FISHPACKFVSolver solver{};
@@ -195,8 +195,9 @@ ResultsData run(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
     double l2_error = 0;
     double lI_error = 0;
     int nLeafPatches = 0;
-    mesh.quadtree.traversePostOrder([&](EllipticForest::FISHPACK::FISHPACKPatch& patch){
-        if (patch.isLeaf) {
+    mesh.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::FISHPACK::FISHPACKPatch>* node){
+        if (node->leaf) {
+            auto& patch = node->data;
             EllipticForest::FISHPACK::FISHPACKFVGrid& grid = patch.grid();
             for (auto i = 0; i < grid.nPointsX(); i++) {
                 double x = grid(XDIM, i);
@@ -212,6 +213,7 @@ ResultsData run(EllipticForest::FISHPACK::FISHPACKProblem& pde) {
             }
             nLeafPatches++;
         }
+        return 1;
     });
     double area = (xUpper - xLower) * (yUpper - yLower);
     l1_error = l1_error / area;

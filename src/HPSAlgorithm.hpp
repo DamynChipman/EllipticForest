@@ -1113,8 +1113,8 @@ private:
         // PatchGridType mergedGrid(alpha.grid().nPointsX() + beta.grid().nPointsX(), alpha.grid().nPointsY() + gamma.grid().nPointsY(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
         PatchGridType mergedGrid(alpha.size() + beta.size(), alpha.size() + gamma.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
         tau.grid() = mergedGrid;
-        tau.level = alpha.level - 1;
-        tau.isLeaf = false;
+        // tau.level = alpha.level - 1;
+        // tau.isLeaf = false;
 
     }
 

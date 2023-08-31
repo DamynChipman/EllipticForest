@@ -3,6 +3,8 @@
 
 #include <string>
 
+#include "MPI.hpp"
+
 #if USE_MATPLOTLIBCPP
 #include <matplotlibcpp.h>
 namespace plt = matplotlibcpp;
@@ -12,6 +14,8 @@ namespace EllipticForest {
 
 #define XDIM 0
 #define YDIM 1
+
+
 
 template<typename FloatingPointType>
 class PatchGridBase {

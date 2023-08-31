@@ -15,6 +15,11 @@
 
 namespace EllipticForest {
 
+enum NodeCommunicationPolicy {
+	BROADCAST,
+	STRIPE
+};
+
 template<typename T> class Quadtree;
 
 template<typename T>
@@ -33,6 +38,7 @@ public:
 	std::function<int(Node<T>*)> visitNodeFn;
 	std::function<void(T&)> visitNodeDataFn;
 	std::function<int(Node<T>*, std::vector<Node<T>*>)> visitFamilyFn;
+	NodeCommunicationPolicy communicationPolicy = NodeCommunicationPolicy::BROADCAST;
 
 	Quadtree() :
 		MPIObject(MPI_COMM_WORLD),
@@ -326,37 +332,42 @@ public:
 			}
 			else if (owned) {
 				// Nodes on different ranks; broadcast to ranks that own the node
-				// Get node group and communicator
-				MPI_Group nodeGroup;
-				MPI_Comm nodeComm;
-				node->getMPIGroupComm(&nodeGroup, &nodeComm);
-				int nodeRank; MPI_Comm_rank(nodeComm, &nodeRank);
+				if (quadtree.communicationPolicy == NodeCommunicationPolicy::BROADCAST) {
+					// Get node group and communicator
+					MPI_Group nodeGroup;
+					MPI_Comm nodeComm;
+					node->getMPIGroupComm(&nodeGroup, &nodeComm);
+					int nodeRank; MPI_Comm_rank(nodeComm, &nodeRank);
 
-				// Iterate through children
-				for (int i = 0; i < 4; i++) {
-					Node<T>* child = map[node->path + std::to_string(i)];
-					
-					// Communicate root rank to all others in node comm
-					bool amRoot = child != nullptr;
-					int pnode;
-					int maybeRoot = (amRoot ? nodeRank : 0);
-					// app.log("CALL MPI_Allreduce");
-					MPI_Allreduce(&maybeRoot, &pnode, 1, MPI_INT, MPI_MAX, nodeComm);
+					// Iterate through children
+					for (int i = 0; i < 4; i++) {
+						Node<T>* child = map[node->path + std::to_string(i)];
+						
+						// Communicate root rank to all others in node comm
+						bool amRoot = child != nullptr;
+						int pnode;
+						int maybeRoot = (amRoot ? nodeRank : 0);
+						// app.log("CALL MPI_Allreduce");
+						MPI_Allreduce(&maybeRoot, &pnode, 1, MPI_INT, MPI_MAX, nodeComm);
 
-					// Allocate memory on my rank to store incoming node data
-					if (child == nullptr) {
-						child = new Node<T>(node->getComm());
+						// Allocate memory on my rank to store incoming node data
+						if (child == nullptr) {
+							child = new Node<T>(node->getComm());
+						}
+
+						// Broadcast node
+						// app.log("Broadcasting child node %i, root = %i", i, pnode);
+						MPI::broadcast(*child, pnode, nodeComm);
+						
+						// Store child in children
+						children[i] = child;
 					}
 
-					// Broadcast node
-					// app.log("Broadcasting child node %i, root = %i", i, pnode);
-					MPI::broadcast(*child, pnode, nodeComm);
-					
-					// Store child in children
-					children[i] = child;
+					node->freeMPIGroupComm(&nodeGroup, &nodeComm);
 				}
-
-				node->freeMPIGroupComm(&nodeGroup, &nodeComm);
+				else if (quadtree.communicationPolicy == NodeCommunicationPolicy::STRIPE) {
+					// TODO
+				}
 			}
 
 			// If owned, call family branch callback

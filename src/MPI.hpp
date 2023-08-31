@@ -23,6 +23,12 @@ static int HEAD_RANK = 0;
 using Communicator = MPI_Comm;
 
 /**
+ * @brief Type alias for MPI_Group
+ * 
+ */
+using Group = MPI_Group;
+
+/**
  * @brief Type alias for MPI_Status
  * 
  */
@@ -109,6 +115,8 @@ public:
     virtual const int getSize() const { return size; }
 
 };
+
+void communicatorUnion(std::vector<Communicator> comms);
 
 /**
  * @brief MPI type traits for primative, C++, and user defined objects

@@ -508,10 +508,10 @@ double PetscPatch::dataSize() {
 std::string PetscPatch::str() {
     std::string res;
 
-    res += "globalID = " + std::to_string(globalID) + "\n";
-    res += "leafID = " + std::to_string(leafID) + "\n";
-    res += "level = " + std::to_string(level) + "\n";
-    res += "isLeaf = " + std::to_string(isLeaf) + "\n";
+    // res += "globalID = " + std::to_string(globalID) + "\n";
+    // res += "leafID = " + std::to_string(leafID) + "\n";
+    // res += "level = " + std::to_string(level) + "\n";
+    // res += "isLeaf = " + std::to_string(isLeaf) + "\n";
     res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
 
     res += "grid:\n";
@@ -628,6 +628,11 @@ Node<PetscPatch>* PetscPatchNodeFactory::createChildNode(Node<PetscPatch>* paren
             break;
     }
 
+    // Create communicator for child patch
+    // MPI::Group child_group;
+    // MPI::Communicator child_comm;
+    // parentNode->getMPIGroupComm(&child_group, &child_comm);
+
     // Create child patch
     PetscPatch childPatch(childGrid);
 
@@ -649,8 +654,13 @@ Node<PetscPatch>* PetscPatchNodeFactory::createParentNode(std::vector<Node<Petsc
     double yUpper = childNodes[2]->data.grid().yUpper();
     PetscGrid parentGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
+    // Create communicator for parent patch
+    // MPI::Group alpha_beta_group;
+    // MPI::Group gamma_omega_group;
+    
+
     // Create parent patch
-    PetscPatch parentPatch(parentGrid);
+    PetscPatch parentPatch(parentGrid); // TODO: Switch MPI_COMM_WORLD to patch communicator
 
     // Create parent node
     std::string path = childNodes[0]->path.substr(0, childNodes[0]->path.length()-1);

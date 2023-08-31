@@ -3,6 +3,11 @@ if (${matplotlibcpp})
     FetchContent_GetProperties(matplotlibcpp)
 endif()
 
+find_package(Kokkos REQUIRED)
+if(Kokkos_FOUND)
+    message(STATUS "Found Kokkos: ${Kokkos_DIR} (version \"${Kokkos_VERSION}\")")
+endif()
+
 # --=== Create EllipticForest Library ===--
 add_library(EllipticForest)
 set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
@@ -37,11 +42,11 @@ target_link_directories(EllipticForest PUBLIC
 
 if(WITH_PETSC)
     target_link_libraries(EllipticForest PUBLIC
-        fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas z
+        fishpack90 Kokkos::kokkos petsc sc p4est ${PYTHON_VERSION} lapack blas z
     )
 else()
     target_link_libraries(EllipticForest PUBLIC
-        fishpack90 sc p4est ${PYTHON_VERSION} lapack blas z
+        fishpack90 Kokkos::kokkos sc p4est ${PYTHON_VERSION} lapack blas z
     )
 endif()
 

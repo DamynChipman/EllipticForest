@@ -151,7 +151,7 @@ public:
 	// FISHPACKFVGrid grid;    		  	// Grid information
     virtual FISHPACKFVGrid& grid();
 
-    virtual FISHPACKPatch buildChild(std::size_t childIndex);
+    // virtual FISHPACKPatch buildChild(std::size_t childIndex);
 
     virtual Matrix<double>& matrixX();
     virtual Matrix<double>& matrixH();

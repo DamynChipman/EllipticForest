@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#include <petsc.h>
+
 #include "Vector.hpp"
 #include "Matrix.hpp"
 #include "PatchGrid.hpp"
@@ -12,50 +14,26 @@ namespace EllipticForest {
 template<typename DerivedType, typename PatchGridType, typename PatchSolverType, typename FloatingPointType>
 class PatchBase {
 
+protected:
+
+    Mat matrix_X;
+    Mat matrix_H;
+    Mat matrix_S;
+    Mat matrix_T;
+    Vec vector_u;
+    Vec vector_g;
+    Vec vector_v;
+    Vec vector_f;
+    Vec vector_h;
+    Vec vector_w;
+
 public:
-
-    // virtual ~PatchBase() = default;
-
-    // Metadata
-    /**
-     * @brief Leaf indexed quadtree index (p4est index)
-     * 
-     */
-    int leafID = -1;
-
-    /**
-     * @brief Globally indexed quadtree (i.e., full quadtree) index
-     * 
-     */
-    int globalID = -1;
-
-    /**
-     * @brief Level of the patch in the quadtree
-     * 
-     */
-    int level = -1;
 
     /**
      * @brief Number of times the patch has been coarsened
      * 
      */
     int nCoarsens = 0;
-
-    /**
-     * @brief Returns if the patch is a leaf or not
-     * 
-     * Default behavior is to check if the `leafID` is equal to -1 or not.
-     * 
-     * @return true 
-     * @return false 
-     */
-    // virtual bool isLeaf() { return leafID == -1 ? false : true; }
-
-    /**
-     * @brief Flag for if the patch is a leaf or not
-     * 
-     */
-    bool isLeaf = false;
 
     /**
      * @brief Returns the name of the patch
@@ -71,35 +49,10 @@ public:
      */
     virtual PatchGridBase<FloatingPointType>& grid() = 0;
 
-    void updateCoarsens() {
-        // int before = nCoarsens;
-        int N = matrixT().nRows();
-        int M = grid().nPointsX();
-        if (N != 0) {
-            nCoarsens = (4*M / N) - 1;
-        }
-        // int after = nCoarsens;
-        // std::cout << "nCoarsens BEFORE: " << before << " | AFTER: " << after << std::endl;
-    }
-
     int size() {
-        // int before = nCoarsens;
-        // updateCoarsens();
-        // int after = nCoarsens;
-        // std::cout << "nCoarsens BEFORE: " << before << " | AFTER: " << after << std::endl;
         return grid().nPointsX() / pow(2, nCoarsens);
     }
 
-    /**
-     * @brief Function to construct a patch from a parent patch in a quadtree
-     * 
-     * @param parentPatch 
-     * @param childIndex 
-     * @return DerivedType 
-     */
-    virtual DerivedType buildChild(std::size_t childIndex) = 0;
-
-    // Data matrices to be formed by derived class
     /**
      * @brief Returns the data matrix X : maps load on the interior to potential on the interior
      * 

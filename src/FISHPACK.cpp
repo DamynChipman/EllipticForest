@@ -372,48 +372,48 @@ std::string FISHPACKPatch::name() { return "FISHPACKPatch"; }
 
 FISHPACKFVGrid& FISHPACKPatch::grid() { return grid_; }
 
-FISHPACKPatch FISHPACKPatch::buildChild(std::size_t childIndex) {
+// FISHPACKPatch FISHPACKPatch::buildChild(std::size_t childIndex) {
 
-    std::size_t nx = grid_.nPointsX();
-    std::size_t ny = grid_.nPointsY();
-    double xMid = (grid_.xLower() + grid_.xUpper()) / 2.0;
-    double yMid = (grid_.yLower() + grid_.yUpper()) / 2.0;
-    double xLower, xUpper, yLower, yUpper;
-    switch (childIndex) {
-        case 0:
-            xLower = grid_.xLower();
-            xUpper = xMid;
-            yLower = grid_.yLower();
-            yUpper = yMid;
-            break;
-        case 1:
-            xLower = xMid;
-            xUpper = grid_.xUpper();
-            yLower = grid_.yLower();
-            yUpper = yMid;
-            break;
-        case 2:
-            xLower = grid_.xLower();
-            xUpper = xMid;
-            yLower = yMid;
-            yUpper = grid_.yUpper();
-            break;
-        case 3:
-            xLower = xMid;
-            xUpper = grid_.xUpper();
-            yLower = yMid;
-            yUpper = grid_.yUpper();
-            break;
-    }
-    FISHPACKFVGrid childGrid(nx, ny, xLower, xUpper, yLower, yUpper);
+//     std::size_t nx = grid_.nPointsX();
+//     std::size_t ny = grid_.nPointsY();
+//     double xMid = (grid_.xLower() + grid_.xUpper()) / 2.0;
+//     double yMid = (grid_.yLower() + grid_.yUpper()) / 2.0;
+//     double xLower, xUpper, yLower, yUpper;
+//     switch (childIndex) {
+//         case 0:
+//             xLower = grid_.xLower();
+//             xUpper = xMid;
+//             yLower = grid_.yLower();
+//             yUpper = yMid;
+//             break;
+//         case 1:
+//             xLower = xMid;
+//             xUpper = grid_.xUpper();
+//             yLower = grid_.yLower();
+//             yUpper = yMid;
+//             break;
+//         case 2:
+//             xLower = grid_.xLower();
+//             xUpper = xMid;
+//             yLower = yMid;
+//             yUpper = grid_.yUpper();
+//             break;
+//         case 3:
+//             xLower = xMid;
+//             xUpper = grid_.xUpper();
+//             yLower = yMid;
+//             yUpper = grid_.yUpper();
+//             break;
+//     }
+//     FISHPACKFVGrid childGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
-    FISHPACKPatch childPatch(childGrid);
-    childPatch.level = level + 1;
-    childPatch.isLeaf = true;
-    isLeaf = false;
+//     FISHPACKPatch childPatch(childGrid);
+//     childPatch.level = level + 1;
+//     childPatch.isLeaf = true;
+//     isLeaf = false;
 
-    return childPatch;
-}
+//     return childPatch;
+// }
 
 Matrix<double>& FISHPACKPatch::matrixX() { return X; }
 
@@ -439,10 +439,10 @@ std::string FISHPACKPatch::str() {
 
     std::string res;
 
-    res += "globalID = " + std::to_string(globalID) + "\n";
-    res += "leafID = " + std::to_string(leafID) + "\n";
-    res += "level = " + std::to_string(level) + "\n";
-    res += "isLeaf = " + std::to_string(isLeaf) + "\n";
+    // res += "globalID = " + std::to_string(globalID) + "\n";
+    // res += "leafID = " + std::to_string(leafID) + "\n";
+    // res += "level = " + std::to_string(level) + "\n";
+    // res += "isLeaf = " + std::to_string(isLeaf) + "\n";
     res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
 
     res += "grid:\n";
