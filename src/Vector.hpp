@@ -7,10 +7,34 @@
 #include <initializer_list>
 #include <string>
 
+#include <petsc.h>
+#include <petscvec.h>
+
 #include "VTK.hpp"
 #include "MPI.hpp"
 
 namespace EllipticForest {
+
+// template<typename NumericalType>
+// class ParVector : public MPI::MPIObject {
+
+// protected:
+
+//     Vec vec;
+//     int size;
+//     NumericalType* raw_data;
+
+// public:
+
+//     ParVector() :
+//         MPIObject(MPI_COMM_WORLD),
+//         size(0),
+//         raw_data(nullptr)
+//             {}
+
+//     ParVector(MPI::Communicator comm, )
+
+// };
 
 template<typename NumericalType>
 class Vector : public DataArrayNodeBase, public MPI::MPIObject {

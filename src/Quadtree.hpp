@@ -6,7 +6,10 @@
 #include <ostream>
 #include <vector>
 #include <functional>
-#include <map>
+#include <set>
+
+#include <Kokkos_Core.hpp>
+#include <Kokkos_UnorderedMap.hpp>
 
 #include "EllipticForestApp.hpp"
 #include "MPI.hpp"
@@ -15,6 +18,8 @@
 
 namespace EllipticForest {
 
+static uint32_t MAP_CAPACITY_HINT = 256;
+
 enum NodeCommunicationPolicy {
 	BROADCAST,
 	STRIPE
@@ -22,16 +27,19 @@ enum NodeCommunicationPolicy {
 
 template<typename T> class Quadtree;
 
-template<typename T>
-static Quadtree<T>* quadtree_pointer = nullptr;
+// template<typename T>
+// static Quadtree<T>* quadtree_pointer = nullptr;
 
 template<typename T>
 class Quadtree : public MPI::MPIObject {
 
 public:
 
-	using NodeMap = std::map<NodePathKey, Node<T>*>;
-	NodeMap map;
+	// using NodeMap = std::map<NodePathKey, Node<T>*>;
+	using NodeMap = Kokkos::UnorderedMap<int, Node<T>>;
+	using NodeSet = std::set<NodePathKey>;
+	NodeMap node_map;
+	NodeSet node_set;
 	p4est_t* p4est;
 	T* rootDataPtr_;
 	AbstractNodeFactory<T>* nodeFactory;
@@ -48,6 +56,7 @@ public:
 	
 	Quadtree(MPI_Comm comm, p4est_t* p4est, T& rootData, AbstractNodeFactory<T>& nodeFactory) :
 		MPIObject(comm),
+		node_map(MAP_CAPACITY_HINT),
 		p4est(p4est),
 		rootDataPtr_(&rootData),
 		nodeFactory(&nodeFactory) {
@@ -55,8 +64,6 @@ public:
 		// Save user pointer and store self in it
 		void* savedUserPointer = p4est->user_pointer;
 		p4est->user_pointer = reinterpret_cast<void*>(this);
-		quadtree_pointer<T> = this;
-		// std::cout << "[Quadtree] user_pointer = " << p4est->user_pointer << std::endl;
 
 		// Use p4est_search_all to do depth first traversal and create quadtree map and nodes
 		int callPost = 0;
@@ -66,8 +73,10 @@ public:
 			[](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
 
 				// Get quadtree
+				auto& app = EllipticForest::EllipticForestApp::getInstance();
 				auto& quadtree = *(Quadtree<T>*) p4est->user_pointer;
-				auto& map = quadtree.map;
+				auto& node_map = quadtree.node_map;
+				auto& node_set = quadtree.node_set;
 
 				// Get MPI info
 				int rank;
@@ -75,14 +84,17 @@ public:
 
 				// Compute unique path
 				std::string path = p4est::p4est_quadrant_path(quadrant);
+				app.log("In quadrant: %s", path.c_str());
+				node_set.insert(path);
 
 				// Check if quadrant is owned by this rank
 				bool owned = pfirst <= rank && rank <= plast;
 
-				// If owned, create Node in map
+				// If owned, create Node in node_map
 				if (owned) {
 					// Create node and metadata
-					Node<T>* node = new Node<T>;
+					// Node<T>* node = new Node<T>;
+					Node<T> node;
 
 					// Create node's data
 					if (quadrant->level == 0) {
@@ -91,21 +103,25 @@ public:
 					}
 					else {
 						// Quadrant is not root; init from parent and sibling index
-						Node<T>* parentNode = quadtree.getParentFromPath(path);
+						Node<T> parentNode = quadtree.getParentFromPath(path);
 						int siblingID = p4est_quadrant_child_id(quadrant);
 						node = quadtree.nodeFactory->createChildNode(parentNode, siblingID, pfirst, plast);
 					}
 
 					// Leaf flag
-					node->leaf = local_num >= 0;
+					node.leaf = local_num >= 0;
 
-					// Put in map
-					map[path] = node;
+					// Put in node_map
+					// node_map[path] = node;
+					
+					int index = quadtree.nodeIndex(path);
+					app.log("  Inserting node with path: %s at index: %i ", path.c_str(), index);
+					node_map.insert(index, node);
 				}
-				else {
-					// Not owned by local rank, put in nullptr for this node
-					map[path] = nullptr;
-				}
+				// else {
+				// 	// Not owned by local rank, put in nullptr for this node
+				// 	node_map[path] = nullptr;
+				// }
 
 				return 1;
 			},
@@ -120,16 +136,16 @@ public:
 
 	~Quadtree() {
 		// Iterate through map and delete any owned nodes
-		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
-			if (iter->second != nullptr) {
-				delete iter->second;
-			}
-		}
+		// for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
+		// 	if (iter->second != nullptr) {
+		// 		delete iter->second;
+		// 	}
+		// }
 	}
 
 	Quadtree& operator=(Quadtree&& other) {
 		if (this != &other) {
-			map = other.map;
+			node_map = other.node_map;
 			// Set map seconds to nullptr so destructor doesn't delete them
 			for (typename NodeMap::iterator iter = other.map.begin(); iter != other.map.end(); ++iter) {
 				iter->second = nullptr;
@@ -149,6 +165,19 @@ public:
 	// 	nodeFactory(other.nodeFactory) {
 	// 			std::cout << "MOVE CONSTRUCTOR CALLED" << std::endl;
 	// 		}
+
+	int nodeIndex(NodePathKey key) {
+		int index;
+		auto b = node_set.begin();
+		auto p = node_set.find(key);
+		if (p == node_set.end()) {
+			index =  -1;
+		}
+		else {
+			index = std::distance(b, p);
+		}
+		return index;
+	}
 
 	void traversePreOrder(std::function<int(Node<T>*)> visit) {
 
@@ -249,12 +278,15 @@ public:
 
 	}
 
-	Node<T>* getParentFromPath(std::string path) {
-		return map[path.substr(0, path.length() - 1)];
+	Node<T> getParentFromPath(std::string path) {
+		std::string parent_path = path.substr(0, path.length() - 1);
+		auto index = std::distance(node_set.begin(), node_set.find(parent_path));
+		auto i = node_map.find(index);
+		return node_map.value_at(i);
 	}
 
 	T& root() {
-		return map["0"]->data;
+		return node_map["0"]->data;
 	}
 
 	static int p4est_search_visit(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, p4est_locidx_t local_num, void* point) {

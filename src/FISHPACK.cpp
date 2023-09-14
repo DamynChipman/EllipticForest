@@ -495,15 +495,15 @@ FISHPACKPatchNodeFactory::FISHPACKPatchNodeFactory(MPI_Comm comm) :
     MPIObject(comm)
         {}
 
-Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast) {
-    Node<FISHPACKPatch>* node = new Node<FISHPACKPatch>(this->getComm(), data, path, level, pfirst, plast);
+Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast) {
+    Node<FISHPACKPatch> node(this->getComm(), data, path, level, pfirst, plast);
     return node;
 }
 
-Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createChildNode(Node<FISHPACKPatch>* parentNode, int siblingID, int pfirst, int plast) {
+Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createChildNode(Node<FISHPACKPatch> parentNode, int siblingID, int pfirst, int plast) {
     
     // Get parent grid info
-    auto& parentGrid = parentNode->data.grid();
+    auto& parentGrid = parentNode.data.grid();
     int nx = parentGrid.nPointsX();
     int ny = parentGrid.nPointsY();
     double xLower = parentGrid.xLower();
@@ -541,30 +541,30 @@ Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createChildNode(Node<FISHPACKPatc
     FISHPACKPatch childPatch(childGrid);
 
     // Create child node
-    std::string path = parentNode->path + std::to_string(siblingID);
-    int level = parentNode->level + 1;
-    return new Node<FISHPACKPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
+    std::string path = parentNode.path + std::to_string(siblingID);
+    int level = parentNode.level + 1;
+    return Node<FISHPACKPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
     
 }
 
-Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createParentNode(std::vector<Node<FISHPACKPatch>*> childNodes, int pfirst, int plast) {
+Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createParentNode(std::vector<Node<FISHPACKPatch>> childNodes, int pfirst, int plast) {
 
     // Create parent grid
-    int nx = childNodes[0]->data.grid().nPointsX();
-    int ny = childNodes[0]->data.grid().nPointsY();
-    double xLower = childNodes[0]->data.grid().xLower();
-    double xUpper = childNodes[1]->data.grid().xUpper();
-    double yLower = childNodes[0]->data.grid().yLower();
-    double yUpper = childNodes[2]->data.grid().yUpper();
+    int nx = childNodes[0].data.grid().nPointsX();
+    int ny = childNodes[0].data.grid().nPointsY();
+    double xLower = childNodes[0].data.grid().xLower();
+    double xUpper = childNodes[1].data.grid().xUpper();
+    double yLower = childNodes[0].data.grid().yLower();
+    double yUpper = childNodes[2].data.grid().yUpper();
     FISHPACKFVGrid parentGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
     // Create parent patch
     FISHPACKPatch parentPatch(parentGrid);
 
     // Create parent node
-    std::string path = childNodes[0]->path.substr(0, childNodes[0]->path.length()-1);
-    int level = childNodes[0]->level - 1;
-    return new Node<FISHPACKPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
+    std::string path = childNodes[0].path.substr(0, childNodes[0].path.length()-1);
+    int level = childNodes[0].level - 1;
+    return Node<FISHPACKPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
 
 }
 

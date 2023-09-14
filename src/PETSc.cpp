@@ -582,15 +582,15 @@ PetscPatchNodeFactory::PetscPatchNodeFactory(MPI_Comm comm) :
     MPIObject(comm)
         {}
 
-Node<PetscPatch>* PetscPatchNodeFactory::createNode(PetscPatch data, std::string path, int level, int pfirst, int plast) {
-    Node<PetscPatch>* node = new Node<PetscPatch>(this->getComm(), data, path, level, pfirst, plast);
+Node<PetscPatch> PetscPatchNodeFactory::createNode(PetscPatch data, std::string path, int level, int pfirst, int plast) {
+    Node<PetscPatch> node(this->getComm(), data, path, level, pfirst, plast);
     return node;
 }
 
-Node<PetscPatch>* PetscPatchNodeFactory::createChildNode(Node<PetscPatch>* parentNode, int siblingID, int pfirst, int plast) {
+Node<PetscPatch> PetscPatchNodeFactory::createChildNode(Node<PetscPatch> parentNode, int siblingID, int pfirst, int plast) {
     
     // Get parent grid info
-    auto& parentGrid = parentNode->data.grid();
+    auto& parentGrid = parentNode.data.grid();
     int nx = parentGrid.nPointsX();
     int ny = parentGrid.nPointsY();
     double xLower = parentGrid.xLower();
@@ -631,27 +631,27 @@ Node<PetscPatch>* PetscPatchNodeFactory::createChildNode(Node<PetscPatch>* paren
     // Create communicator for child patch
     // MPI::Group child_group;
     // MPI::Communicator child_comm;
-    // parentNode->getMPIGroupComm(&child_group, &child_comm);
+    // parentNode.getMPIGroupComm(&child_group, &child_comm);
 
     // Create child patch
     PetscPatch childPatch(childGrid);
 
     // Create child node
-    std::string path = parentNode->path + std::to_string(siblingID);
-    int level = parentNode->level + 1;
-    return new Node<PetscPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
+    std::string path = parentNode.path + std::to_string(siblingID);
+    int level = parentNode.level + 1;
+    return Node<PetscPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
     
 }
 
-Node<PetscPatch>* PetscPatchNodeFactory::createParentNode(std::vector<Node<PetscPatch>*> childNodes, int pfirst, int plast) {
+Node<PetscPatch> PetscPatchNodeFactory::createParentNode(std::vector<Node<PetscPatch>> childNodes, int pfirst, int plast) {
 
     // Create parent grid
-    int nx = childNodes[0]->data.grid().nPointsX();
-    int ny = childNodes[0]->data.grid().nPointsY();
-    double xLower = childNodes[0]->data.grid().xLower();
-    double xUpper = childNodes[1]->data.grid().xUpper();
-    double yLower = childNodes[0]->data.grid().yLower();
-    double yUpper = childNodes[2]->data.grid().yUpper();
+    int nx = childNodes[0].data.grid().nPointsX();
+    int ny = childNodes[0].data.grid().nPointsY();
+    double xLower = childNodes[0].data.grid().xLower();
+    double xUpper = childNodes[1].data.grid().xUpper();
+    double yLower = childNodes[0].data.grid().yLower();
+    double yUpper = childNodes[2].data.grid().yUpper();
     PetscGrid parentGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
     // Create communicator for parent patch
@@ -663,9 +663,9 @@ Node<PetscPatch>* PetscPatchNodeFactory::createParentNode(std::vector<Node<Petsc
     PetscPatch parentPatch(parentGrid); // TODO: Switch MPI_COMM_WORLD to patch communicator
 
     // Create parent node
-    std::string path = childNodes[0]->path.substr(0, childNodes[0]->path.length()-1);
-    int level = childNodes[0]->level - 1;
-    return new Node<PetscPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
+    std::string path = childNodes[0].path.substr(0, childNodes[0].path.length()-1);
+    int level = childNodes[0].level - 1;
+    return Node<PetscPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
 
 }
 

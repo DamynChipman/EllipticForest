@@ -200,9 +200,9 @@ public:
     FISHPACKPatchNodeFactory();
     FISHPACKPatchNodeFactory(MPI_Comm comm);
 
-    Node<FISHPACKPatch>* createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast);
-    Node<FISHPACKPatch>* createChildNode(Node<FISHPACKPatch>* parentNode, int siblingID, int pfirst, int plast);
-    Node<FISHPACKPatch>* createParentNode(std::vector<Node<FISHPACKPatch>*> childNodes, int pfirst, int plast);
+    Node<FISHPACKPatch> createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast);
+    Node<FISHPACKPatch> createChildNode(Node<FISHPACKPatch> parentNode, int siblingID, int pfirst, int plast);
+    Node<FISHPACKPatch> createParentNode(std::vector<Node<FISHPACKPatch>> childNodes, int pfirst, int plast);
 
 };
 

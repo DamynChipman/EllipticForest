@@ -165,9 +165,9 @@ public:
     PetscPatchNodeFactory();
     PetscPatchNodeFactory(MPI_Comm comm);
 
-    Node<PetscPatch>* createNode(PetscPatch data, std::string path, int level, int pfirst, int plast);
-    Node<PetscPatch>* createChildNode(Node<PetscPatch>* parentNode, int siblingID, int pfirst, int plast);
-    Node<PetscPatch>* createParentNode(std::vector<Node<PetscPatch>*> childNodes, int pfirst, int plast);
+    Node<PetscPatch> createNode(PetscPatch data, std::string path, int level, int pfirst, int plast);
+    Node<PetscPatch> createChildNode(Node<PetscPatch> parentNode, int siblingID, int pfirst, int plast);
+    Node<PetscPatch> createParentNode(std::vector<Node<PetscPatch>> childNodes, int pfirst, int plast);
 
 };
 

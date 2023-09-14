@@ -15,9 +15,9 @@ template<typename T> class Node;
 template<typename T>
 class AbstractNodeFactory {
 public:
-	virtual Node<T>* createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
-	virtual Node<T>* createChildNode(Node<T>* parentNode, int siblingID, int pfirst, int plast) = 0;
-	virtual Node<T>* createParentNode(std::vector<Node<T>*> childrenNodes, int pfirst, int plast) = 0;
+	virtual Node<T> createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
+	virtual Node<T> createChildNode(Node<T> parentNode, int siblingID, int pfirst, int plast) = 0;
+	virtual Node<T> createParentNode(std::vector<Node<T>> childrenNodes, int pfirst, int plast) = 0;
 };
 
 template<typename T>
@@ -31,15 +31,6 @@ public:
 	int pfirst;
 	int plast;
     bool leaf = false;
-
-    // typedef struct node_struct {
-    //     T data;
-    //     std::string path;
-    //     int level;
-    //     int pfirst;
-    //     int plast;
-    // } node_struct_t;
-    // node_struct_t node_struct;
 
 	Node() :
 		MPIObject(MPI_COMM_WORLD)
@@ -62,24 +53,6 @@ public:
 		return pfirst <= this->getRank() && this->getRank() <= plast;
 	}
 
-	// virtual void serialize() {
-
-	// 	node_struct.data = (void*) &data;
-	// 	// node_struct.path_length = 
-
-	// 	int count = 5;
-	// 	int blockLengths[5] = {1, (int) path.length(), 1, 1, 1};
-	// 	MPI_Datatype types[5] = {MPI_DOUBLE, MPI_CHAR, MPI_INT, MPI_INT, MPI_INT};
-	// 	MPI_Aint offsets[5];
-	// 	offsets[0] = offsetof(Node<T>, data);
-	// 	offsets[1] = offsetof(Node<T>, path);
-	// 	offsets[2] = offsetof(Node<T>, level);
-	// 	offsets[3] = offsetof(Node<T>, pfirst);
-	// 	offsets[4] = offsetof(Node<T>, plast);
-
-	// 	MPI_Type_create_struct(count, blockLengths, offsets, types, &this->mpiDatatype);
-	// }
-
 	void getMPIGroupComm(MPI_Group* newGroup, MPI_Comm* newComm) {
 		MPI_Group group; MPI_Comm_group(comm, &group);
 		int ranges[1][3] = {pfirst, plast, 1};
@@ -94,7 +67,7 @@ public:
 
 	std::string str() {
 		std::string out = "";
-		out += "node: path = " + path + ", level = " + std::to_string(level) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]\n";
+		out += "node: path = " + path + ", level = " + std::to_string(level) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]";
 		return out;
 	}
 
