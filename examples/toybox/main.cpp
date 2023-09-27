@@ -55,10 +55,12 @@ public:
     }
 
     std::string str() {
-        int x_size, A_rows, A_cols;
+        int x_size, A_rows, A_cols, x_size_local, A_rows_local, A_cols_local;
         VecGetSize(x, &x_size);
         MatGetSize(A, &A_rows, &A_cols);
-        std::string s = "N = " + std::to_string(N) + ", x = [" + std::to_string(x_size) + "], A = [" + std::to_string(A_rows) + " x " + std::to_string(A_cols) + "]";
+        VecGetLocalSize(x, &x_size_local);
+        MatGetLocalSize(A, &A_rows_local, &A_cols_local);
+        std::string s = "N = " + std::to_string(N) + ", x = [" + std::to_string(x_size) + " (" + std::to_string(x_size_local) + ")], A = [" + std::to_string(A_rows) + " (" + std::to_string(A_rows_local) + ") x " + std::to_string(A_cols) + " (" + std::to_string(A_cols_local) + ")]";
         return s;
     }
 

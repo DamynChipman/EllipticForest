@@ -85,7 +85,7 @@ public:
 				// Compute unique path
 				std::string path = p4est::p4est_quadrant_path(quadrant);
 				app.log("In quadrant: %s", path.c_str());
-				node_set.insert(path);
+				// node_set.insert(path);
 
 				// Check if quadrant is owned by this rank
 				bool owned = pfirst <= rank && rank <= plast;
@@ -114,9 +114,10 @@ public:
 					// Put in node_map
 					// node_map[path] = node;
 					
-					int index = quadtree.nodeIndex(path);
-					app.log("  Inserting node with path: %s at index: %i ", path.c_str(), index);
-					node_map.insert(index, node);
+					// int index = quadtree.nodeIndex(path);
+					app.log("  Inserting node with path: %s", path.c_str());
+					// node_map.insert(index, node);
+					quadtree.insert(path, node);
 				}
 				// else {
 				// 	// Not owned by local rank, put in nullptr for this node
@@ -178,6 +179,30 @@ public:
 		}
 		return index;
 	}
+
+	void insert(NodePathKey key, Node<T>& node) {
+		// 
+		node_set.insert(key);
+
+		// 
+		int index;
+		auto b = node_set.begin();
+		auto p = node_set.find(key);
+		if (p == node_set.end()) {
+			index =  -1;
+		}
+		else {
+			index = std::distance(b, p);
+		}
+
+		// 
+		node_map.insert(index, node);
+
+	}
+
+	// Node<T>& obtain(NodePathKey key) {
+
+	// }
 
 	void traversePreOrder(std::function<int(Node<T>*)> visit) {
 
