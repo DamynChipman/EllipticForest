@@ -45,26 +45,32 @@ else()
     )
 endif()
 
-install(FILES
+install(
+    FILES
     DataCache.hpp
     EllipticForest.hpp
     EllipticForestApp.hpp
     EllipticProblem.hpp
     FISHPACK.hpp
+    ForestClaw.hpp
     GenericSingleton.hpp
     HPSAlgorithm.hpp
-    Matrix.hpp
+    Interpolation.hpp
     MPI.hpp
+    Matrix.hpp
+    Mesh.hpp
     P4est.hpp
+    PETSc.hpp
     Patch.hpp
     PatchGrid.hpp
     PatchSolver.hpp
-    PETSc.hpp
     PlotUtils.hpp
+    QuadNode.hpp
     Quadtree.hpp
     SpecialMatrices.hpp
     VTK.hpp
     Vector.hpp
+    VectorBase.hpp
     XMLTree.hpp
     DESTINATION include
 )
