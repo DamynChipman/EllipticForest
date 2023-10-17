@@ -223,7 +223,7 @@ int broadcast(T& data, int root, Communicator comm) {
  * 
  * @tparam T Type of object to communicate
  * @param send Reference of data to send
- * @param recv Reference of data to recieve
+ * @param recv Reference of data to receive
  * @param op MPI operator
  * @param comm MPI communicator
  * @return int 
@@ -232,6 +232,26 @@ template<class T>
 int allreduce(T& send, T& recv, MPI_Op op, Communicator comm) {
     assert(TypeTraits<T>::getSize(send) == TypeTraits<T>::getSize(recv));
     return MPI_Allreduce(TypeTraits<T>::getAddress(send), TypeTraits<T>::getAddress(recv), TypeTraits<T>::getSize(send), TypeTraits<T>::getType(send), op, comm);
+}
+
+/**
+ * @brief Wrapper for MPI_Allgather
+ * 
+ * @tparam T Type of object to communicate
+ * @param send_data Reference of data to send
+ * @param recv_data Storage for data to receive from involved ranks
+ * @param recv_count Count of elements received from any rank
+ * @param comm MPI communicator
+ * @return int 
+ */
+template<class T>
+int allgather(T& send_data, T& recv_data, int recv_count, Communicator comm) {
+    return MPI_Allgather(TypeTraits<T>::getAddress(send_data), TypeTraits<T>::getSize(send_data), TypeTraits<T>::getType(send_data), TypeTraits<T>::getAddress(recv_data), recv_count, TypeTraits<T>::getType(recv_data), comm);
+}
+
+template<class T>
+int allgatherv(T& send_data, T& recv_data, std::vector<int> recv_counts, std::vector<int> displacements, Communicator comm) {
+    return MPI_Allgatherv(TypeTraits<T>::getAddress(send_data), TypeTraits<T>::getSize(send_data), TypeTraits<T>::getType(send_data), TypeTraits<T>::getAddress(recv_data), recv_counts.data(), TypeTraits<T>::getType(recv_data), displacements.data(), comm);
 }
 
 /**
@@ -320,6 +340,16 @@ int broadcast(std::vector<T>& data, int root, Communicator comm) {
     broadcast(size, root, comm);
     if (rank != root) data.resize(size);
     return MPI_Bcast(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), root, comm);
+}
+
+template<class T>
+int allgather(std::vector<T>& send_data, std::vector<T>& recv_data, int recv_count, Communicator comm) {
+    return MPI_Allgather(TypeTraits<std::vector<T>>::getAddress(send_data), TypeTraits<std::vector<T>>::getSize(send_data), TypeTraits<std::vector<T>>::getType(send_data), TypeTraits<std::vector<T>>::getAddress(recv_data), recv_count, TypeTraits<std::vector<T>>::getType(recv_data), comm);
+}
+
+template<class T>
+int allgatherv(std::vector<T>& send_data, std::vector<T>& recv_data, std::vector<int> recv_counts, std::vector<int> displacements, Communicator comm) {
+    return MPI_Allgatherv(TypeTraits<std::vector<T>>::getAddress(send_data), TypeTraits<std::vector<T>>::getSize(send_data), TypeTraits<std::vector<T>>::getType(send_data), TypeTraits<std::vector<T>>::getAddress(recv_data), recv_counts.data(), displacements.data(), TypeTraits<std::vector<T>>::getType(recv_data), comm);
 }
 
 /**

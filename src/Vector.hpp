@@ -735,27 +735,36 @@ double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 namespace MPI {
 
 template<class T>
-int send(Vector<T>& vector, int dest, int tag, MPI_Comm comm) {
-    send(vector.dataNoConst(), dest, tag, comm);
-    return 0;
+int send(Vector<T>& vector, int dest, int tag, Communicator comm) {
+    return send(vector.dataNoConst(), dest, tag, comm);
 }
 
 template<class T>
-int receive(Vector<T>& vector, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+int receive(Vector<T>& vector, int src, int tag, Communicator comm, Status* status) {
     std::vector<T> vec;
-    receive(vec, src, tag, comm, status);
+    int res = receive(vec, src, tag, comm, status);
     vector = Vector<T>(vec);
-    return 0;
+    return res;
 }
 
 template<class T>
-int broadcast(Vector<T>& vector, int root, MPI_Comm comm) {
+int broadcast(Vector<T>& vector, int root, Communicator comm) {
     int rank; MPI_Comm_rank(comm, &rank);
     std::vector<T> vec;
     if (rank == root) vec = vector.dataNoConst();
-    broadcast(vec, root, comm);
+    int res = broadcast(vec, root, comm);
     if (rank != root) vector = Vector<T>(vec);
-    return 0;
+    return res;
+}
+
+template<class T>
+int allgather(Vector<T>& send_vector, Vector<T>& recv_vector, int recv_count, Communicator comm) {
+    return allgather(send_vector.dataNoConst(), recv_vector.dataNoConst(), recv_count, comm);
+}
+
+template<class T>
+int allgatherv(Vector<T>& send_vector, Vector<T>& recv_vector, std::vector<int> recv_counts, std::vector<int> displacements, Communicator comm) {
+    return allgatherv(send_vector.dataNoConst(), recv_vector.dataNoConst(), recv_counts, displacements, comm);
 }
 
 } // NAMESPACE : MPI

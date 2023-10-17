@@ -1,0 +1,10 @@
+file(GLOB mpi_tests "./mpi*")
+
+foreach(file ${mpi_tests})
+	set(name)
+	get_filename_component(name ${file} NAME_WE)
+	add_executable(${name})
+	target_sources(${name} PRIVATE ${file})
+    target_include_directories(${name} PRIVATE PROJECT_SOURCE_DIR/src)
+	target_link_libraries(${name} PRIVATE EllipticForest)
+endforeach()

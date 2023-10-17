@@ -68,7 +68,7 @@
 double uWest(double x, double y, double t) {
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
     double T_L = std::get<double>(app.options["T-left"]);
-    return T_L + 20.*sin(t)*sin(y);
+    return T_L*sin(y);
 }
 
 /**

@@ -21,5 +21,6 @@
 #include "MPI.hpp"
 #include "PETSc.hpp"
 #include "Mesh.hpp"
+#include "Interpolation.hpp"
 
 #endif // ELLIPTIC_FOREST_HPP_

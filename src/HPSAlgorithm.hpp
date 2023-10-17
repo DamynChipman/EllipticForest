@@ -115,6 +115,7 @@ public:
      */
     HPSAlgorithm(MPI_Comm comm, Mesh<PatchType>& mesh, PatchSolverType& patchSolver) :
         MPIObject(comm),
+        p4est(mesh.quadtree.p4est),
         patchSolver(patchSolver),
         mesh(mesh)
             {}
