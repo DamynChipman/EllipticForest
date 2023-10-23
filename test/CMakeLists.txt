@@ -10,6 +10,7 @@ include(GoogleTest)
 
 file(GLOB tests "./*.cpp")
 list(REMOVE_ITEM tests "./main.cpp")
+list(REMOVE_ITEM tests "mpi*")
 
 foreach(file ${tests})
 	set(name)
@@ -19,3 +20,6 @@ foreach(file ${tests})
 	target_link_libraries("${name}_tests" PUBLIC EllipticForest gtest_main)
 	gtest_discover_tests("${name}_tests")
 endforeach()
+
+# Parallel unit testing
+add_subdirectory(mpi)

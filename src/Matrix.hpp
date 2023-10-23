@@ -16,6 +16,12 @@ extern "C" {
 
 namespace EllipticForest {
 
+namespace Petsc {
+    using Mat = Mat;
+    using MatType = MatType;
+    using MatAssemblyType = MatAssemblyType;
+} // NAMESPACE : Petsc
+
 template<typename NumericalType>
 class Matrix {
 
@@ -694,6 +700,111 @@ int broadcast(Matrix<T>& matrix, int root, MPI_Comm comm) {
 }
 
 } // NAMESPACE : MPI
+
+template<typename NumericalType>
+class ParallelMatrix : public MPI::MPIObject {
+
+protected:
+
+    int local_rows = 0;
+    int local_cols = 0;
+    int global_rows = 0;
+    int global_cols = 0;
+    NumericalType* raw_data = nullptr;
+    bool is_created = false;
+
+public:
+
+    Petsc::Mat mat;
+
+    ParallelMatrix() :
+        MPIObject(MPI_COMM_WORLD)
+            {}
+
+    ParallelMatrix(MPI::Communicator comm) :
+        MPIObject(comm)
+            {}
+
+    ParallelMatrix(MPI::Communicator comm, int local_rows, int local_cols, int global_rows, int global_cols) :
+        MPIObject(comm),
+        local_rows(local_rows),
+        local_cols(local_cols),
+        global_rows(global_rows),
+        global_cols(global_cols) {
+
+        // Build default Petsc matrix from options
+        create();
+        setSizes(local_rows, local_cols, global_rows, global_cols);
+        setFromOptions();
+    
+    }
+
+    ParallelMatrix(MPI::Communicator comm, int local_rows, int local_cols, int global_rows, int global_cols, Petsc::MatType matrix_type) :
+        MPIObject(comm),
+        local_rows(local_rows),
+        local_cols(local_cols),
+        global_rows(global_rows),
+        global_cols(global_cols) {
+
+        // Build default Petsc matrix from options
+        create();
+        setSizes(local_rows, local_cols, global_rows, global_cols);
+        setType(matrix_type);
+    
+    }
+
+    ~ParallelMatrix() {
+        if (is_created) {
+            MatDestroy(&mat);
+        }
+
+        // if (raw_data != nullptr) {
+        //     delete raw_data;
+        // }
+    }
+
+    Petsc::ErrorCode create() {
+        is_created = true;
+        return MatCreate(this->getComm(), &mat);
+    }
+
+    Petsc::ErrorCode setSizes(int local_rows, int local_cols, int global_rows, int global_cols) {
+        return MatSetSizes(mat, local_rows, local_cols, global_rows, global_cols);
+    }
+
+    Petsc::ErrorCode setType(Petsc::MatType matrix_type) {
+        return MatSetType(mat, matrix_type);
+    }
+
+    Petsc::ErrorCode setFromOptions() {
+        return MatSetFromOptions(mat);
+    }
+
+    Petsc::ErrorCode setValue(int row_index, int col_index, NumericalType value, Petsc::InsertMode mode) {
+        return MatSetValue(mat, row_index, col_index, value, mode);
+    }
+
+    Petsc::ErrorCode setValues(Vector<int> row_indices, Vector<int> col_indices, Matrix<NumericalType> values, Petsc::InsertMode mode) {
+        int m = row_indices.size();
+        int n = col_indices.size();
+        return MatSetValues(mat, m, row_indices.data().data(), n, col_indices.data().data(), values.data().data(), mode);
+    }
+
+    Petsc::ErrorCode setValues(Vector<int> row_indices, Vector<int> col_indices, Vector<NumericalType> values, Petsc::InsertMode mode) {
+        int m = row_indices.size();
+        int n = col_indices.size();
+        return MatSetValues(mat, m, row_indices.data().data(), n, col_indices.data().data(), values.data().data(), mode);
+    }
+
+    Petsc::ErrorCode beginAssembly(Petsc::MatAssemblyType assembly_type) {
+        return MatAssemblyBegin(mat, assembly_type);
+    }
+
+    Petsc::ErrorCode endAssembly(Petsc::MatAssemblyType assembly_type) {
+        return MatAssemblyEnd(mat, assembly_type);
+    }
+
+};
 
 } // NAMESPACE : EllipticForest
 

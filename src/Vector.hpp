@@ -9,32 +9,20 @@
 
 #include <petsc.h>
 #include <petscvec.h>
+#include <petscerror.h>
 
 #include "VTK.hpp"
 #include "MPI.hpp"
 
 namespace EllipticForest {
 
-// template<typename NumericalType>
-// class ParVector : public MPI::MPIObject {
-
-// protected:
-
-//     Vec vec;
-//     int size;
-//     NumericalType* raw_data;
-
-// public:
-
-//     ParVector() :
-//         MPIObject(MPI_COMM_WORLD),
-//         size(0),
-//         raw_data(nullptr)
-//             {}
-
-//     ParVector(MPI::Communicator comm, )
-
-// };
+namespace Petsc {
+    using Scalar = PetscScalar;
+    using Vec = Vec;
+    using VecType = VecType;
+    using InsertMode = InsertMode;
+    using ErrorCode = PetscErrorCode;
+} // NAMESPACE : Petsc
 
 template<typename NumericalType>
 class Vector : public DataArrayNodeBase, public MPI::MPIObject {
@@ -792,6 +780,103 @@ int allgatherv(Vector<T>& send_vector, Vector<T>& recv_vector, std::vector<int> 
 }
 
 } // NAMESPACE : MPI
+
+template<typename NumericalType>
+class ParallelVector : public MPI::MPIObject {
+
+protected:
+
+    int local_size = 0;
+    int global_size = 0;
+    NumericalType* raw_data = nullptr;
+    bool is_created = false;
+
+public:
+    
+    Petsc::Vec vec;
+
+    ParallelVector() :
+        MPIObject(MPI_COMM_WORLD)
+            {}
+
+    ParallelVector(MPI::Communicator comm) :
+        MPIObject(comm)
+            {}
+
+    ParallelVector(MPI::Communicator comm, int local_size, int global_size) :
+        MPIObject(comm),
+        local_size(local_size),
+        global_size(global_size) {
+
+        // Build default Petsc vector from options
+        create();
+        setSizes(local_size, global_size);
+        setFromOptions();
+
+    }
+
+    ParallelVector(MPI::Communicator comm, int local_size, int global_size, Petsc::VecType vector_type) :
+        MPIObject(comm),
+        local_size(local_size),
+        global_size(global_size) {
+
+        // Build specific Petsc vector with specified type
+        create();
+        setSizes(local_size, global_size);
+        setType(vector_type);
+
+    }
+
+    // ParallelVector(Petsc::Vec) {
+
+    // }
+
+    ~ParallelVector() {
+        if (is_created) {
+            VecDestroy(&vec);
+        }
+
+        // if (raw_data != nullptr) {
+        //     delete raw_data;
+        // }
+    }
+    
+    Petsc::ErrorCode create() {
+        is_created = true;
+        return VecCreate(this->getComm(), &vec);
+    }
+
+    Petsc::ErrorCode setSizes(int n, int N) {
+        return VecSetSizes(vec, n, N);
+    }
+
+    Petsc::ErrorCode setType(Petsc::VecType vector_type) {
+        return VecSetType(vec, vector_type);
+    }
+
+    Petsc::ErrorCode setFromOptions() {
+        return VecSetFromOptions(vec);
+    }
+
+    Petsc::ErrorCode setValue(int index, NumericalType value, Petsc::InsertMode mode) {
+        return VecSetValue(vec, index, value, mode);
+    }
+
+    Petsc::ErrorCode setValues(Vector<int> indices, Vector<NumericalType> values, Petsc::InsertMode mode) {
+        int N = indices.size();
+        return VecSetValues(vec, N, indices.data().data(), values.data().data(), mode);
+    }
+
+    Petsc::ErrorCode beginAssembly() {
+        return VecAssemblyBegin(vec);
+    }
+
+    Petsc::ErrorCode endAssembly() {
+        return VecAssemblyEnd(vec);
+    }
+
+
+};
  
 } // NAMESPACE : EllipticForest
 
