@@ -15,9 +15,9 @@ template<typename T> class Node;
 template<typename T>
 class AbstractNodeFactory {
 public:
-	virtual Node<T> createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
-	virtual Node<T> createChildNode(Node<T> parentNode, int siblingID, int pfirst, int plast) = 0;
-	virtual Node<T> createParentNode(std::vector<Node<T>> childrenNodes, int pfirst, int plast) = 0;
+	virtual Node<T>* createNode(T data, std::string path, int level, int pfirst, int plast) = 0;
+	virtual Node<T>* createChildNode(Node<T>* parentNode, int siblingID, int pfirst, int plast) = 0;
+	virtual Node<T>* createParentNode(std::vector<Node<T>*> childrenNodes, int pfirst, int plast) = 0;
 };
 
 template<typename T>

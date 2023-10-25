@@ -3,10 +3,10 @@ if (${matplotlibcpp})
     FetchContent_GetProperties(matplotlibcpp)
 endif()
 
-find_package(Kokkos REQUIRED)
-if(Kokkos_FOUND)
-    message(STATUS "Found Kokkos: ${Kokkos_DIR} (version \"${Kokkos_VERSION}\")")
-endif()
+# find_package(Kokkos REQUIRED)
+# if(Kokkos_FOUND)
+#     message(STATUS "Found Kokkos: ${Kokkos_DIR} (version \"${Kokkos_VERSION}\")")
+# endif()
 
 # --=== Create EllipticForest Library ===--
 add_library(EllipticForest)
@@ -14,7 +14,19 @@ set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
 
 target_link_libraries(EllipticForest PUBLIC common)
 
-set(ELLIPTIC_FOREST_SOURCES
+# set(ELLIPTIC_FOREST_SOURCES
+#     XMLTree.cpp
+#     EllipticForestApp.cpp
+#     Interpolation.cpp
+#     FISHPACK.cpp
+#     MPI.cpp
+#     P4est.cpp
+#     PETSc.cpp
+#     VTK.cpp
+#     Patches/FiniteVolume/FiniteVolumeGrid.cpp
+# )
+
+target_sources(EllipticForest PUBLIC
     XMLTree.cpp
     EllipticForestApp.cpp
     Interpolation.cpp
@@ -25,9 +37,11 @@ set(ELLIPTIC_FOREST_SOURCES
     VTK.cpp
 )
 
-target_sources(EllipticForest PRIVATE
-    ${ELLIPTIC_FOREST_SOURCES}
-)
+add_subdirectory(Patches/FiniteVolume)
+
+# target_sources(EllipticForest PRIVATE
+#     ${ELLIPTIC_FOREST_SOURCES}
+# )
 
 target_include_directories(EllipticForest PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -42,11 +56,11 @@ target_link_directories(EllipticForest PUBLIC
 
 if(WITH_PETSC)
     target_link_libraries(EllipticForest PUBLIC
-        fishpack90 Kokkos::kokkos petsc sc p4est ${PYTHON_VERSION} lapack blas z
+        fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas z
     )
 else()
     target_link_libraries(EllipticForest PUBLIC
-        fishpack90 Kokkos::kokkos sc p4est ${PYTHON_VERSION} lapack blas z
+        fishpack90 sc p4est ${PYTHON_VERSION} lapack blas z
     )
 endif()
 
