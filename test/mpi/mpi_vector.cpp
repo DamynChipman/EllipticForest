@@ -25,6 +25,22 @@ void TEST_petsc_vector_init() {
 
 }
 
+void TEST_petsc_vector_serial_to_parallel() {
+
+    int N = 4*size;
+    Vector<double> serial_vector(N);
+    for (int i = 0; i < N; i++) {
+        serial_vector[i] = (double) i;
+    }
+
+    ParallelVector<double> parallel_vector(MPI_COMM_WORLD, serial_vector);
+    parallel_vector.beginAssembly();
+    parallel_vector.endAssembly();
+
+    VecView(parallel_vector.vec, 0);
+
+}
+
 void TEST_petsc_vector_waxpy() {
 
     int N = 4*size;
@@ -70,6 +86,9 @@ int main(void) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     TEST_petsc_vector_init();
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    TEST_petsc_vector_serial_to_parallel();
 
     MPI_Barrier(MPI_COMM_WORLD);
     TEST_petsc_vector_waxpy();

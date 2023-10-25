@@ -753,6 +753,59 @@ public:
     
     }
 
+    ParallelMatrix(MPI::Communicator comm, Matrix<NumericalType>& serial_matrix) :
+        MPIObject(comm),
+        local_rows(PETSC_DECIDE),
+        local_cols(PETSC_DECIDE),
+        global_rows(serial_matrix.nRows()),
+        global_cols(serial_matrix.nCols()) {
+
+        // Create parallel matrix
+        create();
+        setSizes(local_rows, local_cols, global_rows, global_cols);
+        setFromOptions();
+
+        // Fill parallel matrix
+        setValues(vectorRange(0, global_rows-1), vectorRange(0, global_cols-1), serial_matrix, INSERT_VALUES);
+
+    }
+
+    ParallelMatrix(MPI::Communicator comm, Matrix<NumericalType>& serial_matrix, Petsc::MatType matrix_type) :
+        MPIObject(comm),
+        local_rows(PETSC_DECIDE),
+        local_cols(PETSC_DECIDE),
+        global_rows(serial_matrix.nRows()),
+        global_cols(serial_matrix.nCols()) {
+
+        // Create parallel matrix
+        create();
+        setSizes(local_rows, local_cols, global_rows, global_cols);
+        setType(matrix_type);
+
+        // Fill parallel matrix
+        setValues(vectorRange(0, global_rows-1), vectorRange(0, global_cols-1), serial_matrix, INSERT_VALUES);
+
+    }
+
+    // Move `sub_matrix` to `new_comm`
+    ParallelMatrix(MPI::Communicator new_comm, ParallelMatrix<NumericalType>& sub_matrix) :
+        MPIObject(new_comm),
+        local_rows(sub_matrix.local_rows),
+        local_cols(sub_matrix.local_cols),
+        global_rows(sub_matrix.global_rows),
+        global_cols(sub_matrix.global_cols) {
+
+        //
+        IS index_set_row;
+        Vector<int> idx = vectorRange(0, sub_matrix.global_rows-1);
+        ISCreateGeneral(new_comm, sub_matrix.global_rows, idx.dataPointer(), PETSC_COPY_VALUES, &index_set_row);
+
+        // 
+        is_created = true;
+        MatCreateSubMatrix(sub_matrix.mat, index_set_row, NULL, MAT_INITIAL_MATRIX, &mat);
+
+    }
+
     ~ParallelMatrix() {
         if (is_created) {
             MatDestroy(&mat);
@@ -791,9 +844,19 @@ public:
     }
 
     Petsc::ErrorCode setValues(Vector<int> row_indices, Vector<int> col_indices, Vector<NumericalType> values, Petsc::InsertMode mode) {
-        int m = row_indices.size();
-        int n = col_indices.size();
-        return MatSetValues(mat, m, row_indices.data().data(), n, col_indices.data().data(), values.data().data(), mode);
+        return MatSetValues(mat, row_indices.size(), row_indices.data().data(), col_indices.size(), col_indices.data().data(), values.data().data(), mode);
+    }
+
+    Petsc::ErrorCode getValue(int row_index, int col_index, NumericalType& value) {
+        return MatGetValue(mat, row_index, col_index, &value);
+    }
+
+    Petsc::ErrorCode getValues(Vector<int> row_indices, Vector<int> col_indices, Matrix<NumericalType>& values) {
+        return MatGetValues(mat, row_indices.size(), row_indices.data().data(), col_indices.size(), col_indices.data().data(), values.dataPointer());
+    }
+
+    Petsc::ErrorCode getValues(Vector<int> row_indices, Vector<int> col_indices, Vector<NumericalType>& values) {
+        return MatGetValues(mat, row_indices.size(), row_indices.data().data(), col_indices.size(), col_indices.data().data(), values.dataPointer());
     }
 
     Petsc::ErrorCode beginAssembly(Petsc::MatAssemblyType assembly_type) {

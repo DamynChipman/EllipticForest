@@ -827,6 +827,49 @@ public:
 
     }
 
+    ParallelVector(MPI::Communicator comm, Vector<NumericalType>& serial_vector) :
+        MPIObject(comm),
+        local_size(PETSC_DECIDE),
+        global_size(serial_vector.size()) {
+
+
+        //
+        create();
+        setSizes(local_size, global_size);
+        setFromOptions();
+
+        // Fill vector with values of serial vector spread across communicator
+        setValues(vectorRange(0, global_size-1), serial_vector, INSERT_VALUES);
+        
+    }
+
+    ParallelVector(MPI::Communicator comm, Vector<NumericalType>& serial_vector, Petsc::VecType vector_type) :
+        MPIObject(comm),
+        local_size(PETSC_DECIDE),
+        global_size(serial_vector.size()) {
+
+
+        //
+        create();
+        setSizes(local_size, global_size);
+        setType(vector_type);
+
+        // Fill vector with values of serial vector spread across communicator
+        setValues(vectorRange(0, global_size-1), serial_vector, INSERT_VALUES);
+        
+    }
+
+    // // Move `sub_vector` to `new_comm`
+    // ParallelVector(MPI::Communicator new_comm, ParallelVector<NumericalType>& sub_vector) :
+    //     MPIObject(new_comm),
+    //     local_size(sub_vector.local_size),
+    //     global_size(sub_vector.global_size) {
+
+    //     //
+
+
+    // }
+
     // ParallelVector(Petsc::Vec) {
 
     // }
