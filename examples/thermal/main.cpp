@@ -292,8 +292,8 @@ int main(int argc, char** argv) {
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
         HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& patch){
             auto& grid = patch.grid();
-            int nx = grid.nPointsX();
-            int ny = grid.nPointsY();
+            int nx = grid.nx();
+            int ny = grid.ny();
             patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
             auto& u = patch.vectorU();
             auto& f = patch.vectorF();

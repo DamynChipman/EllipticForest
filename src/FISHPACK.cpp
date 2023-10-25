@@ -11,8 +11,8 @@ namespace FISHPACK {
 // ---=====================---
 
 FISHPACKFVGrid::FISHPACKFVGrid() :
-    nPointsX_(0),
-    nPointsY_(0),
+    nx_(0),
+    ny_(0),
     xLower_(-1.0),
     xUpper_(1.0),
     yLower_(-1.0),
@@ -21,22 +21,22 @@ FISHPACKFVGrid::FISHPACKFVGrid() :
     dy_(0)
         {}
 
-FISHPACKFVGrid::FISHPACKFVGrid(std::size_t nPointsX, std::size_t nPointsY, double xLower, double xUpper, double yLower, double yUpper) :
-        nPointsX_(nPointsX),
-        nPointsY_(nPointsY),
+FISHPACKFVGrid::FISHPACKFVGrid(std::size_t nx, std::size_t ny, double xLower, double xUpper, double yLower, double yUpper) :
+        nx_(nx),
+        ny_(ny),
         xLower_(xLower),
         xUpper_(xUpper),
         yLower_(yLower),
         yUpper_(yUpper),
-        dx_((xUpper - xLower) / nPointsX),
-        dy_((yUpper - yLower) / nPointsY),
-        xPoints_(nPointsX_),
-        yPoints_(nPointsY_) {
+        dx_((xUpper - xLower) / nx),
+        dy_((yUpper - yLower) / ny),
+        xPoints_(nx_),
+        yPoints_(ny_) {
 
-        for (auto i = 0; i < nPointsX_; i++) {
+        for (auto i = 0; i < nx_; i++) {
             xPoints_[i] = operator()(XDIM, i);
         }
-        for (auto j = 0; j < nPointsY_; j++) {
+        for (auto j = 0; j < ny_; j++) {
             yPoints_[j] = operator()(YDIM, j);
         }
 
@@ -44,9 +44,9 @@ FISHPACKFVGrid::FISHPACKFVGrid(std::size_t nPointsX, std::size_t nPointsY, doubl
 
 std::string FISHPACKFVGrid::name() { return name_; }
 
-std::size_t FISHPACKFVGrid::nPointsX() { return nPointsX_; }
+std::size_t FISHPACKFVGrid::nx() { return nx_; }
 
-std::size_t FISHPACKFVGrid::nPointsY() { return nPointsY_; }
+std::size_t FISHPACKFVGrid::ny() { return ny_; }
 
 double FISHPACKFVGrid::xLower() { return xLower_; }
 
@@ -62,20 +62,20 @@ double FISHPACKFVGrid::dy() { return dy_; }
 
 double FISHPACKFVGrid::operator()(std::size_t DIM, std::size_t index)  {
     if (DIM == XDIM) {
-        if (index >= nPointsX_ || index < 0) {
+        if (index >= nx_ || index < 0) {
             std::string errorMessage = "[EllipticForest::FISHPACKFVGrid::operator()] `index` is out of range:\n";
             errorMessage += "\tindex = " + std::to_string(index) + "\n";
-            errorMessage += "\tnPointsX = " + std::to_string(nPointsX_) + "\n";
+            errorMessage += "\tnx = " + std::to_string(nx_) + "\n";
             std::cerr << errorMessage << std::endl;
             throw std::out_of_range(errorMessage);
         }
         return (xLower_ + dx_/2) + index*dx_;
     }
     else if (DIM == YDIM) {
-        if (index >= nPointsY_ || index < 0) {
+        if (index >= ny_ || index < 0) {
             std::string errorMessage = "[EllipticForest::FISHPACKFVGrid::operator()] `index` is out of range:\n";
             errorMessage += "\tindex = " + std::to_string(index) + "\n";
-            errorMessage += "\tnPointsY = " + std::to_string(nPointsY_) + "\n";
+            errorMessage += "\tny = " + std::to_string(ny_) + "\n";
             std::cerr << errorMessage << std::endl;
             throw std::out_of_range(errorMessage);
         }
@@ -93,11 +93,11 @@ Vector<double>& FISHPACKFVGrid::xPoints() { return xPoints_; }
 Vector<double>& FISHPACKFVGrid::yPoints() { return yPoints_; }
 
 std::string FISHPACKFVGrid::getWholeExtent() {
-    return "0 " + std::to_string(nPointsX_-1) + " 0 " + std::to_string(nPointsY_-1) + " 0 0";
+    return "0 " + std::to_string(nx_-1) + " 0 " + std::to_string(ny_-1) + " 0 0";
 }
 
 std::string FISHPACKFVGrid::getExtent() {
-    return "0 " + std::to_string(nPointsX_-1) + " 0 " + std::to_string(nPointsY_-1) + " 0 0";
+    return "0 " + std::to_string(nx_-1) + " 0 " + std::to_string(ny_-1) + " 0 0";
 }
 
 // ---=============================---
@@ -117,7 +117,7 @@ std::string FISHPACKFVSolver::name() {
 Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
     // Unpack Dirichlet Data
-	int nSide = grid.nPointsX();
+	int nSide = grid.nx();
 	Vector<double> gWest = dirichletData.getSegment(0*nSide, nSide);
 	Vector<double> gEast = dirichletData.getSegment(1*nSide, nSide);
 	Vector<double> gSouth = dirichletData.getSegment(2*nSide, nSide);
@@ -125,8 +125,8 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 
 	// Transpose RHS data for FORTRAN call
 	Vector<double> fT(nSide * nSide);
-	for (int i = 0; i < grid.nPointsX(); i++) {
-		for (int j = 0; j < grid.nPointsY(); j++) {
+	for (int i = 0; i < grid.nx(); i++) {
+		for (int j = 0; j < grid.ny(); j++) {
 			fT[i + j*nSide] = rhsData[j + i*nSide];
 		}
 	}
@@ -134,13 +134,13 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 	// Setup FORTRAN call to FISHPACK
 	double A = grid.xLower();
 	double B = grid.xUpper();
-	int M = grid.nPointsX();
+	int M = grid.nx();
 	int MBDCND = 1;
 	double* BDA = gWest.dataPointer();
 	double* BDB = gEast.dataPointer();
 	double C = grid.yLower();
 	double D = grid.yUpper();
-	int N = grid.nPointsY();
+	int N = grid.ny();
 	int NBDCND = 1;
 	double* BDC = gSouth.dataPointer();
 	double* BDD = gNorth.dataPointer();
@@ -168,9 +168,9 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
     }
 
 	// Move FISHPACK solution into Vector for output
-	Vector<double> solution(grid.nPointsX() * grid.nPointsY());
-	for (int i = 0; i < grid.nPointsX(); i++) {
-		for (int j = 0; j < grid.nPointsY(); j++) {
+	Vector<double> solution(grid.nx() * grid.ny());
+	for (int i = 0; i < grid.nx(); i++) {
+		for (int j = 0; j < grid.ny(); j++) {
 			// solution[j + i*nSide] = F[i + j*nSide];
             solution[j + i*nSide] = F[i + j*nSide];
 		}
@@ -185,7 +185,7 @@ Vector<double> FISHPACKFVSolver::solve(PatchGridBase<double>& grid, Vector<doubl
 Vector<double> FISHPACKFVSolver::mapD2N(PatchGridBase<double>& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
     // Unpack grid data
-	int nSide = grid.nPointsX();
+	int nSide = grid.nx();
 
 	// Unpack Dirichlet data
 	Vector<double> gWest = dirichletData.getSegment(0*nSide, nSide);
@@ -243,7 +243,7 @@ Vector<double> FISHPACKFVSolver::mapD2N(PatchGridBase<double>& grid, Vector<doub
 
 Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 
-    std::size_t N = grid.nPointsX();
+    std::size_t N = grid.nx();
 	std::size_t M = 4*N;
 	Matrix<double> T(M, M);
 	Vector<double> e_hat_j(M, 0.0);
@@ -344,12 +344,12 @@ Matrix<double> FISHPACKFVSolver::buildD2N(PatchGridBase<double>& grid) {
 }
 
 // Vector<double> FISHPACKFVSolver::rhsData(PatchGridBase<double>& grid) {
-//     Vector<double> f(grid.nPointsX() * grid.nPointsY());
-//     for (auto i = 0; i < grid.nPointsX(); i++) {
+//     Vector<double> f(grid.nx() * grid.ny());
+//     for (auto i = 0; i < grid.nx(); i++) {
 //         double x = grid(XDIM, i);
-//         for (auto j = 0; j < grid.nPointsY(); j++) {
+//         for (auto j = 0; j < grid.ny(); j++) {
 //             double y = grid(YDIM, j);
-//             int index = j + i*grid.nPointsY();
+//             int index = j + i*grid.ny();
 //             f[index] = pde.f(x, y);
 //         }
 //     }
@@ -374,8 +374,8 @@ FISHPACKFVGrid& FISHPACKPatch::grid() { return grid_; }
 
 // FISHPACKPatch FISHPACKPatch::buildChild(std::size_t childIndex) {
 
-//     std::size_t nx = grid_.nPointsX();
-//     std::size_t ny = grid_.nPointsY();
+//     std::size_t nx = grid_.nx();
+//     std::size_t ny = grid_.ny();
 //     double xMid = (grid_.xLower() + grid_.xUpper()) / 2.0;
 //     double yMid = (grid_.yLower() + grid_.yUpper()) / 2.0;
 //     double xLower, xUpper, yLower, yUpper;
@@ -446,8 +446,8 @@ std::string FISHPACKPatch::str() {
     res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
 
     res += "grid:\n";
-    res += "  nx = " + std::to_string(grid().nPointsX()) + "\n";
-    res += "  ny = " + std::to_string(grid().nPointsY()) + "\n";
+    res += "  nx = " + std::to_string(grid().nx()) + "\n";
+    res += "  ny = " + std::to_string(grid().ny()) + "\n";
     res += "  xLower = " + std::to_string(grid().xLower()) + "\n";
     res += "  xUpper = " + std::to_string(grid().xUpper()) + "\n";
     res += "  yLower = " + std::to_string(grid().yLower()) + "\n";
@@ -495,17 +495,16 @@ FISHPACKPatchNodeFactory::FISHPACKPatchNodeFactory(MPI_Comm comm) :
     MPIObject(comm)
         {}
 
-Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast) {
-    Node<FISHPACKPatch> node(this->getComm(), data, path, level, pfirst, plast);
-    return node;
+Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast) {
+    return new Node<FISHPACKPatch>(this->getComm(), data, path, level, pfirst, plast);
 }
 
-Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createChildNode(Node<FISHPACKPatch> parentNode, int siblingID, int pfirst, int plast) {
+Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createChildNode(Node<FISHPACKPatch>* parentNode, int siblingID, int pfirst, int plast) {
     
     // Get parent grid info
-    auto& parentGrid = parentNode.data.grid();
-    int nx = parentGrid.nPointsX();
-    int ny = parentGrid.nPointsY();
+    auto& parentGrid = parentNode->data.grid();
+    int nx = parentGrid.nx();
+    int ny = parentGrid.ny();
     double xLower = parentGrid.xLower();
     double xUpper = parentGrid.xUpper();
     double xMid = (xLower + xUpper) / 2.0;
@@ -541,30 +540,30 @@ Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createChildNode(Node<FISHPACKPatch
     FISHPACKPatch childPatch(childGrid);
 
     // Create child node
-    std::string path = parentNode.path + std::to_string(siblingID);
-    int level = parentNode.level + 1;
-    return Node<FISHPACKPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
+    std::string path = parentNode->path + std::to_string(siblingID);
+    int level = parentNode->level + 1;
+    return new Node<FISHPACKPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
     
 }
 
-Node<FISHPACKPatch> FISHPACKPatchNodeFactory::createParentNode(std::vector<Node<FISHPACKPatch>> childNodes, int pfirst, int plast) {
+Node<FISHPACKPatch>* FISHPACKPatchNodeFactory::createParentNode(std::vector<Node<FISHPACKPatch>*> childNodes, int pfirst, int plast) {
 
     // Create parent grid
-    int nx = childNodes[0].data.grid().nPointsX();
-    int ny = childNodes[0].data.grid().nPointsY();
-    double xLower = childNodes[0].data.grid().xLower();
-    double xUpper = childNodes[1].data.grid().xUpper();
-    double yLower = childNodes[0].data.grid().yLower();
-    double yUpper = childNodes[2].data.grid().yUpper();
+    int nx = childNodes[0]->data.grid().nx();
+    int ny = childNodes[0]->data.grid().ny();
+    double xLower = childNodes[0]->data.grid().xLower();
+    double xUpper = childNodes[1]->data.grid().xUpper();
+    double yLower = childNodes[0]->data.grid().yLower();
+    double yUpper = childNodes[2]->data.grid().yUpper();
     FISHPACKFVGrid parentGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
     // Create parent patch
     FISHPACKPatch parentPatch(parentGrid);
 
     // Create parent node
-    std::string path = childNodes[0].path.substr(0, childNodes[0].path.length()-1);
-    int level = childNodes[0].level - 1;
-    return Node<FISHPACKPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
+    std::string path = childNodes[0]->path.substr(0, childNodes[0]->path.length()-1);
+    int level = childNodes[0]->level - 1;
+    return new Node<FISHPACKPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
 
 }
 
@@ -574,8 +573,8 @@ namespace MPI {
 
 template<>
 int broadcast(FISHPACK::FISHPACKFVGrid& grid, int root, MPI_Comm comm) {
-    int nx = grid.nPointsX();
-    int ny = grid.nPointsY();
+    int nx = grid.nx();
+    int ny = grid.ny();
     double xLower = grid.xLower();
     double xUpper = grid.xUpper();
     double yLower = grid.yLower();

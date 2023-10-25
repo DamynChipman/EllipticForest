@@ -74,7 +74,7 @@ public:
      * @return Vector<FloatingPointType> 
      */
     virtual Vector<FloatingPointType> particularNeumannData(PatchGridBase<FloatingPointType>& grid, Vector<FloatingPointType>& rhsData) {
-        Vector<FloatingPointType> gZero(2*grid.nPointsX() + 2*grid.nPointsX(), 0);
+        Vector<FloatingPointType> gZero(2*grid.nx() + 2*grid.ny(), 0);
         return mapD2N(grid, gZero, rhsData);
     }
 

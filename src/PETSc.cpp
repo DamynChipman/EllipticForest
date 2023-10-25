@@ -31,9 +31,9 @@ PetscErrorCode PetscGrid::create() {
 
 std::string PetscGrid::name() { return name_; }
 
-std::size_t PetscGrid::nPointsX() { return nx_; }
+std::size_t PetscGrid::nx() { return nx_; }
 
-std::size_t PetscGrid::nPointsY() { return ny_; }
+std::size_t PetscGrid::ny() { return ny_; }
 
 double PetscGrid::xLower() { return xLower_; }
 
@@ -90,15 +90,15 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
 
     // std::this_thread::sleep_for(std::chrono::seconds(this->getRank()));
     // Unpack Dirichlet data
-    int nSide = grid.nPointsX();
+    int nSide = grid.nx();
     Vector<double> gWest = dirichletData.getSegment(0*nSide, nSide);
 	Vector<double> gEast = dirichletData.getSegment(1*nSide, nSide);
 	Vector<double> gSouth = dirichletData.getSegment(2*nSide, nSide);
 	Vector<double> gNorth = dirichletData.getSegment(3*nSide, nSide);
 
     // Unpack grid data
-    int nx = grid.nPointsX();
-    int ny = grid.nPointsY();
+    int nx = grid.nx();
+    int ny = grid.ny();
     int N = nx*ny;
     double dx = grid.dx();
     double dy = grid.dy();
@@ -285,7 +285,7 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
 Vector<double> PetscPatchSolver::mapD2N(PetscGrid& grid, Vector<double>& dirichletData, Vector<double>& rhsData) {
 
     // Unpack grid data
-	int nSide = grid.nPointsX();
+	int nSide = grid.nx();
 
 	// Unpack Dirichlet data
 	Vector<double> gWest = dirichletData.getSegment(0*nSide, nSide);
@@ -343,7 +343,7 @@ Vector<double> PetscPatchSolver::mapD2N(PetscGrid& grid, Vector<double>& dirichl
 
 Matrix<double> PetscPatchSolver::buildD2N(PetscGrid& grid) {
 
-    std::size_t N = grid.nPointsX();
+    std::size_t N = grid.nx();
 	std::size_t M = 4*N;
 	Matrix<double> T(M, M);
 	Vector<double> e_hat_j(M, 0.0);
@@ -444,7 +444,7 @@ Matrix<double> PetscPatchSolver::buildD2N(PetscGrid& grid) {
 }
 
 Vector<double> PetscPatchSolver::particularNeumannData(PetscGrid& grid, Vector<double>& rhsData) {
-    Vector<double> gZero(2*grid.nPointsX() + 2*grid.nPointsY(), 0);
+    Vector<double> gZero(2*grid.nx() + 2*grid.ny(), 0);
     return mapD2N(grid, gZero, rhsData);
 }
 
@@ -515,8 +515,8 @@ std::string PetscPatch::str() {
     res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
 
     res += "grid:\n";
-    res += "  nx = " + std::to_string(grid().nPointsX()) + "\n";
-    res += "  ny = " + std::to_string(grid().nPointsY()) + "\n";
+    res += "  nx = " + std::to_string(grid().nx()) + "\n";
+    res += "  ny = " + std::to_string(grid().ny()) + "\n";
     res += "  xLower = " + std::to_string(grid().xLower()) + "\n";
     res += "  xUpper = " + std::to_string(grid().xUpper()) + "\n";
     res += "  yLower = " + std::to_string(grid().yLower()) + "\n";
@@ -582,17 +582,16 @@ PetscPatchNodeFactory::PetscPatchNodeFactory(MPI_Comm comm) :
     MPIObject(comm)
         {}
 
-Node<PetscPatch> PetscPatchNodeFactory::createNode(PetscPatch data, std::string path, int level, int pfirst, int plast) {
-    Node<PetscPatch> node(this->getComm(), data, path, level, pfirst, plast);
-    return node;
+Node<PetscPatch>* PetscPatchNodeFactory::createNode(PetscPatch data, std::string path, int level, int pfirst, int plast) {
+    return new Node<PetscPatch>(this->getComm(), data, path, level, pfirst, plast);
 }
 
-Node<PetscPatch> PetscPatchNodeFactory::createChildNode(Node<PetscPatch> parentNode, int siblingID, int pfirst, int plast) {
+Node<PetscPatch>* PetscPatchNodeFactory::createChildNode(Node<PetscPatch>* parentNode, int siblingID, int pfirst, int plast) {
     
     // Get parent grid info
-    auto& parentGrid = parentNode.data.grid();
-    int nx = parentGrid.nPointsX();
-    int ny = parentGrid.nPointsY();
+    auto& parentGrid = parentNode->data.grid();
+    int nx = parentGrid.nx();
+    int ny = parentGrid.ny();
     double xLower = parentGrid.xLower();
     double xUpper = parentGrid.xUpper();
     double xMid = (xLower + xUpper) / 2.0;
@@ -631,27 +630,27 @@ Node<PetscPatch> PetscPatchNodeFactory::createChildNode(Node<PetscPatch> parentN
     // Create communicator for child patch
     // MPI::Group child_group;
     // MPI::Communicator child_comm;
-    // parentNode.getMPIGroupComm(&child_group, &child_comm);
+    // parentNode->getMPIGroupComm(&child_group, &child_comm);
 
     // Create child patch
     PetscPatch childPatch(childGrid);
 
     // Create child node
-    std::string path = parentNode.path + std::to_string(siblingID);
-    int level = parentNode.level + 1;
-    return Node<PetscPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
+    std::string path = parentNode->path + std::to_string(siblingID);
+    int level = parentNode->level + 1;
+    return new Node<PetscPatch>(this->getComm(), childPatch, path, level, pfirst, plast);
     
 }
 
-Node<PetscPatch> PetscPatchNodeFactory::createParentNode(std::vector<Node<PetscPatch>> childNodes, int pfirst, int plast) {
+Node<PetscPatch>* PetscPatchNodeFactory::createParentNode(std::vector<Node<PetscPatch>*> childNodes, int pfirst, int plast) {
 
     // Create parent grid
-    int nx = childNodes[0].data.grid().nPointsX();
-    int ny = childNodes[0].data.grid().nPointsY();
-    double xLower = childNodes[0].data.grid().xLower();
-    double xUpper = childNodes[1].data.grid().xUpper();
-    double yLower = childNodes[0].data.grid().yLower();
-    double yUpper = childNodes[2].data.grid().yUpper();
+    int nx = childNodes[0]->data.grid().nx();
+    int ny = childNodes[0]->data.grid().ny();
+    double xLower = childNodes[0]->data.grid().xLower();
+    double xUpper = childNodes[1]->data.grid().xUpper();
+    double yLower = childNodes[0]->data.grid().yLower();
+    double yUpper = childNodes[2]->data.grid().yUpper();
     PetscGrid parentGrid(nx, ny, xLower, xUpper, yLower, yUpper);
 
     // Create communicator for parent patch
@@ -663,9 +662,9 @@ Node<PetscPatch> PetscPatchNodeFactory::createParentNode(std::vector<Node<PetscP
     PetscPatch parentPatch(parentGrid); // TODO: Switch MPI_COMM_WORLD to patch communicator
 
     // Create parent node
-    std::string path = childNodes[0].path.substr(0, childNodes[0].path.length()-1);
-    int level = childNodes[0].level - 1;
-    return Node<PetscPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
+    std::string path = childNodes[0]->path.substr(0, childNodes[0]->path.length()-1);
+    int level = childNodes[0]->level - 1;
+    return new Node<PetscPatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
 
 }
 
@@ -675,8 +674,8 @@ namespace MPI {
 
 template<>
 int broadcast(Petsc::PetscGrid& grid, int root, MPI_Comm comm) {
-    int nx = grid.nPointsX();
-    int ny = grid.nPointsY();
+    int nx = grid.nx();
+    int ny = grid.ny();
     double xLower = grid.xLower();
     double xUpper = grid.xUpper();
     double yLower = grid.yLower();

@@ -15,8 +15,6 @@ namespace EllipticForest {
 #define XDIM 0
 #define YDIM 1
 
-
-
 template<typename FloatingPointType>
 class PatchGridBase {
 
@@ -34,14 +32,14 @@ public:
      * 
      * @return std::size_t 
      */
-    virtual std::size_t nPointsX() = 0;
+    virtual std::size_t nx() = 0;
 
     /**
      * @brief Returns the number of points in the y-direction
      * 
      * @return std::size_t 
      */
-    virtual std::size_t nPointsY() = 0;
+    virtual std::size_t ny() = 0;
 
     /**
      * @brief Returns the x lower bound of the grid
@@ -96,21 +94,21 @@ public:
 
     std::string str() {
         std::string out = "";
-        out += "X: [" + std::to_string(xLower()) + ":" + std::to_string(xUpper()) + "], nx = " + std::to_string(nPointsX()) + ", dx = " + std::to_string(dx()) + "  ";
-        out += "Y: [" + std::to_string(yLower()) + ":" + std::to_string(yUpper()) + "], ny = " + std::to_string(nPointsY()) + ", dy = " + std::to_string(dy()) + "\n";
+        out += "X: [" + std::to_string(xLower()) + ":" + std::to_string(xUpper()) + "], nx = " + std::to_string(nx()) + ", dx = " + std::to_string(dx()) + "  ";
+        out += "Y: [" + std::to_string(yLower()) + ":" + std::to_string(yUpper()) + "], ny = " + std::to_string(ny()) + ", dy = " + std::to_string(dy()) + "\n";
         return out;
     }
 
 #if USE_MATPLOTLIBCPP
     void plot(std::string name = "", bool plotBox = true, bool plotPoints = true, bool plotEdges = true, bool plotName = true, std::string edgeColor = "b", std::string pointColor = "r") {
 
-        std::vector<double> xPoints(nPointsX());
-        for (auto i = 0; i < nPointsX(); i++) {
+        std::vector<double> xPoints(nx());
+        for (auto i = 0; i < nx(); i++) {
             xPoints[i] = operator()(XDIM, i);
         }
 
-        std::vector<double> yPoints(nPointsY());
-        for (auto j = 0; j < nPointsY(); j++) {
+        std::vector<double> yPoints(ny());
+        for (auto j = 0; j < ny(); j++) {
             yPoints[j] = operator()(YDIM, j);
         }
 
@@ -121,15 +119,15 @@ public:
         }
 
         if (plotEdges) {
-            plt::plot(std::vector(nPointsY(), xLower()), yPoints, "." + edgeColor);
-            plt::plot(std::vector(nPointsY(), xUpper()), yPoints, "." + edgeColor);
-            plt::plot(xPoints, std::vector(nPointsX(), yLower()), "." + edgeColor);
-            plt::plot(xPoints, std::vector(nPointsX(), yUpper()), "." + edgeColor);
+            plt::plot(std::vector(ny(), xLower()), yPoints, "." + edgeColor);
+            plt::plot(std::vector(ny(), xUpper()), yPoints, "." + edgeColor);
+            plt::plot(xPoints, std::vector(nx(), yLower()), "." + edgeColor);
+            plt::plot(xPoints, std::vector(nx(), yUpper()), "." + edgeColor);
         }
 
         if (plotPoints) {
-            for (auto j = 0; j < nPointsY(); j++) {
-                std::vector<double> yLine(nPointsX(), yPoints[j]);
+            for (auto j = 0; j < ny(); j++) {
+                std::vector<double> yLine(nx(), yPoints[j]);
                 plt::plot(xPoints, yLine, "." + pointColor);
             }
         }

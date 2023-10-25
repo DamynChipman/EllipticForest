@@ -67,8 +67,8 @@ public:
     DM& dm() {return dm_; }
 
     virtual std::string name();
-    virtual std::size_t nPointsX();
-    virtual std::size_t nPointsY();
+    virtual std::size_t nx();
+    virtual std::size_t ny();
     virtual double xLower();
     virtual double xUpper();
     virtual double yLower();
@@ -165,9 +165,9 @@ public:
     PetscPatchNodeFactory();
     PetscPatchNodeFactory(MPI_Comm comm);
 
-    Node<PetscPatch> createNode(PetscPatch data, std::string path, int level, int pfirst, int plast);
-    Node<PetscPatch> createChildNode(Node<PetscPatch> parentNode, int siblingID, int pfirst, int plast);
-    Node<PetscPatch> createParentNode(std::vector<Node<PetscPatch>> childNodes, int pfirst, int plast);
+    Node<PetscPatch>* createNode(PetscPatch data, std::string path, int level, int pfirst, int plast);
+    Node<PetscPatch>* createChildNode(Node<PetscPatch>* parentNode, int siblingID, int pfirst, int plast);
+    Node<PetscPatch>* createParentNode(std::vector<Node<PetscPatch>*> childNodes, int pfirst, int plast);
 
 };
 

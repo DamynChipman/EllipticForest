@@ -50,7 +50,7 @@ public:
     virtual PatchGridBase<FloatingPointType>& grid() = 0;
 
     int size() {
-        return grid().nPointsX() / pow(2, nCoarsens);
+        return grid().nx() / pow(2, nCoarsens);
     }
 
     /**

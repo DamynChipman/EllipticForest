@@ -18,8 +18,8 @@ TEST(FISHPACK, grid) {
     FISHPACKFVGrid grid(nx, ny, xL, xU, yL, yU);
 
     EXPECT_EQ(grid.name(), "FISHPACKFVGrid");
-    EXPECT_EQ(grid.nPointsX(), nx);
-    EXPECT_EQ(grid.nPointsY(), ny);
+    EXPECT_EQ(grid.nx(), nx);
+    EXPECT_EQ(grid.ny(), ny);
     EXPECT_EQ(grid.xLower(), xL);
     EXPECT_EQ(grid.xUpper(), xU);
     EXPECT_EQ(grid.yLower(), yL);
@@ -59,15 +59,15 @@ TEST(FISHPACK, grid) {
 //         });
 
 //         // Create Dirichlet and RHS data
-//         std::size_t nBoundary = 2*grid.nPointsX() + 2*grid.nPointsY();
+//         std::size_t nBoundary = 2*grid.nx() + 2*grid.ny();
 //         Vector<double> g(nBoundary);
-//         Vector<int> IS_West = vectorRange(0, grid.nPointsY() - 1);
-//         Vector<int> IS_East = vectorRange(grid.nPointsY(), 2*grid.nPointsY() - 1);
-//         Vector<int> IS_South = vectorRange(2*grid.nPointsY(), 2*grid.nPointsY() + grid.nPointsX() - 1);
-//         Vector<int> IS_North = vectorRange(2*grid.nPointsY() + grid.nPointsX(), 2*grid.nPointsY() + 2*grid.nPointsX() - 1);
+//         Vector<int> IS_West = vectorRange(0, grid.ny() - 1);
+//         Vector<int> IS_East = vectorRange(grid.ny(), 2*grid.ny() - 1);
+//         Vector<int> IS_South = vectorRange(2*grid.ny(), 2*grid.ny() + grid.nx() - 1);
+//         Vector<int> IS_North = vectorRange(2*grid.ny() + grid.nx(), 2*grid.ny() + 2*grid.nx() - 1);
 //         Vector<int> IS_WESN = concatenate({IS_West, IS_East, IS_South, IS_North});
 //         for (auto i = 0; i < nBoundary; i++) {
-//             std::size_t iSide = i % grid.nPointsX();
+//             std::size_t iSide = i % grid.nx();
 //             if (std::find(IS_West.data().begin(), IS_West.data().end(), i) != IS_West.data().end()) {
 //                 double x = grid.xLower();
 //                 double y = grid(YDIM, iSide);
@@ -90,14 +90,14 @@ TEST(FISHPACK, grid) {
 //             }
 //         }
 
-//         std::size_t nInterior = grid.nPointsX() * grid.nPointsY();
+//         std::size_t nInterior = grid.nx() * grid.ny();
 //         Vector<double> f(nInterior);
 //         Vector<double> u_expected(nInterior);
-//         for (auto i = 0; i < grid.nPointsX(); i++) {
-//             for (auto j = 0; j < grid.nPointsY(); j++) {
+//         for (auto i = 0; i < grid.nx(); i++) {
+//             for (auto j = 0; j < grid.ny(); j++) {
 //                 double x = grid(XDIM, i);
 //                 double y = grid(YDIM, j);
-//                 std::size_t idx = j + i*grid.nPointsY();
+//                 std::size_t idx = j + i*grid.ny();
 //                 f[idx] = pde.f(x, y);
 //                 u_expected[idx] = pde.u(x, y);
 //             }

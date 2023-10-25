@@ -24,7 +24,7 @@ PYTHON_VERSION=python3.9
 
 # For pre-installed PETSc:
 # PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
-PETSC_PATH=/Users/damynchipman/packages/spack/opt/spack/darwin-ventura-m1/gcc-13.2.0/petsc-3.18.3-yscnmghk4kekvfxuo3hqzf7o4r7rcq7b
+PETSC_PATH=${HOME}/packages/petsc/petsc-build
 
 # FORESTCLAW_PATH : Path to ForestClaw install (i.e., ${FORESTCLAW_PATH}/include, ${FORESTCLAW}/lib, ...)
 FORESTCLAW_PATH=${HOME}/packages/forestclaw/forestclaw-build/local
@@ -37,12 +37,13 @@ cd ${BUILD_DIR}
 
 # --=== CMake Configure ===--
 cmake ${ELLIPTIC_FOREST} \
+    -DCMAKE_PREFIX_PATH=${PETSC_PATH} \
     -DCMAKE_INSTALL_PREFIX=local \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER=mpic++ \
     -DCMAKE_C_COMPILER=mpicc \
-    -DCMAKE_CXX_FLAGS="-Xclang -fopenmp=libomp -L/opt/homebrew/opt/libomp/lib -lomp -I/opt/homebrew/opt/libomp/include" \
-    -DCMAKE_C_FLAGS="-Xclang -fopenmp=libomp -L/opt/homebrew/opt/libomp/lib -lomp -I/opt/homebrew/opt/libomp/include" \
+    -DCMAKE_CXX_FLAGS="-Xclang -fopenmp -L/opt/homebrew/opt/libomp/lib -lomp -I/opt/homebrew/opt/libomp/include" \
+    -DCMAKE_C_FLAGS="-Xclang -fopenmp -L/opt/homebrew/opt/libomp/lib -lomp -I/opt/homebrew/opt/libomp/include" \
     -DMPI_PATH=${MPI_PATH} \
     -DP4EST_PATH=${P4EST_PATH} \
     -DWITH_PETSC=true \

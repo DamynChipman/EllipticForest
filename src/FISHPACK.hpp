@@ -64,8 +64,8 @@ class FISHPACKFVGrid : public PatchGridBase<double>, public RectilinearGridNodeB
 protected:
 
     std::string name_ = "FISHPACKFVGrid";
-    std::size_t nPointsX_;
-    std::size_t nPointsY_;
+    std::size_t nx_;
+    std::size_t ny_;
     double xLower_;
     double xUpper_;
     double yLower_;
@@ -78,11 +78,11 @@ protected:
 public:
 
     FISHPACKFVGrid();
-    FISHPACKFVGrid(std::size_t nPointsX, std::size_t nPointsY, double xLower, double xUpper, double yLower, double yUpper);
+    FISHPACKFVGrid(std::size_t nx, std::size_t ny, double xLower, double xUpper, double yLower, double yUpper);
 
     virtual std::string name();
-    virtual std::size_t nPointsX();
-    virtual std::size_t nPointsY();
+    virtual std::size_t nx();
+    virtual std::size_t ny();
     virtual double xLower();
     virtual double xUpper();
     virtual double yLower();
@@ -200,9 +200,9 @@ public:
     FISHPACKPatchNodeFactory();
     FISHPACKPatchNodeFactory(MPI_Comm comm);
 
-    Node<FISHPACKPatch> createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast);
-    Node<FISHPACKPatch> createChildNode(Node<FISHPACKPatch> parentNode, int siblingID, int pfirst, int plast);
-    Node<FISHPACKPatch> createParentNode(std::vector<Node<FISHPACKPatch>> childNodes, int pfirst, int plast);
+    Node<FISHPACKPatch>* createNode(FISHPACKPatch data, std::string path, int level, int pfirst, int plast);
+    Node<FISHPACKPatch>* createChildNode(Node<FISHPACKPatch>* parentNode, int siblingID, int pfirst, int plast);
+    Node<FISHPACKPatch>* createParentNode(std::vector<Node<FISHPACKPatch>*> childNodes, int pfirst, int plast);
 
 };
 

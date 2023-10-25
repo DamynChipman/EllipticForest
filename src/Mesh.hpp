@@ -58,8 +58,8 @@ public:
 
         refine_fn_ = fn;
         threshold_ = threshold;
-        nx_ = root_grid.nPointsX();
-        ny_ = root_grid.nPointsY();
+        nx_ = root_grid.nx();
+        ny_ = root_grid.ny();
         min_level_ = min_level;
         max_level_ = max_level;
 
@@ -138,8 +138,8 @@ public:
                 double yUpper = grid.yUpper();
                 double dx = grid.dx();
                 double dy = grid.dy();
-                int nx = grid.nPointsX();
-                int ny = grid.nPointsY();
+                int nx = grid.nx();
+                int ny = grid.ny();
 
                 for (int i = 0; i < nx; i++) {
                     for (int j = 0; j < ny; j++) {
@@ -220,8 +220,8 @@ public:
                 auto& patch = node->data;
                 auto& grid = patch.grid();
 
-                int nx = grid.nPointsX();
-                int ny = grid.nPointsY();
+                int nx = grid.nx();
+                int ny = grid.ny();
 
                 for (int i = 0; i < nx; i++) {
                     double xc = grid(0, i);
@@ -251,7 +251,7 @@ public:
         std::size_t nCells = 0;
         iteratePatches([&](PatchType& patch){
             auto& grid = patch.grid();
-            nCells += grid.nPointsX() * grid.nPointsY();
+            nCells += grid.nx() * grid.ny();
         });
 
         Vector<double>* meshFunctionVector = new Vector<double>(nCells);

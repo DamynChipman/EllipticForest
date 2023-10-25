@@ -372,12 +372,12 @@ public:
                 PatchGridType& grid = patch.grid();
 
                 // Call callback function to set RHS data on patch
-                patch.vectorF() = EllipticForest::Vector<double>(grid.nPointsX() * grid.nPointsY());
-                for (auto i = 0; i < grid.nPointsX(); i++) {
+                patch.vectorF() = EllipticForest::Vector<double>(grid.nx() * grid.ny());
+                for (auto i = 0; i < grid.nx(); i++) {
                     double x = grid(0, i);
-                    for (auto j = 0; j < grid.nPointsY(); j++) {
+                    for (auto j = 0; j < grid.ny(); j++) {
                         double y = grid(1, j);
-                        int index = j + i*grid.nPointsY(); // <-- HERE
+                        int index = j + i*grid.ny(); // <-- HERE
                         patch.vectorF()[index] = rhsFunction(x, y);
                     }
                 }
@@ -475,7 +475,7 @@ public:
         // Set up data for Dirichlet solve
         PatchType& rootPatch = mesh.quadtree.root();
         PatchGridType& rootGrid = rootPatch.grid();
-        int M = rootGrid.nPointsX();
+        int M = rootGrid.nx();
         std::vector<Vector<NumericalType>> aVectors = {
             Vector<NumericalType>(M),
             Vector<NumericalType>(M),
@@ -651,18 +651,18 @@ public:
 
     //         // Set RHS data on leaf patches
     //         PatchGridType& grid = patch.grid();
-    //         patch.f = Vector<double>(grid.nPointsX() * grid.nPointsY());
-    //         for (auto i = 0; i < grid.nPointsX(); i++) {
+    //         patch.f = Vector<double>(grid.nx() * grid.ny());
+    //         for (auto i = 0; i < grid.nx(); i++) {
     //             double x = grid(XDIM, i);
-    //             for (auto j = 0; j < grid.nPointsY(); j++) {
+    //             for (auto j = 0; j < grid.ny(); j++) {
     //                 double y = grid(YDIM, j);
-    //                 int index = j + i*grid.nPointsY();
+    //                 int index = j + i*grid.ny();
     //                 // patch.f[index] = pde_.f(x, y); // TODO: How to pass in particular data to patches
     //             }
     //         }
 
     //         // Set Neumann data for particular solution
-    //         Vector<double> gZero(2*grid.nPointsX() + 2*grid.nPointsY(), 0);
+    //         Vector<double> gZero(2*grid.nx() + 2*grid.ny(), 0);
     //         patch.h = solver.mapD2N(grid, gZero, patch.f);
     //     }
 
@@ -713,39 +713,39 @@ public:
         EllipticForestApp& app = EllipticForestApp::getInstance();
         if (std::get<bool>(app.options["homogeneous-rhs"])) {
             // Need to set RHS to zeros for patch patchSolver b/c it won't be set already
-            patch.vectorF() = Vector<double>(patch.grid().nPointsX() * patch.grid().nPointsY(), 0);
+            patch.vectorF() = Vector<double>(patch.grid().nx() * patch.grid().ny(), 0);
         }
         
         // // DEBUGGING VIA SHORT CIRCUIT
         // auto& grid = patch.grid();
-        // Vector<double> dirichlet_data(2*grid.nPointsX() + 2*grid.nPointsY());
+        // Vector<double> dirichlet_data(2*grid.nx() + 2*grid.ny());
         
         // // West boundary
-        // for (int j = 0; j < grid.nPointsY(); j++) {
+        // for (int j = 0; j < grid.ny(); j++) {
         //     double x = grid.xLower();
         //     double y = grid(1, j);
-        //     dirichlet_data[j+0*grid.nPointsY()] = uFunction(x, y);
+        //     dirichlet_data[j+0*grid.ny()] = uFunction(x, y);
         // }
 
         // // East boundary
-        // for (int j = 0; j < grid.nPointsY(); j++) {
+        // for (int j = 0; j < grid.ny(); j++) {
         //     double x = grid.xUpper();
         //     double y = grid(1, j);
-        //     dirichlet_data[j+grid.nPointsY()] = uFunction(x, y);
+        //     dirichlet_data[j+grid.ny()] = uFunction(x, y);
         // }
 
         // // South boundary
-        // for (int i = 0; i < grid.nPointsX(); i++) {
+        // for (int i = 0; i < grid.nx(); i++) {
         //     double x = grid(0, i);
         //     double y = grid.yLower();
-        //     dirichlet_data[i+2*grid.nPointsY()] = uFunction(x, y);
+        //     dirichlet_data[i+2*grid.ny()] = uFunction(x, y);
         // }
 
         // // North boundary
-        // for (int i = 0; i < grid.nPointsX(); i++) {
+        // for (int i = 0; i < grid.nx(); i++) {
         //     double x = grid(0, i);
         //     double y = grid.yUpper();
-        //     dirichlet_data[i+2*grid.nPointsY()+grid.nPointsX()] = uFunction(x, y);
+        //     dirichlet_data[i+2*grid.ny()+grid.nx()] = uFunction(x, y);
         // }
 
         // // Set boundary data on root patch
@@ -846,7 +846,7 @@ public:
             auto& patch = *patchPointers[i];
             for (auto n = 0; n < tags[i]; n++) {
                 auto& grid = patch.grid();
-                int nGrid = grid.nPointsX();
+                int nGrid = grid.nx();
                 int coarsenFactor = tags[i] - (tags[i] - n);
                 int nFine = nGrid / pow(2, coarsenFactor);
                 int nCoarse = nFine / 2; // coarsenFactor needs to be 1, then 2, then 3, ... for all values of tags[i]
@@ -874,9 +874,9 @@ public:
             for (auto i = 0; i < 4; i++) {
                 if (tags[i] > 0) {
                     PatchGridType& fineGrid = patchPointers[i]->grid();
-                    PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
-                    int nFine = fineGrid.nPointsX();
-                    int nCoarse = coarseGrid.nPointsX();
+                    PatchGridType coarseGrid(fineGrid.nx()/2, fineGrid.ny()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
+                    int nFine = fineGrid.nx();
+                    int nCoarse = coarseGrid.nx();
             
                     InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
                     std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
@@ -906,10 +906,10 @@ public:
     void createIndexSets_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check that all children patches are the same size (should be handled from the coarsening step if not)
-        // int nAlpha = alpha.grid().nPointsX();
-        // int nBeta = beta.grid().nPointsX();
-        // int nGamma = gamma.grid().nPointsX();
-        // int nOmega = omega.grid().nPointsX();
+        // int nAlpha = alpha.grid().nx();
+        // int nBeta = beta.grid().nx();
+        // int nGamma = gamma.grid().nx();
+        // int nOmega = omega.grid().nx();
         int nAlpha = alpha.size();
         int nBeta = beta.size();
         int nGamma = gamma.size();
@@ -919,7 +919,7 @@ public:
             throw std::invalid_argument("[EllipticForest::FISHPACK::FISHPACKHPSMethod::createIndexSets_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
-        // int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nx();
         // int nSide = alpha.size();
         int nSide = alpha.matrixT().nRows() / 4;
 
@@ -1094,7 +1094,7 @@ private:
     void reorderOperators_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Form permutation vector and block sizes
-        // int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nx();
         // int nSide = alpha.size();
         int nSide = alpha.matrixT().nRows() / 4;
         Vector<int> pi_noChange = {0, 1, 2, 3};
@@ -1111,7 +1111,7 @@ private:
 
     void mergePatch_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        // PatchGridType mergedGrid(alpha.grid().nPointsX() + beta.grid().nPointsX(), alpha.grid().nPointsY() + gamma.grid().nPointsY(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
+        // PatchGridType mergedGrid(alpha.grid().nx() + beta.grid().nx(), alpha.grid().ny() + gamma.grid().ny(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
         PatchGridType mergedGrid(alpha.size() + beta.size(), alpha.size() + gamma.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
         tau.grid() = mergedGrid;
         // tau.level = alpha.level - 1;
@@ -1131,7 +1131,7 @@ private:
             auto& patch = *patchPointers[i];
             for (auto n = 0; n < patch.nCoarsens; n++) {
                 auto& grid = patch.grid();
-                int nGrid = grid.nPointsX();
+                int nGrid = grid.nx();
                 int nFine = nGrid / pow(2, n);
                 int nCoarse = nFine / 2;
 
@@ -1148,9 +1148,9 @@ private:
         for (auto i = 0; i < 4; i++) {
             for (auto n = 0; n < patchPointers[i]->nCoarsens; n++) {
                 PatchGridType& fineGrid = patchPointers[i]->grid();
-                PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
-                int nFine = fineGrid.nPointsX();
-                int nCoarse = coarseGrid.nPointsX();
+                PatchGridType coarseGrid(fineGrid.nx()/2, fineGrid.ny()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
+                int nFine = fineGrid.nx();
+                int nCoarse = coarseGrid.nx();
 
                 InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
                 std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
@@ -1216,10 +1216,10 @@ private:
 
     void reorderOperatorsUpwards_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        // int nAlpha = alpha.grid().nPointsX();
-        // int nBeta = beta.grid().nPointsX();
-        // int nGamma = gamma.grid().nPointsX();
-        // int nOmega = omega.grid().nPointsX();
+        // int nAlpha = alpha.grid().nx();
+        // int nBeta = beta.grid().nx();
+        // int nGamma = gamma.grid().nx();
+        // int nOmega = omega.grid().nx();
         int nAlpha = alpha.size();
         int nBeta = beta.size();
         int nGamma = gamma.size();
@@ -1230,7 +1230,7 @@ private:
         }
 
         // Form permutation vector and block sizes
-        // int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nx();
         // int nSide = alpha.size();
         int nSide = alpha.matrixT().nRows() / 4;
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
@@ -1250,11 +1250,11 @@ private:
         Vector<NumericalType>& h = rootPatch.vectorH();
         std::vector<Vector<NumericalType>> dirichletData;
         std::vector<Vector<NumericalType>> neumannData;
-        // Vector<NumericalType> gWest(grid.nPointsY());
-        // Vector<NumericalType> gEast(grid.nPointsY());
-        // Vector<NumericalType> gSouth(grid.nPointsX());
-        // Vector<NumericalType> gNorth(grid.nPointsX());
-        int M = grid.nPointsX();
+        // Vector<NumericalType> gWest(grid.ny());
+        // Vector<NumericalType> gEast(grid.ny());
+        // Vector<NumericalType> gSouth(grid.nx());
+        // Vector<NumericalType> gNorth(grid.nx());
+        int M = grid.nx();
         // Vector<int> I_W = vectorRange(0*M, 1*M - 1);
         // Vector<int> I_E = vectorRange(1*M, 2*M - 1);
         // Vector<int> I_S = vectorRange(2*M, 3*M - 1);
@@ -1340,10 +1340,10 @@ private:
         for (auto n = 0; n < 4; n++) {
             rootPatch.vectorG().setSegment(n*M, dirichletData[n]);
         }
-        // rootPatch.vectorG().setSegment(0*grid.nPointsX(), dirichletData[0]);
-        // rootPatch.vectorG().setSegment(1*grid.nPointsX(), dirichletData[1]);
-        // rootPatch.vectorG().setSegment(2*grid.nPointsX(), dirichletData[2]);
-        // rootPatch.vectorG().setSegment(3*grid.nPointsX(), dirichletData[3]);
+        // rootPatch.vectorG().setSegment(0*grid.nx(), dirichletData[0]);
+        // rootPatch.vectorG().setSegment(1*grid.nx(), dirichletData[1]);
+        // rootPatch.vectorG().setSegment(2*grid.nx(), dirichletData[2]);
+        // rootPatch.vectorG().setSegment(3*grid.nx(), dirichletData[3]);
 
     }
 
@@ -1356,7 +1356,7 @@ private:
         // FIX START
         for (auto n = 0; n < tau.nCoarsens; n++) {
             auto& grid = tau.grid();
-            int nGrid = grid.nPointsX();
+            int nGrid = grid.nx();
             int coarsenFactor = tau.nCoarsens - (n + 1);
             int nFine = nGrid / pow(2, coarsenFactor);
             int nCoarse = nFine / 2;
@@ -1371,12 +1371,12 @@ private:
 #if 0
         for (auto n = 0; n < tau.nCoarsens; n++) {
             // PatchGridType coarseGrid = tau.grid();
-            // PatchGridType fineGrid(coarseGrid.nPointsX()*2, coarseGrid.nPointsY()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
+            // PatchGridType fineGrid(coarseGrid.nx()*2, coarseGrid.ny()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
             PatchGridType& fineGrid = tau.grid();
-            PatchGridType coarseGrid(fineGrid.nPointsX()/2, fineGrid.nPointsY()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
+            PatchGridType coarseGrid(fineGrid.nx()/2, fineGrid.ny()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
 
-            int nFine = fineGrid.nPointsX();
-            int nCoarse = coarseGrid.nPointsX();
+            int nFine = fineGrid.nx();
+            int nCoarse = coarseGrid.nx();
 
             InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
             std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
@@ -1403,7 +1403,7 @@ private:
         }
 
         // Extract components of interior of tau
-        // int nSide = alpha.grid().nPointsX();
+        // int nSide = alpha.grid().nx();
         int nSide = alpha.size();
         Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nSide, nSide);
         Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nSide, nSide);
@@ -1416,26 +1416,26 @@ private:
         // auto& grid_beta = beta.grid();
         // auto& grid_gamma = gamma.grid();
         // auto& grid_omega = omega.grid();
-        // Vector<double> g_alpha_gamma_exact(grid_alpha.nPointsX());
-        // Vector<double> g_beta_omega_exact(grid_alpha.nPointsX());
-        // Vector<double> g_alpha_beta_exact(grid_alpha.nPointsY());
-        // Vector<double> g_gamma_omega_exact(grid_alpha.nPointsY());
-        // for (int i = 0; i < grid_alpha.nPointsX(); i++) {
+        // Vector<double> g_alpha_gamma_exact(grid_alpha.nx());
+        // Vector<double> g_beta_omega_exact(grid_alpha.nx());
+        // Vector<double> g_alpha_beta_exact(grid_alpha.ny());
+        // Vector<double> g_gamma_omega_exact(grid_alpha.ny());
+        // for (int i = 0; i < grid_alpha.nx(); i++) {
         //     double x = grid_alpha(0, i);
         //     double y = grid_alpha.yUpper();
         //     g_alpha_gamma_exact[i] = uFunction(x, y);
         // }
-        // for (int i = 0; i < grid_alpha.nPointsX(); i++) {
+        // for (int i = 0; i < grid_alpha.nx(); i++) {
         //     double x = grid_beta(0, i);
         //     double y = grid_beta.yUpper();
         //     g_beta_omega_exact[i] = uFunction(x, y);
         // }
-        // for (int j = 0; j < grid_alpha.nPointsY(); j++) {
+        // for (int j = 0; j < grid_alpha.ny(); j++) {
         //     double x = grid_alpha.xUpper();
         //     double y = grid_alpha(1, j);
         //     g_alpha_beta_exact[j] = uFunction(x, y);
         // }
-        // for (int j = 0; j < grid_alpha.nPointsY(); j++) {
+        // for (int j = 0; j < grid_alpha.ny(); j++) {
         //     double x = grid_gamma.xUpper();
         //     double y = grid_gamma(1, j);
         //     g_gamma_omega_exact[j] = uFunction(x, y);

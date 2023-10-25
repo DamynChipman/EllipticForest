@@ -354,11 +354,11 @@ ResultsData solveEllipticViaHPS() {
         if (node->leaf) {
             auto& patch = node->data;
             auto& grid = patch.grid();
-            for (auto i = 0; i < grid.nPointsX(); i++) {
+            for (auto i = 0; i < grid.nx(); i++) {
                 double x = grid(XDIM, i);
-                for (auto j = 0; j < grid.nPointsY(); j++) {
+                for (auto j = 0; j < grid.ny(); j++) {
                     double y = grid(YDIM, j);
-                    int index = j + i*grid.nPointsY();
+                    int index = j + i*grid.ny();
                     double diff = patch.vectorU()[index] - uFunction(x, y);
                     l1_error += (grid.dx()*grid.dy())*fabs(diff);
                     l2_error += (grid.dx()*grid.dy())*pow(fabs(diff), 2);
