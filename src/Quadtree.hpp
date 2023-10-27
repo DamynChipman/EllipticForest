@@ -83,7 +83,7 @@ public:
 
 				// Compute unique path
 				std::string path = p4est::p4est_quadrant_path(quadrant);
-				app.log("In quadrant: %s", path.c_str());
+				// app.log("In quadrant: %s", path.c_str());
 				// node_set.insert(path);
 
 				// Check if quadrant is owned by this rank

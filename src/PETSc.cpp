@@ -259,9 +259,9 @@ Vector<double> PetscPatchSolver::solve(PetscGrid& grid, Vector<double>& dirichle
     KSP ksp;
     PC pc;
     KSPCreate(MPI_COMM_SELF, &ksp);
-    // KSPSetType(ksp, KSPPREONLY);
-    // KSPGetPC(ksp, &pc);
-    // PCSetType(pc, PCLU);
+    KSPSetType(ksp, KSPPREONLY);
+    KSPGetPC(ksp, &pc);
+    PCSetType(pc, PCLU);
     KSPSetOperators(ksp, A, A);
     KSPSolve(ksp, f, x);
 

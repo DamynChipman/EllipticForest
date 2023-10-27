@@ -918,7 +918,6 @@ public:
         return VecAssemblyEnd(vec);
     }
 
-
 };
  
 } // NAMESPACE : EllipticForest
