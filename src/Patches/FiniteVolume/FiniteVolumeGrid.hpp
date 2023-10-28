@@ -37,6 +37,12 @@ public:
 
     FiniteVolumeGrid(MPI::Communicator comm, int nx, double x_lower, double x_upper, int ny, double y_lower, double y_upper);
 
+    // Copy constructor
+    // FiniteVolumeGrid(const FiniteVolumeGrid& copy_grid);
+
+    // Move constructor
+    // FiniteVolumeGrid(FiniteVolumeGrid&& move_grid);
+
     ~FiniteVolumeGrid();
 
     Petsc::ErrorCode create();
@@ -57,6 +63,13 @@ public:
     double operator()(std::size_t DIM, std::size_t index);
 
 };
+
+namespace MPI {
+
+template<>
+int broadcast(FiniteVolumeGrid& grid, int root, MPI::Communicator comm);
+
+} // NAMESPACE : MPI
 
 } // NAMESPACE : EllipticForest
 

@@ -1112,7 +1112,7 @@ private:
     void mergePatch_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // PatchGridType mergedGrid(alpha.grid().nx() + beta.grid().nx(), alpha.grid().ny() + gamma.grid().ny(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
-        PatchGridType mergedGrid(alpha.size() + beta.size(), alpha.size() + gamma.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
+        PatchGridType mergedGrid(MPI_COMM_SELF, alpha.size() + beta.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.size() + gamma.size(), alpha.grid().yLower(), gamma.grid().yUpper());
         tau.grid() = mergedGrid;
         // tau.level = alpha.level - 1;
         // tau.isLeaf = false;

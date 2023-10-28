@@ -29,6 +29,7 @@
 #include <string>
 
 #include <EllipticForest.hpp>
+#include <Patches/FiniteVolume/FiniteVolume.hpp>
 
 /**
  * @brief User-defined solution function
@@ -153,14 +154,14 @@ int main(int argc, char** argv) {
     // ====================================================
     // Create grid and patch prototypes
     // ====================================================
-    EllipticForest::Petsc::PetscGrid grid(nx, ny, x_lower, x_upper, y_lower, y_upper);
-    EllipticForest::Petsc::PetscPatch root_patch(grid);
+    EllipticForest::FiniteVolumeGrid grid(MPI_COMM_SELF, nx, x_lower, x_upper, ny, y_lower, y_upper);
+    EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_SELF, grid);
 
     // ====================================================
     // Create node factory and mesh
     // ====================================================
-    EllipticForest::Petsc::PetscPatchNodeFactory node_factory{};
-    EllipticForest::Mesh<EllipticForest::Petsc::PetscPatch> mesh{};
+    EllipticForest::FiniteVolumeNodeFactory node_factory{};
+    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
     mesh.refineByFunction(
         [&](double x, double y){
             double f = fFunction(x, y);
@@ -176,19 +177,20 @@ int main(int argc, char** argv) {
     // ====================================================
     // Create patch solver
     // ====================================================
-    EllipticForest::Petsc::PetscPatchSolver solver{};
-    solver.setAlphaFunction(alphaFunction);
-    solver.setBetaFunction(betaFunction);
-    solver.setLambdaFunction(lambdaFunction);
+    EllipticForest::FiniteVolumeSolver solver{};
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.alpha_function = alphaFunction;
+    solver.beta_function = betaFunction;
+    solver.lambda_function = lambdaFunction;
 
     // ====================================================
     // Create and run HPS solver
     // ====================================================
     // 1. Create the HPSAlgorithm instance
     EllipticForest::HPSAlgorithm
-        <EllipticForest::Petsc::PetscGrid,
-         EllipticForest::Petsc::PetscPatchSolver,
-         EllipticForest::Petsc::PetscPatch,
+        <EllipticForest::FiniteVolumeGrid,
+         EllipticForest::FiniteVolumeSolver,
+         EllipticForest::FiniteVolumePatch,
          double>
             HPS(MPI_COMM_WORLD, mesh, solver);
 
@@ -226,7 +228,7 @@ int main(int argc, char** argv) {
         EllipticForest::Vector<double> fMesh{};
         fMesh.name() = "f_rhs";
         
-        mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+        mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
             if (node->leaf) {
                 auto& patch = node->data;
                 auto& grid = patch.grid();
@@ -242,19 +244,19 @@ int main(int argc, char** argv) {
         mesh.addMeshFunction(fMesh);
         mesh.addMeshFunction(
             [&](double x, double y){
-                return solver.alphaFunction(x, y);
+                return solver.alpha_function(x, y);
             },
             "alpha_fn"
         );
         mesh.addMeshFunction(
             [&](double x, double y){
-                return solver.betaFunction(x, y);
+                return solver.beta_function(x, y);
             },
             "beta_fn"
         );
         mesh.addMeshFunction(
             [&](double x, double y){
-                return solver.lambdaFunction(x, y);
+                return solver.lambda_function(x, y);
             },
             "lambda_fn"
         );

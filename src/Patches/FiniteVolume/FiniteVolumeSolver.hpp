@@ -12,7 +12,7 @@ using Analytical2DFunction = std::function<double(double, double)>;
 
 enum FiniteVolumeSolverType {
     FivePointStencil,
-    FISHPACK
+    FISHPACK90
 };
 
 extern "C" {

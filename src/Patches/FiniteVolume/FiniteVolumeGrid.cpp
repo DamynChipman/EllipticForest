@@ -24,6 +24,32 @@ FiniteVolumeGrid::FiniteVolumeGrid(MPI::Communicator comm, int nx, double x_lowe
 
 }
 
+// FiniteVolumeGrid::FiniteVolumeGrid(const FiniteVolumeGrid& copy_grid) :
+//     MPIObject(copy_grid.getComm()),
+//     nx_(copy_grid.nx()),
+//     x_lower_(copy_grid.xLower()),
+//     x_upper_(copy_grid.xUpper()),
+//     dx_((copy_grid.xUpper() - copy_grid.xLower())/copy_grid.nx()),
+//     ny_(copy_grid.ny()),
+//     y_lower_(copy_grid.y_lower()),
+//     y_upper_(copy_grid.y_upper()),
+//     dy_((copy_grid.yUpper() - copy_grid.yLower())/copy_grid.ny()),
+//     dm(copy_grid.dm)
+//         {}
+    
+// FiniteVolumeGrid::FiniteVolumeGrid(FiniteVolumeGrid&& move_grid) :
+//     MPIObject(copy_grid.getComm()),
+//     nx_(copy_grid.nx()),
+//     x_lower_(copy_grid.xLower()),
+//     x_upper_(copy_grid.xUpper()),
+//     dx_((copy_grid.xUpper() - copy_grid.xLower())/copy_grid.nx()),
+//     ny_(copy_grid.ny()),
+//     y_lower_(copy_grid.y_lower()),
+//     y_upper_(copy_grid.y_upper()),
+//     dy_((copy_grid.yUpper() - copy_grid.yLower())/copy_grid.ny()),
+//     dm(copy_grid.dm)
+//         {}
+
 FiniteVolumeGrid::~FiniteVolumeGrid() {
     if (is_created_) {
         DMDestroy(&dm);
@@ -100,5 +126,28 @@ double FiniteVolumeGrid::dy() {
 double FiniteVolumeGrid::operator()(std::size_t DIM, std::size_t index) {
     return point((DimensionIndex) DIM, index);
 }
+
+namespace MPI {
+
+template<>
+int broadcast(FiniteVolumeGrid& grid, int root, MPI::Communicator comm) {
+    int nx = grid.nx();
+    int ny = grid.ny();
+    double xLower = grid.xLower();
+    double xUpper = grid.xUpper();
+    double yLower = grid.yLower();
+    double yUpper = grid.yUpper();
+    broadcast(nx, root, comm);
+    broadcast(ny, root, comm);
+    broadcast(xLower, root, comm);
+    broadcast(xUpper, root, comm);
+    broadcast(yLower, root, comm);
+    broadcast(yUpper, root, comm);
+    int rank; MPI_Comm_rank(comm, &rank);
+    if (rank!= root) grid = FiniteVolumeGrid(comm, nx, xLower, xUpper, ny, yLower, yUpper);
+    return 1;
+}
+
+} // NAMESPACE : MPI
 
 } // NAMESPACE : EllipticForest

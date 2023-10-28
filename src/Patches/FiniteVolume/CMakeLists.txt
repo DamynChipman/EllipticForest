@@ -1,4 +1,6 @@
 target_sources(EllipticForest PUBLIC
-    FiniteVolumeGrip.cpp
+    FiniteVolumeGrid.cpp
     FiniteVolumeSolver.cpp
+    FiniteVolumePatch.cpp
+    FiniteVolumeNodeFactory.cpp
 )

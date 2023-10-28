@@ -220,7 +220,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
 
         return x_vector;
     }
-    else if (solver_type == FiniteVolumeSolverType::FISHPACK) {
+    else if (solver_type == FiniteVolumeSolverType::FISHPACK90) {
         
         // Unpack Dirichlet Data
         int nSide = grid.nx();

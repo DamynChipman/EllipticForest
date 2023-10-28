@@ -52,19 +52,19 @@ protected:
      * @brief MPI communicator of object
      * 
      */
-    Communicator comm;
+    Communicator comm_;
 
     /**
      * @brief MPI rank
      * 
      */
-    int rank;
+    int rank_;
 
     /**
      * @brief MPI size
      * 
      */
-    int size;
+    int size_;
 
 public:
 
@@ -73,10 +73,10 @@ public:
      * 
      */
     MPIObject() :
-        comm(MPI_COMM_WORLD) {
+        comm_(MPI_COMM_WORLD) {
 
-        MPI_Comm_size(comm, &size);
-        MPI_Comm_rank(comm, &rank);
+        MPI_Comm_size(comm_, &size_);
+        MPI_Comm_rank(comm_, &rank_);
 
     }
 
@@ -86,10 +86,10 @@ public:
      * @param comm MPI communicator
      */
     MPIObject(Communicator comm) :
-        comm(comm) {
+        comm_(comm) {
 
-        MPI_Comm_size(comm, &size);
-        MPI_Comm_rank(comm, &rank);
+        MPI_Comm_size(comm_, &size_);
+        MPI_Comm_rank(comm_, &rank_);
 
     }
 
@@ -98,21 +98,21 @@ public:
      * 
      * @return const Communicator 
      */
-    virtual const Communicator getComm() const { return comm; }
+    virtual const Communicator getComm() const { return comm_; }
 
     /**
      * @brief Returns the MPI rank
      * 
      * @return const int 
      */
-    virtual const int getRank() const { return rank; }
+    virtual const int getRank() const { return rank_; }
 
     /**
      * @brief Returns the MPI size of the communicator
      * 
      * @return const int 
      */
-    virtual const int getSize() const { return size; }
+    virtual const int getSize() const { return size_; }
 
 };
 
