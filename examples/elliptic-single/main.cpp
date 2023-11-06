@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
     int min_level = 2;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 6;
+    int max_level = 5;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
@@ -154,13 +154,13 @@ int main(int argc, char** argv) {
     // ====================================================
     // Create grid and patch prototypes
     // ====================================================
-    EllipticForest::FiniteVolumeGrid grid(MPI_COMM_SELF, nx, x_lower, x_upper, ny, y_lower, y_upper);
-    EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_SELF, grid);
+    EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
+    EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
 
     // ====================================================
     // Create node factory and mesh
     // ====================================================
-    EllipticForest::FiniteVolumeNodeFactory node_factory{};
+    EllipticForest::FiniteVolumeNodeFactory node_factory(MPI_COMM_WORLD);
     EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
     mesh.refineByFunction(
         [&](double x, double y){

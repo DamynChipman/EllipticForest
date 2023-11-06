@@ -44,6 +44,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         double dy = grid.dy();
 
         // Get Petsc data
+        // ParallelMatrix<double> A(MPI_COMM_SELF, N, N, N, N, MATDENSE);
         Mat A;
         MatCreate(MPI_COMM_SELF, &A);
         MatSetSizes(A, N, N, N, N);
@@ -196,14 +197,21 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         VecAssemblyEnd(f);
 
         // Solve the linear system
-        KSP ksp;
-        PC pc;
-        KSPCreate(MPI_COMM_SELF, &ksp);
-        // KSPSetType(ksp, KSPPREONLY);
-        // KSPGetPC(ksp, &pc);
-        // PCSetType(pc, PCLU);
-        KSPSetOperators(ksp, A, A);
-        KSPSolve(ksp, f, x);
+        // KSP ksp;
+        // PC pc;
+        // KSPCreate(MPI_COMM_SELF, &ksp);
+        // // KSPSetType(ksp, KSPPREONLY);
+        // // KSPGetPC(ksp, &pc);
+        // // PCSetType(pc, PCLU);
+        // KSPSetOperators(ksp, A, A);
+        // KSPSolve(ksp, f, x);
+        MatFactorInfo mat_factor_info;
+        MatFactorInfoInitialize(&mat_factor_info);
+        IS row_perm, col_perm;
+        ISCreateStride(MPI_COMM_SELF, N, 0, 1, &row_perm);
+        ISCreateStride(MPI_COMM_SELF, N, 0, 1, &col_perm);
+        MatLUFactor(A, row_perm, col_perm, &mat_factor_info);
+        MatSolve(A, f, x);
 
         // Create EllipticForest vector
         double* x_data;
@@ -216,7 +224,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         MatDestroy(&A);
         VecDestroy(&x);
         VecDestroy(&f);
-        KSPDestroy(&ksp);
+        // KSPDestroy(&ksp);
 
         return x_vector;
     }

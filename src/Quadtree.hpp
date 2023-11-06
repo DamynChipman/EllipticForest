@@ -83,7 +83,6 @@ public:
 
 				// Compute unique path
 				std::string path = p4est::p4est_quadrant_path(quadrant);
-				// app.log("In quadrant: %s", path.c_str());
 				// node_set.insert(path);
 
 				// Check if quadrant is owned by this rank
@@ -91,6 +90,7 @@ public:
 
 				// If owned, create Node in map
 				if (owned) {
+					// app.log("In quadrant: %s", path.c_str());
 					// Create node and metadata
 					Node<T>* node = new Node<T>;
 					// Node<T> node;
@@ -393,8 +393,14 @@ public:
 					// Get node group and communicator
 					MPI_Group nodeGroup;
 					MPI_Comm nodeComm;
+					// nodeComm = node->node_comm;
 					node->getMPIGroupComm(&nodeGroup, &nodeComm);
 					int nodeRank; MPI_Comm_rank(nodeComm, &nodeRank);
+					// int comm_name_size = 0;
+					// char comm_name_buffer[256];
+					// MPI_Comm_get_name(nodeComm, comm_name_buffer, &comm_name_size);
+					// std::string comm_name(comm_name_buffer, comm_name_size);
+					// app.log("comm name = " + comm_name);
 
 					// Iterate through children
 					for (int i = 0; i < 4; i++) {
@@ -408,11 +414,15 @@ public:
 						MPI_Allreduce(&maybeRoot, &pnode, 1, MPI_INT, MPI_MAX, nodeComm);
 
 						// Allocate memory on my rank to store incoming node data
+						// app.log("HERE 1");
 						if (child == nullptr) {
+							// child = quadtree.nodeFactory->createChildNode(node, i, node->pfirst, node->plast);
 							child = new Node<T>(node->getComm());
 						}
+						// app.log("HERE 2");
 
 						// Broadcast node
+						
 						// app.log("Broadcasting child node %i, root = %i", i, pnode);
 						MPI::broadcast(*child, pnode, nodeComm);
 						

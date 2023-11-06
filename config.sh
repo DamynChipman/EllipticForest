@@ -24,7 +24,7 @@ PYTHON_VERSION=python3.9
 
 # For pre-installed PETSc:
 # PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
-PETSC_PATH=${HOME}/packages/petsc/petsc-build-scalapack
+PETSC_PATH=${HOME}/packages/petsc/petsc-build-mumps
 
 # FORESTCLAW_PATH : Path to ForestClaw install (i.e., ${FORESTCLAW_PATH}/include, ${FORESTCLAW}/lib, ...)
 FORESTCLAW_PATH=${HOME}/packages/forestclaw/forestclaw-build/local

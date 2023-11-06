@@ -29,8 +29,8 @@ class FiniteVolumeSolver : public MPI::MPIObject {
 
 public:
 
-    Petsc::KSP ksp;
-    Petsc::PC pc;
+    // Petsc::KSP ksp;
+    // Petsc::PC pc;
 
     FiniteVolumeSolverType solver_type = FiniteVolumeSolverType::FivePointStencil;
 

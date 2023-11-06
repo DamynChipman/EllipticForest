@@ -174,9 +174,9 @@ void TEST_petsc_mat_mat_solve() {
     int N = PROBLEM_SIZE;
 
     // Create parallel matrix
-    ParallelMatrix<double> A(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, M, N, MATSCALAPACK);
-    ParallelMatrix<double> B(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, M, N, MATSCALAPACK);
-    ParallelMatrix<double> X(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, M, N, MATSCALAPACK);
+    ParallelMatrix<double> A(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, M, N);
+    ParallelMatrix<double> B(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, M, N);
+    ParallelMatrix<double> X(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, M, N);
 
     // Get ownership range
     int i_local_first, i_local_last;

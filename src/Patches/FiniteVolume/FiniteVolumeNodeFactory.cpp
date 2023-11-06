@@ -14,6 +14,8 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createNode(FiniteVolumePatch d
 
 Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVolumePatch>* parentNode, int siblingID, int pfirst, int plast) {
     
+    // auto& app = EllipticForest::EllipticForestApp::getInstance();
+    // app.log("In creatChildNode: parent_node = %s", parentNode->path.c_str());
     // Get parent grid info
     auto& parentGrid = parentNode->data.grid();
     int nx = parentGrid.nx();
@@ -26,40 +28,36 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     double yMid = (yLower + yUpper) / 2.0;
 
     // Create grid communicator
-    // MPI_Group gridGroup, parentGroup;
-    // MPI_Comm gridComm;
-    
+    // app.log("Creating sub-communicator...");
+    // MPI::Communicator child_comm;
+    // MPI::communicatorSubsetRange(parentNode->getComm(), pfirst, plast, 0, child_comm);
+    // app.log("Done.");
 
     // Create child grid
-    FiniteVolumeGrid childGrid;
+    FiniteVolumeGrid child_grid;
     switch (siblingID) {
         case 0:
             // Lower left
-            childGrid = FiniteVolumeGrid(this->getComm(), nx, xLower, xMid, ny, yLower, yMid);
+            child_grid = FiniteVolumeGrid(parentNode->data.getComm(), nx, xLower, xMid, ny, yLower, yMid);
             break;
         case 1:
             // Lower right
-            childGrid = FiniteVolumeGrid(this->getComm(), nx, xMid, xUpper, ny, yLower, yMid);
+            child_grid = FiniteVolumeGrid(parentNode->data.getComm(), nx, xMid, xUpper, ny, yLower, yMid);
             break;
         case 2:
             // Upper left
-            childGrid = FiniteVolumeGrid(this->getComm(), nx, xLower, xMid, ny, yMid, yUpper);
+            child_grid = FiniteVolumeGrid(parentNode->data.getComm(), nx, xLower, xMid, ny, yMid, yUpper);
             break;
         case 3:
             // Upper right
-            childGrid = FiniteVolumeGrid(this->getComm(), nx, xMid, xUpper, ny, yMid, yUpper);
+            child_grid = FiniteVolumeGrid(parentNode->data.getComm(), nx, xMid, xUpper, ny, yMid, yUpper);
             break;
         default:
             break;
     }
 
-    // Create communicator for child patch
-    // MPI::Group child_group;
-    // MPI::Communicator child_comm;
-    // parentNode->getMPIGroupComm(&child_group, &child_comm);
-
     // Create child patch
-    FiniteVolumePatch childPatch(this->getComm(), childGrid);
+    FiniteVolumePatch childPatch(parentNode->data.getComm(), child_grid);
 
     // Create child node
     std::string path = parentNode->path + std::to_string(siblingID);

@@ -16,6 +16,10 @@ FiniteVolumePatch::FiniteVolumePatch(MPI::Communicator comm, FiniteVolumeGrid gr
     grid_(grid)
         {}
 
+FiniteVolumePatch::~FiniteVolumePatch() {
+    // printf("[RANK %i/%i] Calling FiniteVolumePatch destructor.\n", this->getRank(), this->getSize());
+}
+
 std::string FiniteVolumePatch::name() {
     return "FiniteVolumePatch";
 }
@@ -87,17 +91,30 @@ namespace MPI {
 
 template<>
 int broadcast(FiniteVolumePatch& patch, int root, MPI::Communicator comm) {
+    EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
+    // app.log("Broadcasting 0...");
     broadcast(patch.nCoarsens, root, comm);
+    // app.log("Broadcasting 1...");
     broadcast(patch.grid(), root, comm);
+    // app.log("Broadcasting 2...");
     broadcast(patch.matrixX(), root, comm);
+    // app.log("Broadcasting 3...");
     broadcast(patch.matrixH(), root, comm);
+    // app.log("Broadcasting 4...");
     broadcast(patch.matrixS(), root, comm);
+    // app.log("Broadcasting 5...");
     broadcast(patch.matrixT(), root, comm);
+    // app.log("Broadcasting 6...");
     broadcast(patch.vectorU(), root, comm);
+    // app.log("Broadcasting 7...");
     broadcast(patch.vectorG(), root, comm);
+    // app.log("Broadcasting 8...");
     broadcast(patch.vectorV(), root, comm);
+    // app.log("Broadcasting 9...");
     broadcast(patch.vectorF(), root, comm);
+    // app.log("Broadcasting 10...");
     broadcast(patch.vectorH(), root, comm);
+    // app.log("Broadcasting 11...");
     broadcast(patch.vectorW(), root, comm);
     return 1;
 }

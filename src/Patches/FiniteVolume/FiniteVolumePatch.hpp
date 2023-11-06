@@ -4,6 +4,7 @@
 #include "FiniteVolumeGrid.hpp"
 #include "FiniteVolumeSolver.hpp"
 #include "../../Patch.hpp"
+#include "../../EllipticForest.hpp"
 
 namespace EllipticForest {
 
@@ -22,6 +23,7 @@ public:
     FiniteVolumePatch();
     FiniteVolumePatch(MPI::Communicator comm);
     FiniteVolumePatch(MPI::Communicator comm, FiniteVolumeGrid grid);
+    ~FiniteVolumePatch();
 
     virtual std::string name();
     virtual FiniteVolumeGrid& grid();

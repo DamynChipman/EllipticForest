@@ -31,6 +31,10 @@ public:
      */
     p4est_t* p4est = nullptr;
 
+    /**
+     * @brief Reference to the mesh
+     * 
+     */
     Mesh<PatchType>& mesh;
 
     /**

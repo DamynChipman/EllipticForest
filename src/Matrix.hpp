@@ -807,7 +807,9 @@ public:
     }
 
     ~ParallelMatrix() {
+        // printf("[RANK %i/%i] Calling ParallelMatrix destructor.\n", this->getRank(), this->getSize());
         if (is_created) {
+            // printf("[RANK %i/%i] Destroying Mat...\n", this->getRank(), this->getSize());
             MatDestroy(&mat);
         }
 

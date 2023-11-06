@@ -6,6 +6,7 @@
 #include <petsc.h>
 #include <petscdmda.h>
 
+#include "../../EllipticForestApp.hpp"
 #include "../../MPI.hpp"
 #include "../../PatchGrid.hpp"
 
@@ -27,21 +28,24 @@ protected:
 
     int nx_ = 0, ny_ = 0;
     double x_lower_ = 0, x_upper_ = 0, y_lower_ = 0, y_upper_ = 0, dx_ = 0, dy_ = 0;
-    bool is_created_ = false;
 
 public:
 
-    Petsc::DataManagement dm;
+    Petsc::DataManagement dm = PETSC_NULLPTR;
     
     FiniteVolumeGrid();
 
     FiniteVolumeGrid(MPI::Communicator comm, int nx, double x_lower, double x_upper, int ny, double y_lower, double y_upper);
 
-    // Copy constructor
-    // FiniteVolumeGrid(const FiniteVolumeGrid& copy_grid);
+    // // Copy constructor
+    // FiniteVolumeGrid(FiniteVolumeGrid& copy_grid);
 
-    // Move constructor
+    // // Move constructor
     // FiniteVolumeGrid(FiniteVolumeGrid&& move_grid);
+
+    // FiniteVolumeGrid& operator=(FiniteVolumeGrid& other);
+
+    // FiniteVolumeGrid& operator=(FiniteVolumeGrid&& other);
 
     ~FiniteVolumeGrid();
 

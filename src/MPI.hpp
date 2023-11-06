@@ -119,6 +119,17 @@ public:
 void communicatorUnion(std::vector<Communicator> comms);
 
 /**
+ * @brief Creates a sub communicator from a range of ranks on the super communicator
+ * 
+ * @param super_comm Existing super communicator
+ * @param r_first First rank on super communicator
+ * @param r_last Last rank on super communicator
+ * @param tag Message tag
+ * @param sub_comm [out] Reference to declared, but not created, sub communicator
+ */
+void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, int tag, Communicator* sub_comm);
+
+/**
  * @brief MPI type traits for primative, C++, and user defined objects
  * 
  * This struct provides an interface for templated MPI calls to get the corresponding data types,

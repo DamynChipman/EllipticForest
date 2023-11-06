@@ -23,6 +23,34 @@ namespace MPI {
 //     MPI_Comm_create_group()
 // }
 
+void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, int tag, Communicator* sub_comm) {
+
+    // Get group of super communicator
+    Group super_group;
+    MPI_Comm_group(super_comm, &super_group);
+
+    // Create new sub group from super group
+    Group sub_group;
+    int ranges[1][3] = {r_first, r_last, 1};
+    MPI_Group_range_incl(super_group, 1, ranges, &sub_group);
+
+    // Create sub communicator from sub group
+    MPI_Comm_create_group(super_comm, sub_group, tag, sub_comm);
+
+    // Set name of comm
+    int super_comm_name_size = 0;
+    char super_comm_name_buffer[255];
+    MPI_Comm_get_name(super_comm, super_comm_name_buffer, &super_comm_name_size);
+    std::string super_comm_name(super_comm_name_buffer, super_comm_name_size);
+    std::string sub_comm_name = super_comm_name + "_sub_range={" + std::to_string(r_first) + ":" + std::to_string(r_last) + "}";
+    MPI_Comm_set_name(*sub_comm, sub_comm_name.c_str());
+
+    // Free groups
+    MPI_Group_free(&super_group);
+    MPI_Group_free(&sub_group);
+
+}
+
 template<>
 int send<std::string>(std::string& str, int dest, int tag, MPI_Comm comm) {
     int size = str.length();

@@ -31,6 +31,7 @@ public:
 	int pfirst;
 	int plast;
     bool leaf = false;
+	MPI::Communicator node_comm;
 
 	Node() :
 		MPIObject(MPI_COMM_WORLD)
@@ -46,8 +47,12 @@ public:
         path(path),
         level(level),
         pfirst(pfirst),
-        plast(plast)
-            {}
+        plast(plast) {
+
+		// Create node communicator that is a subset of the tree communicator
+		MPI::communicatorSubsetRange(comm, pfirst, plast, 20+level, &node_comm);
+
+	}
 
 	bool isOwned() {
 		return pfirst <= this->getRank() && this->getRank() <= plast;
