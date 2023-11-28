@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 
+#include "EllipticForestApp.hpp"
 #include "Vector.hpp"
 
 extern "C" {
@@ -20,6 +21,7 @@ namespace Petsc {
     using Mat = Mat;
     using MatType = MatType;
     using MatAssemblyType = MatAssemblyType;
+    using MatReuse = MatReuse;
 } // NAMESPACE : Petsc
 
 template<typename NumericalType>
@@ -710,12 +712,11 @@ protected:
     int local_cols = 0;
     int global_rows = 0;
     int global_cols = 0;
-    NumericalType* raw_data = nullptr;
     bool is_created = false;
 
 public:
 
-    Petsc::Mat mat;
+    Petsc::Mat mat = NULL;
 
     ParallelMatrix() :
         MPIObject(MPI_COMM_WORLD)
@@ -724,6 +725,17 @@ public:
     ParallelMatrix(MPI::Communicator comm) :
         MPIObject(comm)
             {}
+
+    ParallelMatrix(MPI::Communicator comm, Petsc::Mat mat) :
+        MPIObject(comm) {
+
+        // Take control of mat
+        this->mat = mat;
+        MatGetLocalSize(mat, &local_rows, &local_cols);
+        MatGetSize(mat, &global_rows, &global_cols);
+        is_created = true;
+
+    }
 
     ParallelMatrix(MPI::Communicator comm, int local_rows, int local_cols, int global_rows, int global_cols) :
         MPIObject(comm),
@@ -795,15 +807,78 @@ public:
         global_rows(sub_matrix.global_rows),
         global_cols(sub_matrix.global_cols) {
 
-        //
-        IS index_set_row;
-        Vector<int> idx = vectorRange(0, sub_matrix.global_rows-1);
-        ISCreateGeneral(new_comm, sub_matrix.global_rows, idx.dataPointer(), PETSC_COPY_VALUES, &index_set_row);
+        // //
+        // IS index_set_row;
+        // Vector<int> idx = vectorRange(0, sub_matrix.global_rows-1);
+        // ISCreateGeneral(new_comm, sub_matrix.global_rows, idx.dataPointer(), PETSC_COPY_VALUES, &index_set_row);
 
-        // 
+        // // 
+        // is_created = true;
+        // MatCreateSubMatrix(sub_matrix.mat, index_set_row, NULL, MAT_INITIAL_MATRIX, &mat);
+        
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        Mat* submat;
+        IS irow[1], icol[1] = {NULL};
+        int rfirst, rlast;
+        bool first_time = true;
+        // app.log("HERE 1");
+        MatGetOwnershipRange(sub_matrix.mat, &rfirst, &rlast);
+        // app.log("HERE 2");
+        // app.log("sub_matrix comm = " + MPI::communicatorGetName(sub_matrix.getComm()));
+        ISCreateStride(sub_matrix.getComm(), rlast - rfirst, rfirst, 1, &irow[0]);
+        // app.log("HERE 3");
+        ISCreateStride(sub_matrix.getComm(), rlast - rfirst, rfirst, 1, &icol[0]);
+        // app.log("HERE 4");
+        if (first_time) {
+            MatCreateSubMatrices(sub_matrix.mat, 1, irow, icol, MAT_INITIAL_MATRIX, &submat);
+            MatCreateMPIMatConcatenateSeqMat(new_comm, submat[0], PETSC_DECIDE, MAT_INITIAL_MATRIX, &mat);
+            first_time = false;
+        }
+        else {
+            MatCreateSubMatrices(sub_matrix.mat, 1, irow, icol, MAT_REUSE_MATRIX, &submat);
+            MatCreateMPIMatConcatenateSeqMat(new_comm, submat[0], PETSC_DECIDE, MAT_REUSE_MATRIX, &mat);
+        }
+
+    }
+
+    ParallelMatrix(MPI::Communicator comm, ParallelMatrix<NumericalType>& matrix, IS is_row, IS is_col) :
+        MPIObject(comm) {
+
+        MatCreateSubMatrix(matrix.mat, is_row, is_col, MAT_INITIAL_MATRIX, &mat);
+        MatGetLocalSize(mat, &local_rows, &local_cols);
+        MatGetSize(mat, &global_rows, &global_cols);
         is_created = true;
-        MatCreateSubMatrix(sub_matrix.mat, index_set_row, NULL, MAT_INITIAL_MATRIX, &mat);
 
+    }
+
+    ParallelMatrix(const ParallelMatrix& other) :
+        MPIObject(other.getComm()),
+        local_rows(other.local_rows),
+        local_cols(other.local_cols),
+        global_rows(other.global_rows),
+        global_cols(other.global_cols),
+        is_created(other.is_created),
+        mat(other.mat)
+            {}
+
+    ParallelMatrix& operator=(ParallelMatrix&& other) {
+        if (this != &other) {
+            MPIObject::operator=(std::move(other));
+            local_rows = other.local_rows;
+            local_cols = other.local_cols;
+            global_rows = other.global_rows;
+            global_cols = other.global_cols;
+            mat = other.mat;
+            is_created = other.is_created;
+
+            other.local_rows = 0;
+            other.local_cols = 0;
+            other.global_rows = 0;
+            other.global_cols = 0;
+            other.mat = nullptr;
+            other.is_created = false;
+        }
+        return *this;
     }
 
     ~ParallelMatrix() {
@@ -816,6 +891,22 @@ public:
         // if (raw_data != nullptr) {
         //     delete raw_data;
         // }
+    }
+
+    int localRows() const {
+        return local_rows;
+    }
+
+    int localCols() const {
+        return local_cols;
+    }
+
+    int globalRows() const {
+        return global_rows;
+    }
+
+    int globalCols() const {
+        return global_cols;
     }
 
     Petsc::ErrorCode create() {

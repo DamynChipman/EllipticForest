@@ -22,6 +22,48 @@ public:
 };
 
 template<typename NumericalType>
+class ParallelIdentityMatrix : public ParallelMatrix<NumericalType> {
+
+public:
+
+    ParallelIdentityMatrix(std::size_t N) :
+        ParallelMatrix<NumericalType>(MPI_COMM_WORLD) {
+
+        //
+        MatCreateConstantDiagonal(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, N, N, 1.0, &this->mat);
+        MatGetLocalSize(this->mat, &this->local_rows, &this->local_cols);
+        MatGetSize(this->mat, &this->global_rows, &this->global_cols);
+        this->is_created = true;
+
+    }
+
+    ParallelIdentityMatrix(MPI::Communicator comm, std::size_t N) :
+        ParallelMatrix<NumericalType>(comm) {
+
+        //
+        MatCreateConstantDiagonal(comm, PETSC_DECIDE, PETSC_DECIDE, N, N, 1.0, &this->mat);
+        MatSetFromOptions(this->mat);
+        MatGetLocalSize(this->mat, &this->local_rows, &this->local_cols);
+        MatGetSize(this->mat, &this->global_rows, &this->global_cols);
+        this->is_created = true;
+
+    }
+
+    ParallelIdentityMatrix(MPI::Communicator comm, std::size_t N, Petsc::MatType matrix_type) :
+        ParallelMatrix<NumericalType>(comm) {
+
+        //
+        MatCreateConstantDiagonal(comm, PETSC_DECIDE, PETSC_DECIDE, N, N, 1.0, &this->mat);
+        MatSetType(this->mat, matrix_type);
+        MatGetLocalSize(this->mat, &this->local_rows, &this->local_cols);
+        MatGetSize(this->mat, &this->global_rows, &this->global_cols);
+        this->is_created = true;
+
+    }
+
+};
+
+template<typename NumericalType>
 class DiagonalMatrix : public Matrix<NumericalType> {
 
 public:
@@ -57,6 +99,22 @@ public:
     }
 
 };
+
+// template<typename NumericalType>
+// class ParallelInterpolationMatrixFine2Coarse : public ParallelMatrix<NumericalType> {
+
+// public:
+
+//     ParallelInterpolationMatrixFine2Coarse(std::size_t n_coarse) :
+//         ParallelMatrix<NumericalType>(MPI_COMM_WORLD, PETSC_DECIDE, PETSC_DECIDE, n_coarse, 2*n_coarse, MATAIJ) {
+
+//         //
+//         Vector<int> is_row = vectorRange(0, n_coarse-1);
+//         Vector<int> is_cols = vectorRange(0, )
+
+//     }
+
+// };
 
 
 template<typename NumericalType>

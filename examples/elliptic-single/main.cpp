@@ -127,10 +127,10 @@ int main(int argc, char** argv) {
     int n_solves = 1;
     app.options.setOption("n-solves", n_solves);
     
-    int min_level = 2;
+    int min_level = 4;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 5;
+    int max_level = 4;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
@@ -145,10 +145,10 @@ int main(int argc, char** argv) {
     double y_upper = 10.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 8;
+    int nx = 16;
     app.options.setOption("nx", nx);
     
-    int ny = 8;
+    int ny = 16;
     app.options.setOption("ny", ny);
 
     // ====================================================
@@ -199,6 +199,7 @@ int main(int argc, char** argv) {
 
     // 3. Call the build stage
     HPS.buildStage();
+    // HPS.buildStage_v2();
 
     // Begin solver loop; demonstrates ability to solve multiple times once build stage is done
     for (auto n = 0; n < n_solves; n++) {

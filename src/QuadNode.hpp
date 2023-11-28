@@ -50,7 +50,7 @@ public:
         plast(plast) {
 
 		// Create node communicator that is a subset of the tree communicator
-		MPI::communicatorSubsetRange(comm, pfirst, plast, 20+level, &node_comm);
+		// MPI::communicatorSubsetRange(comm, pfirst, plast, 20+level, &node_comm);
 
 	}
 
@@ -63,6 +63,7 @@ public:
 		int ranges[1][3] = {pfirst, plast, 1};
 		MPI_Group_range_incl(group, 1, ranges, newGroup);
 		MPI_Comm_create_group(this->getComm(), *newGroup, 20+level, newComm);
+		// MPI_Comm_split(this->getComm(), (isOwned() ? 0 : MPI_UNDEFINED), this->getRank(), newComm);
 	}
 
 	void freeMPIGroupComm(MPI_Group* group, MPI_Comm* comm) {

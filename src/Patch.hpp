@@ -14,20 +14,18 @@ namespace EllipticForest {
 template<typename DerivedType, typename PatchGridType, typename PatchSolverType, typename FloatingPointType>
 class PatchBase {
 
-protected:
-
-    Mat matrix_X;
-    Mat matrix_H;
-    Mat matrix_S;
-    Mat matrix_T;
-    Vec vector_u;
-    Vec vector_g;
-    Vec vector_v;
-    Vec vector_f;
-    Vec vector_h;
-    Vec vector_w;
-
 public:
+
+    ParallelMatrix<double> par_matrix_X;
+    ParallelMatrix<double> par_matrix_H;
+    ParallelMatrix<double> par_matrix_S;
+    ParallelMatrix<double> par_matrix_T;
+    ParallelVector<double> par_vector_u;
+    ParallelVector<double> par_vector_g;
+    ParallelVector<double> par_vector_v;
+    ParallelVector<double> par_vector_f;
+    ParallelVector<double> par_vector_h;
+    ParallelVector<double> par_vector_w;
 
     /**
      * @brief Number of times the patch has been coarsened

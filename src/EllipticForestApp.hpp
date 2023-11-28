@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <thread>
 #include <chrono>
 #include <map>
 #include <variant>
@@ -390,6 +391,8 @@ public:
     void logHead(std::string message, Args... args) {
         logger.logHead(message, args...);
     }
+
+    void sleep(int seconds);
 
     /**
      * @brief Adds a timer to the timer map

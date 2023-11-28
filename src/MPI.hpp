@@ -129,6 +129,10 @@ void communicatorUnion(std::vector<Communicator> comms);
  */
 void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, int tag, Communicator* sub_comm);
 
+void communicatorSetName(Communicator comm, const std::string& name);
+
+std::string communicatorGetName(Communicator comm);
+
 /**
  * @brief MPI type traits for primative, C++, and user defined objects
  * 

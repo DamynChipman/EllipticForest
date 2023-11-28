@@ -107,6 +107,7 @@ public:
 
         // Create quadtree
         quadtree = Quadtree<PatchType>{MPI_COMM_WORLD, p4est, root_patch, node_factory};
+        // quadtree.communicationPolicy = NodeCommunicationPolicy::STRIPE;
 
         // Create mesh
         setMeshFromQuadtree();

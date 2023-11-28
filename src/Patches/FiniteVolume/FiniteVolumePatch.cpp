@@ -87,34 +87,62 @@ double FiniteVolumePatch::dataSize() {
     return size_MB;
 }
 
+std::string FiniteVolumePatch::str() {
+    std::string res;
+
+    res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
+
+    res += "grid:\n";
+    res += "  nx = " + std::to_string(grid().nx()) + "\n";
+    res += "  ny = " + std::to_string(grid().ny()) + "\n";
+    res += "  xLower = " + std::to_string(grid().xLower()) + "\n";
+    res += "  xUpper = " + std::to_string(grid().xUpper()) + "\n";
+    res += "  yLower = " + std::to_string(grid().yLower()) + "\n";
+    res += "  yUpper = " + std::to_string(grid().yUpper()) + "\n";
+
+    res += "data:\n";
+    res += "  X = [" + std::to_string(matrixX().nRows()) + ", " + std::to_string(matrixX().nCols()) + "]\n";
+    res += "  S = [" + std::to_string(matrixS().nRows()) + ", " + std::to_string(matrixS().nCols()) + "]\n";
+    res += "  T = [" + std::to_string(matrixT().nRows()) + ", " + std::to_string(matrixT().nCols()) + "]\n";
+    res += "  u = [" + std::to_string(vectorU().size()) + "]\n";
+    res += "  g = [" + std::to_string(vectorG().size()) + "]\n";
+    res += "  v = [" + std::to_string(vectorV().size()) + "]\n";
+    res += "  f = [" + std::to_string(vectorF().size()) + "]\n";
+    res += "  h = [" + std::to_string(vectorH().size()) + "]\n";
+    res += "  w = [" + std::to_string(vectorW().size()) + "]\n";
+
+    return res;
+}
+
 namespace MPI {
 
 template<>
 int broadcast(FiniteVolumePatch& patch, int root, MPI::Communicator comm) {
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
-    // app.log("Broadcasting 0...");
     broadcast(patch.nCoarsens, root, comm);
-    // app.log("Broadcasting 1...");
     broadcast(patch.grid(), root, comm);
-    // app.log("Broadcasting 2...");
+    
+    // app.log("HERE 1");
+    // if (patch.par_matrix_T.mat == NULL) {
+    //     app.log("HERE 2");
+    //     patch.par_matrix_T = ParallelMatrix<double>(MPI_COMM_SELF, PETSC_DECIDE, PETSC_DECIDE, 0, 0, MATMPIDENSE);
+    // }
+    // else {
+    //     app.log("HERE 3");
+    // }
+    // app.log("HERE 4");
+    // patch.par_matrix_T = ParallelMatrix<double>(comm, patch.par_matrix_T);
+    
+    // Only broadcast meta data, matrices and vectors are local (maybe...)
     broadcast(patch.matrixX(), root, comm);
-    // app.log("Broadcasting 3...");
     broadcast(patch.matrixH(), root, comm);
-    // app.log("Broadcasting 4...");
     broadcast(patch.matrixS(), root, comm);
-    // app.log("Broadcasting 5...");
     broadcast(patch.matrixT(), root, comm);
-    // app.log("Broadcasting 6...");
     broadcast(patch.vectorU(), root, comm);
-    // app.log("Broadcasting 7...");
     broadcast(patch.vectorG(), root, comm);
-    // app.log("Broadcasting 8...");
     broadcast(patch.vectorV(), root, comm);
-    // app.log("Broadcasting 9...");
     broadcast(patch.vectorF(), root, comm);
-    // app.log("Broadcasting 10...");
     broadcast(patch.vectorH(), root, comm);
-    // app.log("Broadcasting 11...");
     broadcast(patch.vectorW(), root, comm);
     return 1;
 }

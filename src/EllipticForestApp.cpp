@@ -236,4 +236,8 @@ void EllipticForestApp::addTimer(std::string name) {
     timers[name] = Timer();
 }
 
+void EllipticForestApp::sleep(int seconds) {
+    std::this_thread::sleep_for(std::chrono::seconds(seconds));
+}
+
 } // NAMESPACE : EllipticForest
