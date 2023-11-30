@@ -37,20 +37,23 @@ void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, i
     // // Create sub communicator from sub group
     // MPI_Comm_create_group(super_comm, sub_group, tag, sub_comm);
 
-    // // Set name of comm
-    // int super_comm_name_size = 0;
-    // char super_comm_name_buffer[255];
-    // MPI_Comm_get_name(super_comm, super_comm_name_buffer, &super_comm_name_size);
-    // std::string super_comm_name(super_comm_name_buffer, super_comm_name_size);
-    // std::string sub_comm_name = super_comm_name + "_sub_range={" + std::to_string(r_first) + ":" + std::to_string(r_last) + "}";
-    // MPI_Comm_set_name(*sub_comm, sub_comm_name.c_str());
+    // Alternative!
+    int rank; MPI_Comm_rank(super_comm, &rank);
+    int color = (r_first <= rank && rank <= r_last ? 0 : MPI_UNDEFINED);
+    MPI_Comm_split(super_comm, color, rank, sub_comm);
 
-    // // Free groups
+    // Set name of comm
+    int super_comm_name_size = 0;
+    char super_comm_name_buffer[255];
+    MPI_Comm_get_name(super_comm, super_comm_name_buffer, &super_comm_name_size);
+    std::string super_comm_name(super_comm_name_buffer, super_comm_name_size);
+    std::string sub_comm_name = super_comm_name + "_sub_range={" + std::to_string(r_first) + ":" + std::to_string(r_last) + "}";
+    MPI_Comm_set_name(*sub_comm, sub_comm_name.c_str());
+
+    // Free groups
     // MPI_Group_free(&super_group);
     // MPI_Group_free(&sub_group);
 
-    int rank; MPI_Comm_rank(super_comm, &rank);
-    MPI_Comm_split(super_comm, (r_first <= rank && rank <= r_last ? 0 : MPI_UNDEFINED), rank, sub_comm);
 
 }
 

@@ -127,10 +127,10 @@ int main(int argc, char** argv) {
     int n_solves = 1;
     app.options.setOption("n-solves", n_solves);
     
-    int min_level = 4;
+    int min_level = 2;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 4;
+    int max_level = 2;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
