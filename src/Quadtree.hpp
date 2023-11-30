@@ -8,9 +8,6 @@
 #include <functional>
 #include <set>
 
-// #include <Kokkos_Core.hpp>
-// #include <Kokkos_UnorderedMap.hpp>
-
 #include "EllipticForestApp.hpp"
 #include "MPI.hpp"
 #include "P4est.hpp"
@@ -18,17 +15,10 @@
 
 namespace EllipticForest {
 
-static uint32_t MAP_CAPACITY_HINT = 256;
-
 enum NodeCommunicationPolicy {
 	BROADCAST,
 	STRIPE
 };
-
-template<typename T> class Quadtree;
-
-// template<typename T>
-// static Quadtree<T>* quadtree_pointer = nullptr;
 
 template<typename T>
 class Quadtree : public MPI::MPIObject {
@@ -36,10 +26,7 @@ class Quadtree : public MPI::MPIObject {
 public:
 
 	using NodeMap = std::map<NodePathKey, Node<T>*>;
-	// using NodeMap = Kokkos::UnorderedMap<int, Node<T>>;
-	// using NodeSet = std::set<NodePathKey>;
 	NodeMap map;
-	// NodeSet node_set;
 	p4est_t* p4est;
 	T* rootDataPtr_;
 	AbstractNodeFactory<T>* nodeFactory;

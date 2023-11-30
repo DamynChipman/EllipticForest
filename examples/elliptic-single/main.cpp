@@ -199,7 +199,6 @@ int main(int argc, char** argv) {
 
     // 3. Call the build stage
     HPS.buildStage();
-    // HPS.buildStage_v2();
 
     // Begin solver loop; demonstrates ability to solve multiple times once build stage is done
     for (auto n = 0; n < n_solves; n++) {
