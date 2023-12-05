@@ -1,3 +1,8 @@
+/**
+ * @file HPSAlgorithm.hpp
+ * @author Damyn Chipman (DamynChipman@u.boisestate.edu)
+ * @brief Implementation of the quadtree-adaptive Hierarchical Poincare-Steklov (HPS) method as outlined in (Chipman, Calhoun, Burstedde, 2023)
+ */
 #ifndef HPS_ALGORITHM_HPP_
 #define HPS_ALGORITHM_HPP_
 
@@ -9,8 +14,6 @@
 #include "Matrix.hpp"
 #include "SpecialMatrices.hpp"
 #include "Mesh.hpp"
-
-extern double uFunction(double x, double y);
 
 namespace EllipticForest {
 
@@ -26,46 +29,16 @@ class HPSAlgorithm : public MPI::MPIObject {
 public:
 
     /**
-     * @brief Pointer to p4est object
-     * 
-     */
-    p4est_t* p4est = nullptr;
-
-    /**
      * @brief Reference to the mesh
      * 
      */
     Mesh<PatchType>& mesh;
 
     /**
-     * @brief Quadtree data storage with nodes as `PatchType`
-     * 
-     */
-    // Quadtree<PatchType>& quadtree;
-
-    /**
-     * @brief A patch representing the entire domain and leaf patch prototypes
-     * 
-     */
-    // PatchType& rootPatch;
-
-    /**
      * @brief The elliptic solver for an individual patch
      * 
      */
-    PatchSolverType& patchSolver;
-
-    /**
-     * @brief Node factory to create nodes
-     * 
-     */
-    // AbstractNodeFactory<PatchType>* nodeFactory;
-
-    /**
-     * @brief Cache storage for vectors
-     * 
-     */
-    DataCache<Vector<NumericalType>> vectorCache{};
+    PatchSolverType& patch_solver;
 
     /**
      * @brief Cache storage for matrices
@@ -76,37 +49,22 @@ public:
     /**
      * @brief Flag for if the build stage has already happened
      * 
-     */
-    // bool isBuilt = false;
-
-    // HPSAlgorithm() :
-    //     MPIObject(MPI_COMM_WORLD)
-    //         {}
-
-    /**
-     * @brief Construct a new HPSAlgorithm object
+     * TODO: Implement this logic
      * 
-     * @param rootPatch A patch representing the entire domain and leaf patch prototypes
-     * @param patchSolver The elliptic solver for an individual patch
      */
-    // HPSAlgorithm(PatchType rootPatch, PatchSolverType patchSolver) :
-    //     rootPatch(rootPatch),
-    //     patchSolver(patchSolver),
-    //     nodeFactory(nullptr)
-    //         {}
+    bool isBuilt = false;
 
     /**
      * @brief Construct a new HPSAlgorithm object
      * 
      * @param comm MPI communicator
      * @param rootPatch A patch representing the entire domain and leaf patch prototypes
-     * @param patchSolver The elliptic solver for an individual patch
+     * @param patch_solver The elliptic solver for an individual patch
      * @param nodeFactory Node factory to produce new nodes
      */
-    HPSAlgorithm(MPI_Comm comm, p4est_t* p4est, PatchType& rootPatch, PatchSolverType& patchSolver, AbstractNodeFactory<PatchType>* nodeFactory) :
+    HPSAlgorithm(MPI::Communicator comm, p4est_t* p4est, PatchType& rootPatch, PatchSolverType& patch_solver, AbstractNodeFactory<PatchType>* nodeFactory) :
         MPIObject(comm),
-        p4est(p4est),
-        patchSolver(patchSolver),
+        patch_solver(patch_solver),
         mesh(comm, p4est, rootPatch, nodeFactory)
             {}
 
@@ -115,89 +73,32 @@ public:
      * 
      * @param comm MPI communicator
      * @param mesh Pre-built refined mesh
-     * @param patchSolver Patch solver
+     * @param patch_solver Patch solver
      */
-    HPSAlgorithm(MPI_Comm comm, Mesh<PatchType>& mesh, PatchSolverType& patchSolver) :
+    HPSAlgorithm(MPI::Communicator comm, Mesh<PatchType>& mesh, PatchSolverType& patch_solver) :
         MPIObject(comm),
-        p4est(mesh.quadtree.p4est),
-        patchSolver(patchSolver),
+        patch_solver(patch_solver),
         mesh(mesh)
             {}
 
     /**
-     * @brief Destroy the HPSAlgorithm object
-     * 
-     */
-    // ~HPSAlgorithm() {
-    //     // delete quadtree;
-    // }
-
-    /**
      * @brief Performs the setup stage of the HPS method
      * 
-     * Given a `p4est` object with the tree topology, constructs the quadtree with the associated storage and data. The data in the `p4est` object is unused, 
-     * just the topology. The child patches are built from the parent patches through calls to the derived Patch class function `buildChild`. Sets the leaf and
-     * global IDs for each patch.
-     * 
-     * @sa PatchBase.buildChild
+     * NOTE: Do I need the setup stage anymore?
      * 
      * @param p4est The p4est object with the tree topology
      */
     virtual void setupStage() {
-
-        // Set internal p4est
-        // this->p4est = p4est;
         
         // Get app and log
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(this->getComm());
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Setup Stage");
 
         app.addTimer("setup-stage");
         app.timers["setup-stage"].start();
 
-        // Build quadtree from p4est_t tree
-        // quadtree = Quadtree<PatchType>(this->getComm(), p4est, rootPatch, *nodeFactory);
-        // mesh.quadtree.p4est = p4est;
-        // quadtree = Quadtree<PatchType>(p4est);
-        // mesh.quadtree.buildFromP4est(p4est, rootPatch, [&](PatchType& parentPatch, std::size_t childIndex){
-        //     // Function to init patch from parent patch (implemented in derived Patch class)
-        //     return parentPatch.buildChild(childIndex);
-        // });
-
-        // Set p4est ID (leaf level IDs) on patches
-        // int currentID = 0;
-        // mesh.quadtree.traversePostOrder([&](PatchType& patch){
-        //     // if (patch.isLeaf()) {
-        //     //     patch.leafID = currentID++;
-        //     // }
-        //     // else {
-        //     //     patch.leafID = -1;
-        //     // }
-
-        //     patch.isLeaf ? patch.leafID = currentID++ : patch.leafID = -1;
-        // });
-
-        // Set global ID on patches
-        // currentID = 0;
-        // mesh.quadtree.traversePreOrder([&](PatchType& patch){
-        //     patch.globalID = currentID++;
-        // });
-
-        // // Set D2N matrices on leaf
-        // mesh.quadtree.traversePostOrder([&](PatchType& patch){
-        //     if (patch.isLeaf) {
-        //         if (std::get<bool>(app.options["cache-operators"])) {
-        //             if (!matrixCache.contains("T_leaf")) {
-        //                 matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
-        //             }
-        //             patch.matrixT() = matrixCache["T_leaf"];
-        //         }
-        //         else {
-        //             patch.matrixT() = patchSolver.buildD2N(patch.grid());
-        //         }
-        //     }
-        // });
+        // NOTE: Nothing is currently done in setup stage... This might change.
 
         app.timers["setup-stage"].stop();
         app.logHead("End HPS Setup Stage");
@@ -218,56 +119,37 @@ public:
      */
     virtual void buildStage() {
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(this->getComm());
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Build Stage");
         app.addTimer("build-stage");
         app.timers["build-stage"].start();
 
-        // Set D2N matrices on leaf
-        // mesh.quadtree.traversePostOrder([&](PatchType& patch){
-        //     if (patch.isLeaf) {
-        //         if (std::get<bool>(app.options["cache-operators"])) {
-        //             if (!matrixCache.contains("T_leaf")) {
-        //                 matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
-        //             }
-        //             patch.matrixT() = matrixCache["T_leaf"];
-        //         }
-        //         else {
-        //             patch.matrixT() = patchSolver.buildD2N(patch.grid());
-        //         }
-        //     }
-        // });
-
-        // mesh.quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-        //     merge4to1(tau, alpha, beta, gamma, omega);
-        // });
-
         mesh.quadtree.merge(
-            [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+            [&](Node<PatchType>* leaf_node){
+                // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
-                PatchType& patch = leafNode->data;
+                PatchType& patch = leaf_node->data;
                 // patch.isLeaf = true;
                 if (std::get<bool>(app.options["cache-operators"])) {
                     if (!matrixCache.contains("T_leaf")) {
-                        matrixCache["T_leaf"] = patchSolver.buildD2N(patch.grid());
+                        matrixCache["T_leaf"] = patch_solver.buildD2N(patch.grid());
                     }
                     patch.matrixT() = matrixCache["T_leaf"];
                 }
                 else {
-                    patch.matrixT() = patchSolver.buildD2N(patch.grid());
+                    patch.matrixT() = patch_solver.buildD2N(patch.grid());
                 }
                 return 1;
             },
-            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
-                PatchType& tau = parentNode->data;
-                PatchType& alpha = childNodes[0]->data;
-                PatchType& beta = childNodes[1]->data;
-                PatchType& gamma = childNodes[2]->data;
-                PatchType& omega = childNodes[3]->data;
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
                 merge4to1(tau, alpha, beta, gamma, omega);
                 return 1;
             }
@@ -281,7 +163,7 @@ public:
     /**
      * @brief Performs the upwards stage of the HPS method
      * 
-     * The user provides a callback function `rhsPatchFunction` that sets the leaf patch's load data (RHS data or non-homogeneous data). The callback function
+     * The user provides a callback function `rhs_patch_function` that sets the leaf patch's load data (RHS data or non-homogeneous data). The callback function
      * provides a reference to a leaf patch. The callback function needs to set the `vectorF` data on the provided patch. This is done in post-order fashion for
      * all leaf patches. Next, the leaf patch's particular Neumann data is set (`vectorH`) through the base PatchSolver class function `particularNeumannData`,
      * which may or may not be overridden by the derived PatchSolver class.
@@ -291,55 +173,38 @@ public:
      * @sa PatchSolverBase.particularNeumannData
      * @sa upwards4to1
      * 
-     * @param rhsPatchFunction rhsPatchFunction(PatchType& leafPatch) -> void : Sets the leaf patch's load data `vectorF`
+     * @param rhs_patch_function Sets the leaf patch's load data `vectorF`
      */
-    virtual void upwardsStage(std::function<void(PatchType& leafPatch)> rhsPatchFunction) {
+    virtual void upwardsStage(std::function<void(PatchType& leafPatch)> rhs_patch_function) {
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(this->getComm());
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
         app.timers["upwards-stage"].start();
 
-        // mesh.quadtree.traversePostOrder([&](PatchType& patch){
-        //     if (patch.isLeaf) {
-        //         // Call callback function to set RHS data on patch
-        //         rhsPatchFunction(patch);
-
-        //         // Set particular Neumann data using patch solver function
-        //         patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
-        //     }
-        // });
-
-        // mesh.quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-        //     upwards4to1(tau, alpha, beta, gamma, omega);
-        // });
-
         mesh.quadtree.merge(
-            [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+            [&](Node<PatchType>* leaf_node){
+                // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
-                PatchType& patch = leafNode->data;
+                PatchType& patch = leaf_node->data;
 
                 // Call callback function to set RHS data on patch
-                rhsPatchFunction(patch);
+                rhs_patch_function(patch);
 
                 // Set particular Neumann data using patch solver function
-                patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
-
-                // Convert to parallel vector
-                patch.par_vector_h = ParallelVector<double>(MPI_COMM_SELF, patch.vectorH());
+                patch.vectorH() = patch_solver.particularNeumannData(patch.grid(), patch.vectorF());
 
                 return 1;
             },
-            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
-                PatchType& tau = parentNode->data;
-                PatchType& alpha = childNodes[0]->data;
-                PatchType& beta = childNodes[1]->data;
-                PatchType& gamma = childNodes[2]->data;
-                PatchType& omega = childNodes[3]->data;
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
                 upwards4to1(tau, alpha, beta, gamma, omega);
                 return 1;
             }
@@ -350,33 +215,26 @@ public:
 
     }
 
-    virtual void upwardsStage(std::function<double(double, double)> rhsFunction) {
+    /**
+     * @brief Performs the upwards stage of the HPS method
+     * 
+     * The user provides a callback function `rhs_function` that is the analytical expression for the right-hand side of the PDE to solve.
+     * 
+     * @param rhs_function Analytical right-hand function
+     */
+    virtual void upwardsStage(std::function<double(double, double)> rhs_function) {
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(this->getComm());
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
         app.timers["upwards-stage"].start();
 
-        // mesh.quadtree.traversePostOrder([&](PatchType& patch){
-        //     if (patch.isLeaf) {
-        //         // Call callback function to set RHS data on patch
-        //         rhsPatchFunction(patch);
-
-        //         // Set particular Neumann data using patch solver function
-        //         patch.vectorH() = patchSolver.particularNeumannData(patch.grid(), patch.vectorF());
-        //     }
-        // });
-
-        // mesh.quadtree.merge([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-        //     upwards4to1(tau, alpha, beta, gamma, omega);
-        // });
-
         mesh.quadtree.merge(
-            [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+            [&](Node<PatchType>* leaf_node){
+                // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
-                PatchType& patch = leafNode->data;
+                PatchType& patch = leaf_node->data;
                 PatchGridType& grid = patch.grid();
 
                 // Call callback function to set RHS data on patch
@@ -385,27 +243,24 @@ public:
                     double x = grid(0, i);
                     for (auto j = 0; j < grid.ny(); j++) {
                         double y = grid(1, j);
-                        int index = j + i*grid.ny(); // <-- HERE
-                        patch.vectorF()[index] = rhsFunction(x, y);
+                        int index = j + i*grid.ny();
+                        patch.vectorF()[index] = rhs_function(x, y);
                     }
                 }
 
                 // Set particular Neumann data using patch solver function
-                patch.vectorH() = patchSolver.particularNeumannData(grid, patch.vectorF());
-
-                // Convert to parallel vector
-                patch.par_vector_h = ParallelVector<double>(MPI_COMM_SELF, patch.vectorH());
+                patch.vectorH() = patch_solver.particularNeumannData(grid, patch.vectorF());
 
                 return 1;
             },
-            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
-                PatchType& tau = parentNode->data;
-                PatchType& alpha = childNodes[0]->data;
-                PatchType& beta = childNodes[1]->data;
-                PatchType& gamma = childNodes[2]->data;
-                PatchType& omega = childNodes[3]->data;
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
                 upwards4to1(tau, alpha, beta, gamma, omega);
                 return 1;
             }
@@ -419,7 +274,7 @@ public:
     /**
      * @brief Performs the solve stage of the HPS method
      * 
-     * The user provides a callback function `boundaryDataFunction` that sets the boundary condition data (currently just Dirichlet data) on the root patch, or
+     * The user provides a callback function `boundary_data_function` that sets the boundary condition data (currently just Dirichlet data) on the root patch, or
      * the physical boundary of the domain spanned by the tree. The callback function provides a reference to the root patch after all merging has been done
      * (so the grid on the provided root patch may not be the same as a leaf patch). The callback function needs to set the Dirichlet data `vectorG` on the
      * provided patch. Following the physical boundary data, the split function is called recursively down the tree (pre-order) applying the solution matrices
@@ -431,9 +286,9 @@ public:
      * @sa PatchSolverBase.solve
      * @sa split1to4
      * 
-     * @param boundaryDataFunction 
+     * @param boundary_data_function Sets the Dirichlet data `vectorG` on the provided patch
      */    
-    virtual void solveStage(std::function<void(PatchType& rootPatch)> boundaryDataFunction) {
+    virtual void solveStage(std::function<void(PatchType& rootPatch)> boundary_data_function) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Solve Stage");
@@ -441,31 +296,23 @@ public:
         app.timers["solve-stage"].start();
 
         // Set Dirichlet data on root patch
-        boundaryDataFunction(mesh.quadtree.root());
-
-        // mesh.quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-        //     split1to4(tau, alpha, beta, gamma, omega);
-        // });
-
-        // mesh.quadtree.traversePreOrder([&](PatchType& patch){
-        //     leafSolve(patch);
-        // });
+        boundary_data_function(mesh.quadtree.root());
 
         mesh.quadtree.split(
-            [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+            [&](Node<PatchType>* leaf_node){
+                // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
-                leafSolve(leafNode->data);
+                leafSolve(leaf_node->data);
                 return 1;
             },
-            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
-                PatchType& tau = parentNode->data;
-                PatchType& alpha = childNodes[0]->data;
-                PatchType& beta = childNodes[1]->data;
-                PatchType& gamma = childNodes[2]->data;
-                PatchType& omega = childNodes[3]->data;
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
                 split1to4(tau, alpha, beta, gamma, omega);
                 return 1;
             }
@@ -476,9 +323,26 @@ public:
 
     }
 
-    virtual void solveStage(std::function<NumericalType(int side, NumericalType x, NumericalType y, NumericalType* a, NumericalType* b)> boundaryFunction) {
+    /**
+     * @brief Performs the solve stage of the HPS method
+     * 
+     * The user provides a callback function that has the analytical expression for the data at the boundary. The form of this function is
+     * 
+     *     `boundary_analytical_function(int side, NumericalType x, NumericalType y, NumericalType* a, NumericalType* b) -> NumericalType`.
+     * 
+     * The function must return the value of the boundary data for the given `side` and coordinates `x` and `y`. The function must also set the values of `a` and `b`
+     * that correspond to the type of boundary data in the general boundary condition equation
+     * 
+     *     a(x,y) u(x,y) + b(x,y) dudn(x,y) = r(x,y)
+     * 
+     * for (x,y) at the boundary of the patch. The Dirichlet data needed for the solve stage is computed from the inverse of the Dirichlet-to-Neumann operator at the
+     * root of the tree.
+     * 
+     * @param boundary_analytical_function Analytical expression for the boundary data as described above
+     */
+    virtual void solveStage(std::function<NumericalType(int side, NumericalType x, NumericalType y, NumericalType* a, NumericalType* b)> boundary_analytical_function) {
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(this->getComm());
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
@@ -529,7 +393,7 @@ public:
                 }
 
                 NumericalType a, b;
-                rVectors[n][i] = boundaryFunction(n, x, y, &a, &b);
+                rVectors[n][i] = boundary_analytical_function(n, x, y, &a, &b);
                 aVectors[n][i] = a;
                 bVectors[n][i] = b;
             }
@@ -555,35 +419,21 @@ public:
             g = solve(A, rhs);
         }
 
-        // mesh.quadtree.traversePreOrder([&](typename Quadtree<PatchType>::QuadtreeNode node){
-        //     node.data->updateCoarsens();
-        //     return true;
-        // });
-
-        // Apply solution matrix down tree
-        // mesh.quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-        //     split1to4(tau, alpha, beta, gamma, omega);
-        // });
-
-        // // Solve for interior data via leaf solver
-        // mesh.quadtree.traversePreOrder([&](PatchType& patch){
-        //     leafSolve(patch);
-        // });
         mesh.quadtree.split(
-            [&](Node<PatchType>* leafNode){
-                // app.log("Leaf callback: path = " + leafNode->path);
+            [&](Node<PatchType>* leaf_node){
+                // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
-                leafSolve(leafNode->data);
+                leafSolve(leaf_node->data);
                 return 1;
             },
-            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
-                // app.log("Family callback: parent path = " + parentNode->path);
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
-                PatchType& tau = parentNode->data;
-                PatchType& alpha = childNodes[0]->data;
-                PatchType& beta = childNodes[1]->data;
-                PatchType& gamma = childNodes[2]->data;
-                PatchType& omega = childNodes[3]->data;
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
                 split1to4(tau, alpha, beta, gamma, omega);
                 return 1;
             }
@@ -594,6 +444,8 @@ public:
                 
     }
 
+// I believe this is depreciated
+#if 0 
     virtual void solveStage(std::vector<Vector<NumericalType>> boundaryData, std::vector<BoundaryConditionType> boundaryTypes) {
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Solve Stage");
@@ -610,18 +462,18 @@ public:
         //     leafSolve(patch);
         // });
         mesh.quadtree.split(
-            [&](Node<PatchType>* leafNode){
+            [&](Node<PatchType>* leaf_node){
                 // Leaf callback
-                leafSolve(leafNode->data);
+                leafSolve(leaf_node->data);
                 return 1;
             },
-            [&](Node<PatchType>* parentNode, std::vector<Node<PatchType>*> childNodes){
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
                 // Family callback
-                PatchType& tau = parentNode->data;
-                PatchType& alpha = childNodes[0]->data;
-                PatchType& beta = childNodes[1]->data;
-                PatchType& gamma = childNodes[2]->data;
-                PatchType& omega = childNodes[3]->data;
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
                 split1to4(tau, alpha, beta, gamma, omega);
                 return 1;
             }
@@ -631,7 +483,17 @@ public:
         app.logHead("End HPS Solve Stage");
 
     }
+#endif
 
+    /**
+     * @brief Recursive merge function
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     virtual void merge4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
@@ -655,31 +517,15 @@ public:
         return;
     }
 
-    // virtual void setParticularData(PatchType& patch) {
-
-    //     if (patch.isLeaf) {
-    //         // Create solver
-    //         PatchSolverType solver;
-
-    //         // Set RHS data on leaf patches
-    //         PatchGridType& grid = patch.grid();
-    //         patch.f = Vector<double>(grid.nx() * grid.ny());
-    //         for (auto i = 0; i < grid.nx(); i++) {
-    //             double x = grid(XDIM, i);
-    //             for (auto j = 0; j < grid.ny(); j++) {
-    //                 double y = grid(YDIM, j);
-    //                 int index = j + i*grid.ny();
-    //                 // patch.f[index] = pde_.f(x, y); // TODO: How to pass in particular data to patches
-    //             }
-    //         }
-
-    //         // Set Neumann data for particular solution
-    //         Vector<double> gZero(2*grid.nx() + 2*grid.ny(), 0);
-    //         patch.h = solver.mapD2N(grid, gZero, patch.f);
-    //     }
-
-    // }
-
+    /**
+     * @brief Recursive upwards function
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     virtual void upwards4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
@@ -704,6 +550,15 @@ public:
         return;
     }
 
+    /**
+     * @brief Recursive split function
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     virtual void split1to4(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
@@ -721,50 +576,23 @@ public:
         return;
     }
 
+    /**
+     * @brief Leaf solve function wrapper
+     * 
+     * @param patch Leaf patch
+     */
     virtual void leafSolve(PatchType& patch) {
+        
         EllipticForestApp& app = EllipticForestApp::getInstance();
         if (std::get<bool>(app.options["homogeneous-rhs"])) {
-            // Need to set RHS to zeros for patch patchSolver b/c it won't be set already
+            // Need to set RHS to zeros for patch patch_solver b/c it won't be set already
             patch.vectorF() = Vector<double>(patch.grid().nx() * patch.grid().ny(), 0);
         }
-        
-        // // DEBUGGING VIA SHORT CIRCUIT
-        // auto& grid = patch.grid();
-        // Vector<double> dirichlet_data(2*grid.nx() + 2*grid.ny());
-        
-        // // West boundary
-        // for (int j = 0; j < grid.ny(); j++) {
-        //     double x = grid.xLower();
-        //     double y = grid(1, j);
-        //     dirichlet_data[j+0*grid.ny()] = uFunction(x, y);
-        // }
 
-        // // East boundary
-        // for (int j = 0; j < grid.ny(); j++) {
-        //     double x = grid.xUpper();
-        //     double y = grid(1, j);
-        //     dirichlet_data[j+grid.ny()] = uFunction(x, y);
-        // }
+        // Compute interior solution data
+        patch.vectorU() = patch_solver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
 
-        // // South boundary
-        // for (int i = 0; i < grid.nx(); i++) {
-        //     double x = grid(0, i);
-        //     double y = grid.yLower();
-        //     dirichlet_data[i+2*grid.ny()] = uFunction(x, y);
-        // }
-
-        // // North boundary
-        // for (int i = 0; i < grid.nx(); i++) {
-        //     double x = grid(0, i);
-        //     double y = grid.yUpper();
-        //     dirichlet_data[i+2*grid.ny()+grid.nx()] = uFunction(x, y);
-        // }
-
-        // // Set boundary data on root patch
-        // patch.vectorG() = dirichlet_data;
-
-        // DEBUGGING VIA SHORT CIRCUIT
-        patch.vectorU() = patchSolver.solve(patch.grid(), patch.vectorG(), patch.vectorF());
+        return;
     }
 
 private:
@@ -832,36 +660,67 @@ private:
     Matrix<double> T_ot_ob;
     Matrix<double> T_ot_og;
 
+    // ====================================================================================================
     // Steps for the merge
+    // ====================================================================================================
+    /**
+     * @brief Tags patches for coarsening based on 
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     * @return Vector<int> 
+     */
     Vector<int> tagPatchesForCoarsening_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
+        // Get data
         std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
         std::vector<PatchGridType*> grids = {&alpha.grid(), &beta.grid(), &gamma.grid(), &omega.grid()};
         std::vector<int> sides(4);
         std::vector<int> tags(4);
+        
+        // Get vector of side lengths
+        for (auto i = 0; i < 4; i++) 
+            sides[i] = patches[i]->size();
 
-        for (auto i = 0; i < 4; i++) { sides[i] = patches[i]->size(); }   // Get vector of side lengths
-        int minSide = *std::min_element(sides.begin(), sides.end());        // Get minimum side length
-        for (auto i = 0; i < 4; i++) { tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(minSide)); }      // Get tags based on side lengths
+        // Get minimum side length
+        int minSide = *std::min_element(sides.begin(), sides.end());
+
+        // Get tags based on side lengths
+        for (auto i = 0; i < 4; i++) 
+            tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(minSide));
 
         return {tags};
     }
-public:
+
+    /**
+     * @brief Coarsens the requisite data for the merge algorithm (DtN matrix)
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void coarsen_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check for adaptivity
         std::vector<PatchType*> patchPointers = {&alpha, &beta, &gamma, &omega};
         Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
 
-        // FIX START
+        // Iterate over patches
         for (auto i = 0; i < 4; i++) {
             auto& patch = *patchPointers[i];
+
+            // Iterate over number of tagged
             for (auto n = 0; n < tags[i]; n++) {
                 auto& grid = patch.grid();
                 int nGrid = grid.nx();
                 int coarsenFactor = tags[i] - (tags[i] - n);
                 int nFine = nGrid / pow(2, coarsenFactor);
-                int nCoarse = nFine / 2; // coarsenFactor needs to be 1, then 2, then 3, ... for all values of tags[i]
+                int nCoarse = nFine / 2;
 
                 InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
                 std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
@@ -877,51 +736,22 @@ public:
                 patch.nCoarsens++;
             }
         }
-        // FIX END
-        
-        // BUGGY CODE START
-#if 0
-        int maxTag = *std::max_element(tags.data().begin(), tags.data().end());
-        while (maxTag > 0) {
-            for (auto i = 0; i < 4; i++) {
-                if (tags[i] > 0) {
-                    PatchGridType& fineGrid = patchPointers[i]->grid();
-                    PatchGridType coarseGrid(fineGrid.nx()/2, fineGrid.ny()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
-                    int nFine = fineGrid.nx();
-                    int nCoarse = coarseGrid.nx();
-            
-                    InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
-                    std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
-                    Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
-
-                    InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
-                    std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
-                    Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
-
-                    patchPointers[i]->matrixT() = L21Patch * patchPointers[i]->matrixT();
-                    patchPointers[i]->matrixT() = patchPointers[i]->matrixT() * L12Patch;
-                    // patchPointers[i]->matrixT() = patchSolver.buildD2N(coarseGrid);
-
-                    // patchPointers[i]->grid() = coarseGrid;
-                    patchPointers[i]->nCoarsens++;
-                }
-            }
-            tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
-            maxTag = *std::max_element(tags.data().begin(), tags.data().end());
-        }
-#endif
-        // BUGGY CODE END
 
         return;
     }
 
+    /**
+     * @brief Creates the index sets for the HPS method
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void createIndexSets_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check that all children patches are the same size (should be handled from the coarsening step if not)
-        // int nAlpha = alpha.grid().nx();
-        // int nBeta = beta.grid().nx();
-        // int nGamma = gamma.grid().nx();
-        // int nOmega = omega.grid().nx();
         int nAlpha = alpha.size();
         int nBeta = beta.size();
         int nGamma = gamma.size();
@@ -931,8 +761,6 @@ public:
             throw std::invalid_argument("[EllipticForest::FISHPACK::FISHPACKHPSMethod::createIndexSets_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
-        // int nSide = alpha.grid().nx();
-        // int nSide = alpha.size();
         int nSide = alpha.matrixT().nRows() / 4;
 
         Vector<int> I_W = vectorRange(0, nSide-1);
@@ -959,6 +787,15 @@ public:
         return;
     }
 
+    /**
+     * @brief Creates the matrix blocks needed for the HPS method
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void createMatrixBlocks_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         Matrix<double>& T_alpha = alpha.matrixT();
@@ -1020,7 +857,16 @@ public:
 
         return;
     }
-private:
+
+    /**
+     * @brief Computes the merged matrix X
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void mergeX_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Create diagonals
@@ -1048,6 +894,15 @@ private:
         return;
     }
 
+    /**
+     * @brief Computes the merged matrix S
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void mergeS_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Create right hand side
@@ -1073,6 +928,15 @@ private:
         return;
     }
 
+    /**
+     * @brief Computes the merged matrix T
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void mergeT_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Create left hand side
@@ -1103,11 +967,18 @@ private:
         return;
     }
 
+    /**
+     * @brief Performs a permutation on the matrices S and T to stay in WESN ordering
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void reorderOperators_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Form permutation vector and block sizes
-        // int nSide = alpha.grid().nx();
-        // int nSide = alpha.size();
         int nSide = alpha.matrixT().nRows() / 4;
         Vector<int> pi_noChange = {0, 1, 2, 3};
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
@@ -1121,26 +992,45 @@ private:
         return;
     }
 
+    /**
+     * @brief Merges the remaining data for the parent
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void mergePatch_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        // PatchGridType mergedGrid(alpha.grid().nx() + beta.grid().nx(), alpha.grid().ny() + gamma.grid().ny(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.grid().yLower(), gamma.grid().yUpper());
         PatchGridType mergedGrid(MPI_COMM_SELF, alpha.size() + beta.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.size() + gamma.size(), alpha.grid().yLower(), gamma.grid().yUpper());
         tau.grid() = mergedGrid;
-        // tau.level = alpha.level - 1;
-        // tau.isLeaf = false;
 
     }
 
-
+    // ====================================================================================================
     // Steps for the upwards stage
+    // ====================================================================================================
+
+    /**
+     * @brief Coarsens the requisite data for the merge algorithm (h vector)
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void coarsenUpwards_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check for adaptivity
         std::vector<PatchType*> patchPointers = {&alpha, &beta, &gamma, &omega};
 
-        // FIX START
+        // Iterate over patches
         for (auto i = 0; i < 4; i++) {
             auto& patch = *patchPointers[i];
+
+            // Iterate over tagged patches
             for (auto n = 0; n < patch.nCoarsens; n++) {
                 auto& grid = patch.grid();
                 int nGrid = grid.nx();
@@ -1153,28 +1043,19 @@ private:
                 patchPointers[i]->vectorH() = L21Patch * patchPointers[i]->vectorH();
             }
         }
-        // FIX END
 
-#if 0
-        // BUGGY CODE START
-        for (auto i = 0; i < 4; i++) {
-            for (auto n = 0; n < patchPointers[i]->nCoarsens; n++) {
-                PatchGridType& fineGrid = patchPointers[i]->grid();
-                PatchGridType coarseGrid(fineGrid.nx()/2, fineGrid.ny()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
-                int nFine = fineGrid.nx();
-                int nCoarse = coarseGrid.nx();
-
-                InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
-                std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
-                Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
-                patchPointers[i]->vectorH() = L21Patch * patchPointers[i]->vectorH();
-            }
-        }
-        //BUGGY CODE END
-#endif
         return;
     }
 
+    /**
+     * @brief Computes the merged vector w
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void mergeW_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Form hDiff
@@ -1205,6 +1086,15 @@ private:
         return;
     }
 
+    /**
+     * @brief Computes the merged vector h
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void mergeH_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Compute and set h_tau
@@ -1226,6 +1116,15 @@ private:
         return;
     }
 
+    /**
+     * @brief Performs a permutation on the vector h to stay in WESN ordering
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void reorderOperatorsUpwards_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // int nAlpha = alpha.grid().nx();
@@ -1242,8 +1141,6 @@ private:
         }
 
         // Form permutation vector and block sizes
-        // int nSide = alpha.grid().nx();
-        // int nSide = alpha.size();
         int nSide = alpha.matrixT().nRows() / 4;
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
         Vector<int> blockSizes(8, nSide);
@@ -1252,120 +1149,23 @@ private:
         tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
     }
 
-    // Steps for the split
-    void setBoundaryData_(PatchType& rootPatch, std::vector<Vector<NumericalType>> boundaryData, std::vector<BoundaryConditionType> boundaryTypes) {
+    // ====================================================================================================
+    // Steps for the solve stage
+    // ====================================================================================================
 
-        // Initialize data
-        std::cout << "CALLING SETBOUNDARYDATA_!" << std::endl;
-        PatchGridType& grid = rootPatch.grid();
-        Matrix<NumericalType>& T = rootPatch.matrixT();
-        Vector<NumericalType>& h = rootPatch.vectorH();
-        std::vector<Vector<NumericalType>> dirichletData;
-        std::vector<Vector<NumericalType>> neumannData;
-        // Vector<NumericalType> gWest(grid.ny());
-        // Vector<NumericalType> gEast(grid.ny());
-        // Vector<NumericalType> gSouth(grid.nx());
-        // Vector<NumericalType> gNorth(grid.nx());
-        int M = grid.nx();
-        // Vector<int> I_W = vectorRange(0*M, 1*M - 1);
-        // Vector<int> I_E = vectorRange(1*M, 2*M - 1);
-        // Vector<int> I_S = vectorRange(2*M, 3*M - 1);
-        // Vector<int> I_N = vectorRange(3*M, 4*M - 1);
-        // std::vector<Vector<int>> IS_WESN = {I_W, I_E, I_S, I_N};
-        std::vector<Vector<int>> IS_WESN = {
-            vectorRange(0*M, 1*M - 1),
-            vectorRange(1*M, 2*M - 1),
-            vectorRange(2*M, 3*M - 1),
-            vectorRange(3*M, 4*M - 1)
-        };
-
-        for (auto& type : boundaryTypes) {
-            if (type == BoundaryConditionType::Robin) {
-                throw std::invalid_argument("[EllipticForest::HPSAlgorithm::setBoundaryData_] Robin BCs not implemented!");
-            }
-        }
-
-        // Check for all Neumann problem
-        bool allNeumannCheck = true;
-        for (auto& type : boundaryTypes) {
-            if (type != BoundaryConditionType::Neumann) {
-                allNeumannCheck = false;
-                break;
-            }
-        }
-
-        if (allNeumannCheck) {
-            // All Neumann problem; need to fix one row of T
-
-        }
-        else {
-            // At least one Dirichlet side; use it in linear system
-            // int nNeumannSides = 0;
-            // for (auto& type : boundaryTypes)  {
-            //     if (type == BoundaryConditionType::Neumann) {
-            //         nNeumannSides++;
-            //     }
-            // }
-
-            std::vector<Vector<int>> Is_unknown, Js_unknown;
-            std::vector<Vector<int>> Is_known, Js_known;
-            for (auto n = 0; n < 4; n++) {
-                if (boundaryTypes[n] == BoundaryConditionType::Dirichlet) {
-                    dirichletData[n] = boundaryData[n];
-                    Is_known.push_back(IS_WESN[n]);
-                    Js_known.push_back(IS_WESN[n]);
-                }
-                else if (boundaryTypes[n] == BoundaryConditionType::Neumann) {
-                    neumannData[n] = boundaryData[n];
-                    Is_unknown.push_back(IS_WESN[n]);
-                    Js_unknown.push_back(IS_WESN[n]);
-                }
-            }
-
-            Vector<int> I_unknown = concatenate(Is_unknown);
-            Vector<int> J_unknown = concatenate(Js_unknown);
-            Vector<int> I_known = concatenate(Is_known);
-            Vector<int> J_known = concatenate(Js_known);
-
-            Vector<NumericalType> v_U = concatenate(neumannData);
-            Vector<NumericalType> g_K = concatenate(dirichletData);
-            Vector<NumericalType> h_U = h.getFromIndexSet(I_unknown);
-            // Vector<NumericalType> h_known = h.getFromIndexSet(I_known);
-            // Matrix<NumericalType> T_known = T.getFromIndexSet(I_known, J_known);
-
-            Matrix<NumericalType> T_UK = T.getFromIndexSet(I_unknown, J_known);
-            Matrix<NumericalType> T_UU = T.getFromIndexSet(I_unknown, J_unknown);
-
-            Vector<NumericalType> RHS = v_U - h_U;
-            Vector<NumericalType> temp = T_UK * g_K;
-            RHS = RHS - temp;
-            Vector<NumericalType> g_U = solve(T_UU, RHS);
-
-            for (auto n = 0; n < 4; n++) {
-                if (boundaryTypes[n] == BoundaryConditionType::Neumann) {
-                    dirichletData[n] = g_U.getFromIndexSet(IS_WESN[n]);
-                }
-            }
-
-        }
-
-        for (auto n = 0; n < 4; n++) {
-            rootPatch.vectorG().setSegment(n*M, dirichletData[n]);
-        }
-        // rootPatch.vectorG().setSegment(0*grid.nx(), dirichletData[0]);
-        // rootPatch.vectorG().setSegment(1*grid.nx(), dirichletData[1]);
-        // rootPatch.vectorG().setSegment(2*grid.nx(), dirichletData[2]);
-        // rootPatch.vectorG().setSegment(3*grid.nx(), dirichletData[3]);
-
-    }
-
-
-
+    /**
+     * @brief Uncoarsens a patch that was tagged for coarsening in the build stage by averaging data to finer data
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void uncoarsen_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
 
-        // FIX START
         for (auto n = 0; n < tau.nCoarsens; n++) {
             auto& grid = tau.grid();
             int nGrid = grid.nx();
@@ -1378,32 +1178,21 @@ private:
             Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
             tau.vectorG() = L12Patch * tau.vectorG();
         }
-        // FIX END
-
-#if 0
-        for (auto n = 0; n < tau.nCoarsens; n++) {
-            // PatchGridType coarseGrid = tau.grid();
-            // PatchGridType fineGrid(coarseGrid.nx()*2, coarseGrid.ny()*2, coarseGrid.xLower(), coarseGrid.xUpper(), coarseGrid.yLower(), coarseGrid.yUpper());
-            PatchGridType& fineGrid = tau.grid();
-            PatchGridType coarseGrid(fineGrid.nx()/2, fineGrid.ny()/2, fineGrid.xLower(), fineGrid.xUpper(), fineGrid.yLower(), fineGrid.yUpper());
-
-            int nFine = fineGrid.nx();
-            int nCoarse = coarseGrid.nx();
-
-            InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
-            std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
-            Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
-            tau.vectorG() = L12Patch * tau.vectorG();
-
-            // tau.grid() = fineGrid;
-        }
-#endif
+     
         return;
     }
 
+    /**
+     * @brief Applies the S operator to map the exterior solution data to interior solution data
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
     void applyS_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        // std::cout << "tau: " << tau.str() << std::endl;
         // Apply solution operator to get interior of tau
         Vector<double> u_tau_interior = tau.matrixS() * tau.vectorG();
         Vector<double> u_tau_interior_intermediate = u_tau_interior;
@@ -1415,58 +1204,11 @@ private:
         }
 
         // Extract components of interior of tau
-        // int nSide = alpha.grid().nx();
         int nSide = alpha.size();
         Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nSide, nSide);
         Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nSide, nSide);
         Vector<double> g_alpha_beta = u_tau_interior.getSegment(2*nSide, nSide);
         Vector<double> g_gamma_omega = u_tau_interior.getSegment(3*nSide, nSide);
-
-        // DEBUGGING VIA PLOTTING & SHORT CIRCUIT
-
-        // auto& grid_alpha = alpha.grid();
-        // auto& grid_beta = beta.grid();
-        // auto& grid_gamma = gamma.grid();
-        // auto& grid_omega = omega.grid();
-        // Vector<double> g_alpha_gamma_exact(grid_alpha.nx());
-        // Vector<double> g_beta_omega_exact(grid_alpha.nx());
-        // Vector<double> g_alpha_beta_exact(grid_alpha.ny());
-        // Vector<double> g_gamma_omega_exact(grid_alpha.ny());
-        // for (int i = 0; i < grid_alpha.nx(); i++) {
-        //     double x = grid_alpha(0, i);
-        //     double y = grid_alpha.yUpper();
-        //     g_alpha_gamma_exact[i] = uFunction(x, y);
-        // }
-        // for (int i = 0; i < grid_alpha.nx(); i++) {
-        //     double x = grid_beta(0, i);
-        //     double y = grid_beta.yUpper();
-        //     g_beta_omega_exact[i] = uFunction(x, y);
-        // }
-        // for (int j = 0; j < grid_alpha.ny(); j++) {
-        //     double x = grid_alpha.xUpper();
-        //     double y = grid_alpha(1, j);
-        //     g_alpha_beta_exact[j] = uFunction(x, y);
-        // }
-        // for (int j = 0; j < grid_alpha.ny(); j++) {
-        //     double x = grid_gamma.xUpper();
-        //     double y = grid_gamma(1, j);
-        //     g_gamma_omega_exact[j] = uFunction(x, y);
-        // }
-
-        // Vector<double> u_exact = concatenate({g_alpha_gamma_exact, g_beta_omega_exact, g_alpha_beta_exact, g_gamma_omega_exact});
-        // Vector<double> w_exact = u_exact - u_tau_interior_intermediate;
-
-        // plt::plot(w_exact.data(), "-r");
-        // plt::plot(tau.vectorW().data(), "--b");
-        // plt::title("w_tau");
-        // plt::show();
-
-        // plt::plot(g_alpha_beta_exact.data(), "-r");
-        // plt::plot(g_alpha_beta.data(), "--b");
-        // plt::title("g_alpha_beta");
-        // plt::show();
-
-        // DEBUGGING VIA PLOTTING
 
         // Extract components of exterior of tau
         Vector<double> g_alpha_W = tau.vectorG().getSegment(0*nSide, nSide);
@@ -1484,68 +1226,10 @@ private:
         gamma.vectorG() = concatenate({g_gamma_W, g_gamma_omega, g_alpha_gamma, g_gamma_N});
         omega.vectorG() = concatenate({g_gamma_omega, g_omega_E, g_beta_omega, g_omega_N});
 
-        // DEBUGGING VIA SHORT CIRCUIT
-        // alpha.vectorG() = concatenate({g_alpha_W, g_alpha_beta_exact, g_alpha_S, g_alpha_gamma_exact});
-        // beta.vectorG() = concatenate({g_alpha_beta_exact, g_beta_E, g_beta_S, g_beta_omega_exact});
-        // gamma.vectorG() = concatenate({g_gamma_W, g_gamma_omega_exact, g_alpha_gamma_exact, g_gamma_N});
-        // omega.vectorG() = concatenate({g_gamma_omega_exact, g_omega_E, g_beta_omega_exact, g_omega_N});
-        // DEBUGGING VIA SHORT CIRCUIT
-
         return;
     }
 
-    void extractAndSet_(ParallelMatrix<NumericalType>& destination, ParallelMatrix<NumericalType>& source, int nrows, int row_index, int ncols, int col_index) {
-        NumericalType* source_array;
-        MatDenseGetArray(source.mat, &source_array);
-
-        Vector<int> idx_rows = vectorRange(row_index*nrows, (row_index+1)*nrows-1);
-        Vector<int> idx_cols = vectorRange(col_index*ncols, (col_index+1)*ncols-1);
-        MatSetValues(destination.mat, nrows, idx_rows.data().data(), ncols, idx_cols.data().data(), source_array, INSERT_VALUES);
-
-        MatDenseRestoreArray(source.mat, &source_array);
-    }
-
-
 };
-
-// template<typename PatchType, typename NumericalType>
-// class HomogeneousHPSMethod : public HPSAlgorithmBase<PatchType, NumericalType> {
-
-// public:
-
-//     virtual void run() override {
-
-//         this->preSetupHook();
-//         this->setupStage();
-//         this->postSetupHook();
-
-//         this->preBuildHook();
-//         this->buildStage();
-//         this->postBuildHook();
-
-//         this->preSolveHook();
-//         this->solveStage();
-//         this->postSolveHook();
-
-//     }
-
-// protected:
-
-//     // virtual void preSetupHook() {}
-//     virtual void setupStage() override = 0;
-//     // virtual void postSetupHook() {}
-
-//     // virtual void preBuildHook() {}
-//     // virtual void buildStage();
-//     // virtual void postBuildHook() {}
-
-//     // virtual void preSolveHook() {}
-//     // virtual void solveStage();
-//     // virtual void postSolveHook() {}
-
-//     // virtual void postProcess() {}
-
-// };
 
 } // NAMESPACE : EllipticForest
 
