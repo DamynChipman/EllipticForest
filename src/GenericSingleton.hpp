@@ -11,6 +11,11 @@ class GenericSingleton {
 
 public:
 
+    /**
+     * @brief Get the instance of the singleton
+     * 
+     * @return ActualClass& 
+     */
     static ActualClass& getInstance() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (actualClassPointer_ == nullptr) {
@@ -24,11 +29,20 @@ public:
 
 protected:
 
+    /**
+     * @brief Pointer to actual instance of object
+     * 
+     */
+    static ActualClass* actualClassPointer_;
+
+    /**
+     * @brief Mutex for multi-threaded applications
+     * 
+     */
+    static std::mutex mutex_;
+
     GenericSingleton() {}
     ~GenericSingleton() {}
-
-    static ActualClass* actualClassPointer_;
-    static std::mutex mutex_;
 
 };
 
