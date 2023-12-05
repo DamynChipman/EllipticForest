@@ -9,9 +9,58 @@
 #include "EllipticForestApp.hpp"
 #include "Vector.hpp"
 
+// ====================================================================================================
+// FORTRAN wrappers for LAPACK routines
+// ====================================================================================================
 extern "C" {
+    /**
+     * @brief Double, general matrix-vector multiplication: y = alpha*A*x + beta*y
+     * 
+     * @param TRANS `N`, `T`, or `C` flags for transpose
+     * @param M Number of rows in A
+     * @param N Number of columns in A
+     * @param ALPHA Mat-vec multiplier
+     * @param A Double array of matrix A data
+     * @param LDA Leading dimension of A
+     * @param X Double array of vector x data
+     * @param INCX Increment for the elements of x
+     * @param BETA Vector y multiplier
+     * @param Y Double array of vector y data (input and output)
+     * @param INCY Increment for the elements of y
+     */
     void dgemv_(char* TRANS, int* M, int* N, double* ALPHA, double* A, int* LDA, double* X, int* INCX, double* BETA, double* Y, int* INCY);
+
+    /**
+     * @brief Double, general matrix-matrix multiplication: C = alpha*A*B + beta*C
+     * 
+     * @param TRANSA `N`, `T`, or `C` flags for transpose of A
+     * @param TRANSB `N`, `T`, or `C` flags for transpose of B
+     * @param M Number of rows in A
+     * @param N Number of columns in B
+     * @param K Number of columns of A
+     * @param ALPHA Mat-mat multiplier
+     * @param A Double array of matrix A data
+     * @param LDA Leading dimension of A
+     * @param B Double array of matrix B data
+     * @param LDB Leading dimension of B
+     * @param BETA Matrix C multiplier
+     * @param C Double array of matrix C data
+     * @param LDC Leading dimension of C
+     */
     void dgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, double* A, int* LDA, double* B, int* LDB, double* BETA, double* C, int* LDC);
+
+    /**
+     * @brief Double, general linear solver for system A*X = B
+     * 
+     * @param N Number of rows and columns in A
+     * @param NRHS Number of right-hand sides, or columns in B
+     * @param A Double array of matrix A data
+     * @param LDA Leading dimension of A
+     * @param IPIV Pivot indices
+     * @param B Double array of matrix B data; on output, stores solution of X
+     * @param LDB Leading dimension of B
+     * @param INFO Info flag
+     */
     void dgesv_(int* N, int* NRHS, double* A, int* LDA, int* IPIV, double* B, int* LDB, int* INFO);
 }
 
@@ -29,164 +78,257 @@ class Matrix {
 
 protected:
 
-    std::size_t nRows_;
-    std::size_t nCols_;
+    /**
+     * @brief Number of rows
+     * 
+     */
+    std::size_t nrows_;
+
+    /**
+     * @brief Number of columns
+     * 
+     */
+    std::size_t ncols_;
+
+    /**
+     * @brief Underlying storage
+     * 
+     */
     std::vector<NumericalType> data_;
 
 public:
 
-    Matrix() : nRows_(0), nCols_(0), data_(0) {}
+    /**
+     * @brief Construct a new Matrix object (default)
+     * 
+     */
+    Matrix() :
+        nrows_(0),
+        ncols_(0),
+        data_(0)
+            {}
 
-    Matrix(std::size_t nRows, std::size_t nCols) : nRows_(nRows), nCols_(nCols), data_(nRows * nCols) {}
+    /**
+     * @brief Construct a new Matrix object with space for `nrows` x `ncols` matrix
+     * 
+     * @param nrows Number of rows
+     * @param ncols Number of columns
+     */
+    Matrix(std::size_t nrows, std::size_t ncols) :
+        nrows_(nrows),
+        ncols_(ncols),
+        data_(nrows * ncols)
+            {}
 
-    // Matrix(std::size_t nRows, std::size_t nCols, NumericalType* dataArray) : nRows_(nRows), nCols_(nCols) {
-    //     data_.assign(dataArray, dataArray + (nCols * nRows));
-    // }
+    /**
+     * @brief Construct a new Matrix object where every entry is the value of `value`
+     * 
+     * @param nrows Number of rows
+     * @param ncols Number of columns
+     * @param value Value of all entires
+     */
+    Matrix(std::size_t nrows, std::size_t ncols, NumericalType value) :
+        nrows_(nrows),
+        ncols_(ncols),
+        data_(nrows * ncols, value)
+            {}
 
-    Matrix(std::size_t nRows, std::size_t nCols, NumericalType value) : nRows_(nRows), nCols_(nCols), data_(nRows * nCols, value) {}
+    /**
+     * @brief Construct a new Matrix object from a linear vector `data` in row-major format
+     * 
+     * @param nrows Number of rows
+     * @param ncols Number of columns
+     * @param data Vector of data in row-major format
+     */
+    Matrix(std::size_t nrows, std::size_t ncols, std::vector<NumericalType> data) :
+        nrows_(nrows),
+        ncols_(ncols),
+        data_(data)
+            {}
 
-    Matrix(std::size_t nRows, std::size_t nCols, std::vector<NumericalType> data) : nRows_(nRows), nCols_(nCols), data_(data) {}
+    /**
+     * @brief Construct a new Matrix object from an initializer list
+     * 
+     * @param nrows Number of rows
+     * @param ncols Number of columns
+     * @param init_list Initialization list
+     */
+    Matrix(std::size_t nrows, std::size_t ncols, std::initializer_list<NumericalType> init_list) :
+        nrows_(nrows),
+        ncols_(ncols),
+        data_(init_list)
+            {}
 
-    Matrix(std::size_t nRows, std::size_t nCols, std::initializer_list<NumericalType> iList) : nRows_(nRows), nCols_(nCols), data_(iList) {}
+    /**
+     * @brief Construct a new Matrix object from another matrix (copy constructor)
+     * 
+     * @param A Other matrix
+     */
+    Matrix(const Matrix& A) :
+        nrows_(A.nrows()),
+        ncols_(A.ncols()),
+        data_(A.data())
+            {}
 
-    Matrix(Matrix& A) {
-        nRows_ = A.nRows();
-        nCols_ = A.nCols();
-        data_ = A.data();
-    }
-
-    Matrix(const Matrix& A) {
-        nRows_ = A.nRows();
-        nCols_ = A.nCols();
-        data_ = A.data();
-    }
-
+    /**
+     * @brief Copy assignment operator
+     * 
+     * @param rhs RHS matrix
+     * @return Matrix<NumericalType>& 
+     */
     Matrix<NumericalType>& operator=(const Matrix<NumericalType>& rhs) {
         if (&rhs != this) {
-            nRows_ = rhs.nRows();
-            nCols_ = rhs.nCols();
+            nrows_ = rhs.nrows();
+            ncols_ = rhs.ncols();
             data_ = rhs.data();
             return *this;
         }
         return *this;
     }
 
-    std::size_t nRows() const { return nRows_; }
-    std::size_t nCols() const { return nCols_; }
+    /**
+     * @brief Returns the number of rows
+     * 
+     * @return std::size_t 
+     */
+    std::size_t nrows() const { return nrows_; }
+
+    /**
+     * @brief Returns the number of columns
+     * 
+     * @return std::size_t 
+     */
+    std::size_t ncols() const { return ncols_; }
+
+    /**
+     * @brief Returns the data vector
+     * 
+     * @return std::vector<NumericalType> 
+     */
     std::vector<NumericalType> data() const { return data_; }
+
+    /**
+     * @brief Non-const version of the data vector
+     * 
+     * @return std::vector<NumericalType>& 
+     */
     std::vector<NumericalType>& dataNoConst() { return data_; }
+
+    /**
+     * @brief Returns the raw data pointer
+     * 
+     * @return NumericalType* 
+     */
     NumericalType* dataPointer() { return data_.data(); }
 
+    /**
+     * @brief Getter function for entry A[i,j]
+     * 
+     * @param i Row index
+     * @param j Column index
+     * @return NumericalType 
+     */
     NumericalType getEntry(std::size_t i, std::size_t j) {
         return data_[flattenIndex_(i,j)];
     }
 
+    /**
+     * @brief Getter function for entry A[i,j]
+     * 
+     * @param i Row index
+     * @param j Column index
+     * @return NumericalType& 
+     */
     NumericalType& operator()(std::size_t i, std::size_t j) {
         return data_[flattenIndex_(i,j)];
     }
 
+    /**
+     * @brief Getter function for range of entries A[a:b, c:d]
+     * 
+     * @param a Lower row index
+     * @param b Upper row index
+     * @param c Lower column index
+     * @param d Upper column index
+     * @return Matrix<NumericalType> 
+     */
     Matrix<NumericalType> operator()(std::size_t a, std::size_t b, std::size_t c, std::size_t d) {
         Matrix<NumericalType> res((b - a) + 1, (d - c) + 1);
-        for (auto i = 0; i < res.nRows(); i++) {
-            for (auto j = 0; j < res.nCols(); j++) {
+        for (auto i = 0; i < res.nrows(); i++) {
+            for (auto j = 0; j < res.ncols(); j++) {
                 res(i,j) = data_[flattenIndex_(a + i, c + j)];
             }
         }
         return res;
     }
 
-    Vector<NumericalType> getRow(std::size_t rowIndex) {
-        Vector<NumericalType> res(nCols_);
-        Matrix<NumericalType> rowMatrix = operator()(rowIndex, rowIndex, 0, nCols_ - 1);
-        for (auto j = 0; j < nCols_; j++) {
+    /**
+     * @brief Getter function for row A[i,:]
+     * 
+     * @param row_index Row index 
+     * @return Vector<NumericalType> 
+     */
+    Vector<NumericalType> getRow(std::size_t row_index) {
+        Vector<NumericalType> res(ncols_);
+        Matrix<NumericalType> rowMatrix = operator()(row_index, row_index, 0, ncols_ - 1);
+        for (auto j = 0; j < ncols_; j++) {
             res[j] = rowMatrix(0, j);
         }
         return res;
     }
 
-    Vector<NumericalType> getCol(std::size_t colIndex) {
-        Vector<NumericalType> res(nRows_);
-        Matrix<NumericalType> colMatrix = operator()(0, nRows_ - 1, colIndex, colIndex);
-        for (auto i = 0; i < nCols_; i++) {
+    /**
+     * @brief Getter function for column A[:,j]
+     * 
+     * @param col_index Column index
+     * @return Vector<NumericalType> 
+     */
+    Vector<NumericalType> getCol(std::size_t col_index) {
+        Vector<NumericalType> res(nrows_);
+        Matrix<NumericalType> colMatrix = operator()(0, nrows_ - 1, col_index, col_index);
+        for (auto i = 0; i < ncols_; i++) {
             res[i] = colMatrix(i, 0);
         }
         return res;
     }
 
-    void setRow(std::size_t rowIndex, Vector<NumericalType>& vec) {
-        if (rowIndex > nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::setRow] `rowIndex` exceeds matrix size:\n";
-            errorMessage += "\trowIndex = " + std::to_string(rowIndex) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
-        }
-        if (vec.size() != nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::setRow] Size of `vec` is not the same as number of columns in `this`:\n";
-            errorMessage += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
-        }
-
-        for (auto j = 0; j < nCols_; j++) {
-            operator()(rowIndex, j) = vec[j];
-        }
-
-    }
-
-    void setColumn(std::size_t colIndex, Vector<NumericalType>& vec) {
-        if (colIndex > nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::setColumn] `colIndex` exceeds matrix size:\n";
-            errorMessage += "\tcolIndex = " + std::to_string(colIndex) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
-        }
-        if (vec.size() != nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::setColumn] Size of `vec` is not the same as number of rows in `this`:\n";
-            errorMessage += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
-        }
-
-        for (auto i = 0; i < nRows_; i++) {
-            operator()(i, colIndex) = vec[i];
-        }
-
-    }
-
+    /**
+     * @brief Accessor function for A[I,J] where I and J are index sets
+     * 
+     * @param I Row index set
+     * @param J Column index set
+     * @return Matrix<NumericalType> 
+     */
     Matrix<NumericalType> getFromIndexSet(Vector<int> I, Vector<int> J) {
-        if (I.size() > nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::getFromIndexSet] Size of index set `I` is greater than number of rows in `this`:\n";
-            errorMessage += "\tI.size() = " + std::to_string(I.size()) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+        if (I.size() > nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::getFromIndexSet] Size of index set `I` is greater than number of rows in `this`:\n";
+            error_msg += "\tI.size() = " + std::to_string(I.size()) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
-        if (J.size() > nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::getFromIndexSet] Size of index set `J` is greater than number of columns in `this`:\n";
-            errorMessage += "\tJ.size() = " + std::to_string(J.size()) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+        if (J.size() > ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::getFromIndexSet] Size of index set `J` is greater than number of columns in `this`:\n";
+            error_msg += "\tJ.size() = " + std::to_string(J.size()) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
 
         Matrix<NumericalType> res(I.size(), J.size());
         for (auto i = 0; i < I.size(); i++) {
             for (auto j = 0; j < J.size(); j++) {
-                if (I[i] > nRows_ || I[i] < 0) {
-                    std::string errorMessage = "[EllipticForest::Matrix::getFromIndexSet] Index in `I` is out of range:\n";
-                    errorMessage += "\ti = " + std::to_string(i) + "\n";
-                    errorMessage += "\tI[i] = " + std::to_string(I[i]) + "\n";
-                    errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
+                if (I[i] > nrows_ || I[i] < 0) {
+                    std::string error_msg = "[EllipticForest::Matrix::getFromIndexSet] Index in `I` is out of range:\n";
+                    error_msg += "\ti = " + std::to_string(i) + "\n";
+                    error_msg += "\tI[i] = " + std::to_string(I[i]) + "\n";
+                    error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
                 }
-                if (J[j] > nCols_ || J[j] < 0) {
-                    std::string errorMessage = "[EllipticForest::Matrix::getFromIndexSet] Index in `J` is out of range:\n";
-                    errorMessage += "\tj = " + std::to_string(j) + "\n";
-                    errorMessage += "\tJ[j] = " + std::to_string(J[j]) + "\n";
-                    errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
+                if (J[j] > ncols_ || J[j] < 0) {
+                    std::string error_msg = "[EllipticForest::Matrix::getFromIndexSet] Index in `J` is out of range:\n";
+                    error_msg += "\tj = " + std::to_string(j) + "\n";
+                    error_msg += "\tJ[j] = " + std::to_string(J[j]) + "\n";
+                    error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
                 }
                 res(i,j) = operator()(I[i], J[j]);
             }
@@ -195,8 +337,71 @@ public:
 
     }
 
+    /**
+     * @brief Accessor function for A[I,J] where I and J are index sets
+     * 
+     * @param I Row index set
+     * @param J Column index set
+     * @return Matrix<NumericalType> 
+     */
     Matrix<NumericalType> operator()(Vector<int> I, Vector<int> J) {
         return getFromIndexSet(I,J);
+    }
+
+    /**
+     * @brief Setter function for row A[i,:]
+     * 
+     * @param row_index Row index
+     * @param vec Vector to set
+     */
+    void setRow(std::size_t row_index, Vector<NumericalType>& vec) {
+        if (row_index > nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::setRow] `row_index` exceeds matrix size:\n";
+            error_msg += "\trowIndex = " + std::to_string(row_index) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
+        }
+        if (vec.size() != ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::setRow] Size of `vec` is not the same as number of columns in `this`:\n";
+            error_msg += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
+        }
+
+        for (auto j = 0; j < ncols_; j++) {
+            operator()(row_index, j) = vec[j];
+        }
+
+    }
+
+    /**
+     * @brief Setter for column A[:,j]
+     * 
+     * @param col_index Column index
+     * @param vec Vector to set
+     */
+    void setColumn(std::size_t col_index, Vector<NumericalType>& vec) {
+        if (col_index > ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::setColumn] `col_index` exceeds matrix size:\n";
+            error_msg += "\tcolIndex = " + std::to_string(col_index) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
+        }
+        if (vec.size() != nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::setColumn] Size of `vec` is not the same as number of rows in `this`:\n";
+            error_msg += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
+        }
+
+        for (auto i = 0; i < nrows_; i++) {
+            operator()(i, col_index) = vec[i];
+        }
+
     }
 
     /**
@@ -211,26 +416,26 @@ public:
     Matrix<NumericalType> blockPermute(Vector<int> I, Vector<int> J, Vector<int> R, Vector<int> C) {
         std::size_t rowCheck = 0;
         for (auto r = 0; r < R.size(); r++) rowCheck += R[r];
-        if (rowCheck != nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::blockPermute] Rows in `R` do not add up to number of rows in `this`:\n";
-            errorMessage += "\tSum of R = " + std::to_string(rowCheck) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+        if (rowCheck != nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::blockPermute] Rows in `R` do not add up to number of rows in `this`:\n";
+            error_msg += "\tSum of R = " + std::to_string(rowCheck) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
         }
 
         std::size_t colCheck = 0;
         for (auto c = 0; c < C.size(); c++) colCheck += C[c];
-        if (colCheck != nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::blockPermute] Rows in `C` do not add up to number of rows in `this`:\n";
-            errorMessage += "\tSum of C = " + std::to_string(colCheck) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+        if (colCheck != ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::blockPermute] Rows in `C` do not add up to number of rows in `this`:\n";
+            error_msg += "\tSum of C = " + std::to_string(colCheck) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
         }
 
-        Vector<int> IGlobal(nRows_);
-        Vector<int> JGlobal(nCols_);
+        Vector<int> IGlobal(nrows_);
+        Vector<int> JGlobal(ncols_);
 
         std::size_t ICounter = 0;
         for (auto i = 0; i < I.size(); i++) {
@@ -252,80 +457,102 @@ public:
 
     }
 
-    Matrix<NumericalType> getBlock(std::size_t rowIndex, std::size_t colIndex, std::size_t rowLength, std::size_t colLength) {
-        if (rowIndex + rowLength > nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::getBlock] Row size exceeds matrix size:\n";
-            errorMessage += "\trowIndex = " + std::to_string(rowIndex) + "\n";
-            errorMessage += "\trowLength = " + std::to_string(rowLength) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+    /**
+     * @brief Getter function for a sub-block of A
+     * 
+     * @param row_index Starting row index
+     * @param col_index Starting column index
+     * @param row_length Row length
+     * @param col_length Column length
+     * @return Matrix<NumericalType> 
+     */
+    Matrix<NumericalType> getBlock(std::size_t row_index, std::size_t col_index, std::size_t row_length, std::size_t col_length) {
+        if (row_index + row_length > nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::getBlock] Row size exceeds matrix size:\n";
+            error_msg += "\trowIndex = " + std::to_string(row_index) + "\n";
+            error_msg += "\trowLength = " + std::to_string(row_length) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
-        if (colIndex + colLength > nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::getBlock] Column size exceeds matrix size:\n";
-            errorMessage += "\tcolIndex = " + std::to_string(colIndex) + "\n";
-            errorMessage += "\tcolLength = " + std::to_string(colLength) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+        if (col_index + col_length > ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::getBlock] Column size exceeds matrix size:\n";
+            error_msg += "\tcolIndex = " + std::to_string(col_index) + "\n";
+            error_msg += "\tcolLength = " + std::to_string(col_length) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
 
         std::vector<NumericalType> resData;
-        resData.reserve(rowLength * colLength);
+        resData.reserve(row_length * col_length);
 
-        for (auto i = rowIndex; i < rowIndex + rowLength; i++) {
-            for (auto j = colIndex; j < colIndex + colLength; j++) {
+        for (auto i = row_index; i < row_index + row_length; i++) {
+            for (auto j = col_index; j < col_index + col_length; j++) {
                 resData.emplace_back(operator()(i,j));
             }
         }
-        return {rowLength, colLength, std::move(resData)};
+        return {row_length, col_length, std::move(resData)};
     }
 
-    void setBlock(std::size_t rowIndex, std::size_t colIndex, Matrix<NumericalType>& mat) {
-        if (rowIndex + mat.nRows() > nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::setBlock] Row size exceeds matrix size:\n";
-            errorMessage += "\trowIndex = " + std::to_string(rowIndex) + "\n";
-            errorMessage += "\tmat.nRows() = " + std::to_string(mat.nRows()) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+    /**
+     * @brief Setter for a sub-block of A
+     * 
+     * @param row_index Starting row index
+     * @param col_index Starting column index
+     * @param mat Sub-matrix to set
+     */
+    void setBlock(std::size_t row_index, std::size_t col_index, Matrix<NumericalType>& mat) {
+        if (row_index + mat.nrows() > nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::setBlock] Row size exceeds matrix size:\n";
+            error_msg += "\trowIndex = " + std::to_string(row_index) + "\n";
+            error_msg += "\tmat.nrows() = " + std::to_string(mat.nrows()) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
-        if (colIndex + mat.nCols() > nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::setBlock] Column size exceeds matrix size:\n";
-            errorMessage += "\tcolIndex = " + std::to_string(colIndex) + "\n";
-            errorMessage += "\tmat.nCols() = " + std::to_string(mat.nCols()) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+        if (col_index + mat.ncols() > ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::setBlock] Column size exceeds matrix size:\n";
+            error_msg += "\tcolIndex = " + std::to_string(col_index) + "\n";
+            error_msg += "\tmat.ncols() = " + std::to_string(mat.ncols()) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
 
-        for (auto i = rowIndex; i < rowIndex + mat.nRows(); i++) {
-            for (auto j = colIndex; j < colIndex + mat.nCols(); j++) {
-                operator()(i,j) = mat(i - rowIndex, j - colIndex);
+        for (auto i = row_index; i < row_index + mat.nrows(); i++) {
+            for (auto j = col_index; j < col_index + mat.ncols(); j++) {
+                operator()(i,j) = mat(i - row_index, j - col_index);
             }
         }
     }
 
-    // Matrix<NumericalType>& operator+=(const Matrix<NumericalType>& rhs) {
-    //     if (rhs.nRows() != nRows_) {
-    //         std::string errorMessage = "[EllipticForest::Matrix::operator+="
-    //     }
-    // }
-
+    /**
+     * @brief Returns a new matrix that is the transpose of this matrix
+     * 
+     * @return Matrix<NumericalType> 
+     */
     Matrix<NumericalType> T() {
-        Matrix<NumericalType> res(nCols_, nRows_);
-        for (auto j = 0; j < nCols_; j++) {
-            for (auto i = 0; i < nRows_; i++) {
+        Matrix<NumericalType> res(ncols_, nrows_);
+        for (auto j = 0; j < ncols_; j++) {
+            for (auto i = 0; i < nrows_; i++) {
                 res(j, i) = data_[flattenIndex_(i, j)];
             }
         }
         return res;
     }
 
+    /**
+     * @brief Prints the matrix to an ostream
+     * 
+     * @param os Output stream
+     * @param A Matrix
+     * @return std::ostream& 
+     */
     friend std::ostream& operator<<(std::ostream& os, Matrix<NumericalType>& A) {
-        os << "  [" << A.nRows() << " x " << A.nCols() << "]  " << std::endl;
-        for (auto i = 0; i < A.nRows(); i++) {
-            for (auto j = 0; j < A.nCols(); j++) {
+        os << "  [" << A.nrows() << " x " << A.ncols() << "]  " << std::endl;
+        for (auto i = 0; i < A.nrows(); i++) {
+            for (auto j = 0; j < A.ncols(); j++) {
                 if (fabs(A(i,j)) < 1e-14) {
                     os << std::setprecision(4) << std::setw(12) << 0;    
                 }
@@ -338,85 +565,120 @@ public:
         return os;
     }
 
+    /**
+     * @brief Negates this matrix
+     * 
+     * @return Matrix<NumericalType> 
+     */
     Matrix<NumericalType> operator-() {
-        Matrix<NumericalType> res(nRows_, nCols_);
-        for (auto i = 0; i < res.nRows(); i++) {
-            for (auto j = 0; j < res.nCols(); j++) {
+        Matrix<NumericalType> res(nrows_, ncols_);
+        for (auto i = 0; i < res.nrows(); i++) {
+            for (auto j = 0; j < res.ncols(); j++) {
                 res(i,j) = -operator()(i,j);
             }
         }
         return res;
     }
 
+    /**
+     * @brief Performs the additive update of this matrix and another matrix
+     * 
+     * @param rhs RHS matrix
+     * @return Matrix<NumericalType>& 
+     */
     Matrix<NumericalType>& operator+=(Matrix<NumericalType>& rhs) {
-        if (rhs.nRows() != nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::operator+=] Number of rows in `rhs` is not equal to number of rows in `this`:";
-            errorMessage += "\trhs.nRows = " + std::to_string(rhs.nRows()) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+        if (rhs.nrows() != nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::operator+=] Number of rows in `rhs` is not equal to number of rows in `this`:";
+            error_msg += "\trhs.nrows = " + std::to_string(rhs.nrows()) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
         }
-        if (rhs.nCols() != nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::operator+=] Number of columns in `rhs` is not equal to number of columns in `this`:";
-            errorMessage += "\trhs.nCols = " + std::to_string(rhs.nCols()) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+        if (rhs.ncols() != ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::operator+=] Number of columns in `rhs` is not equal to number of columns in `this`:";
+            error_msg += "\trhs.ncols = " + std::to_string(rhs.ncols()) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
         }
 
-        for (auto i = 0; i < nRows_; i++) {
-            for (auto j = 0; j < nCols_; j++) {
+        for (auto i = 0; i < nrows_; i++) {
+            for (auto j = 0; j < ncols_; j++) {
                 operator()(i, j) += rhs(i, j);
             }
         }
         return *this;
     }
 
+    /**
+     * @brief Performs the additive update of this matrix and a scaler
+     * 
+     * @param rhs RHS scaler
+     * @return Matrix<NumericalType>& 
+     */
     Matrix<NumericalType>& operator+=(NumericalType rhs) {
-        for (auto i = 0; i < nRows_; i++) {
-            for (auto j = 0; j < nCols_; j++) {
+        for (auto i = 0; i < nrows_; i++) {
+            for (auto j = 0; j < ncols_; j++) {
                 operator()(i, j) += rhs;
             }
         }
         return *this;
     }
 
+    /**
+     * @brief Performs the negative update for this matrix and another matrix
+     * 
+     * @param rhs RHS matrix
+     * @return Matrix<NumericalType>& 
+     */
     Matrix<NumericalType>& operator-=(Matrix<NumericalType>& rhs) {
-        if (rhs.nRows() != nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::operator-=] Number of rows in `rhs` is not equal to number of rows in `this`:";
-            errorMessage += "\trhs.nRows = " + std::to_string(rhs.nRows()) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+        if (rhs.nrows() != nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::operator-=] Number of rows in `rhs` is not equal to number of rows in `this`:";
+            error_msg += "\trhs.nrows = " + std::to_string(rhs.nrows()) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
         }
-        if (rhs.nCols() != nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::operator-=] Number of columns in `rhs` is not equal to number of columns in `this`:";
-            errorMessage += "\trhs.nCols = " + std::to_string(rhs.nCols()) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+        if (rhs.ncols() != ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::operator-=] Number of columns in `rhs` is not equal to number of columns in `this`:";
+            error_msg += "\trhs.ncols = " + std::to_string(rhs.ncols()) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::invalid_argument(error_msg);
         }
 
-        for (auto i = 0; i < nRows_; i++) {
-            for (auto j = 0; j < nCols_; j++) {
+        for (auto i = 0; i < nrows_; i++) {
+            for (auto j = 0; j < ncols_; j++) {
                 operator()(i, j) -= rhs(i, j);
             }
         }
         return *this;
     }
 
+    /**
+     * @brief Performs the negative update of this matrix and a scaler
+     * 
+     * @param rhs RHS scaler
+     * @return Matrix<NumericalType>& 
+     */
     Matrix<NumericalType>& operator-=(NumericalType rhs) {
-        for (auto i = 0; i < nRows_; i++) {
-            for (auto j = 0; j < nCols_; j++) {
+        for (auto i = 0; i < nrows_; i++) {
+            for (auto j = 0; j < ncols_; j++) {
                 operator()(i, j) -= rhs;
             }
         }
         return *this;
     }
 
+    /**
+     * @brief Performs the multiplicative update for this matrix and a scaler
+     * 
+     * @param rhs RHS scaler
+     * @return Matrix<NumericalType>& 
+     */
     Matrix<NumericalType>& operator*=(NumericalType rhs) {
-        for (auto i = 0; i < nRows_; i++) {
-            for (auto j = 0; j < nCols_; j++) {
+        for (auto i = 0; i < nrows_; i++) {
+            for (auto j = 0; j < ncols_; j++) {
                 operator()(i, j) += rhs;
             }
         }
@@ -425,26 +687,41 @@ public:
 
 private:
 
+    /**
+     * @brief Helper function to flatten a row and column index to a global index
+     * 
+     * @param i Row index
+     * @param j Column index
+     * @return std::size_t 
+     */
     std::size_t flattenIndex_(std::size_t i, std::size_t j) {
-        if (i < 0 || i > nRows_) {
-            std::string errorMessage = "[EllipticForest::Matrix::flattenIndex] Index `i` is outside of range:\n";
-            errorMessage += "\ti = " + std::to_string(i) + "\n";
-            errorMessage += "\tnRows = " + std::to_string(nRows_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+        if (i < 0 || i > nrows_) {
+            std::string error_msg = "[EllipticForest::Matrix::flattenIndex] Index `i` is outside of range:\n";
+            error_msg += "\ti = " + std::to_string(i) + "\n";
+            error_msg += "\tnrows = " + std::to_string(nrows_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
-        if (j < 0 || j > nCols_) {
-            std::string errorMessage = "[EllipticForest::Matrix::flattenIndex] Index `j` is outside of range:\n";
-            errorMessage += "\tj = " + std::to_string(j) + "\n";
-            errorMessage += "\tnCols = " + std::to_string(nCols_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+        if (j < 0 || j > ncols_) {
+            std::string error_msg = "[EllipticForest::Matrix::flattenIndex] Index `j` is outside of range:\n";
+            error_msg += "\tj = " + std::to_string(j) + "\n";
+            error_msg += "\tncols = " + std::to_string(ncols_) + "\n";
+            std::cerr << error_msg << std::endl;
+            throw std::out_of_range(error_msg);
         }
-        return i*nCols_ + j;
+        return i*ncols_ + j;
     }
 
 };
 
+/**
+ * @brief Plus operator for two matrices
+ * 
+ * @tparam NumericalType 
+ * @param A Left matrix
+ * @param B Right matrix
+ * @return Matrix<NumericalType> 
+ */
 template<typename NumericalType>
 Matrix<NumericalType> operator+(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
     Matrix<NumericalType> C = A;
@@ -452,6 +729,14 @@ Matrix<NumericalType> operator+(Matrix<NumericalType>& A, Matrix<NumericalType>&
     return C;
 }
 
+/**
+ * @brief Minus operator for two matrices
+ * 
+ * @tparam NumericalType 
+ * @param A Left matrix
+ * @param B Right matrix
+ * @return Matrix<NumericalType> 
+ */
 template<typename NumericalType>
 Matrix<NumericalType> operator-(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
     Matrix<NumericalType> C = A;
@@ -459,35 +744,52 @@ Matrix<NumericalType> operator-(Matrix<NumericalType>& A, Matrix<NumericalType>&
     return C;
 }
 
+/**
+ * @brief Multiplication operator for a scaler and a matrix
+ * 
+ * @tparam NumericalType 
+ * @param a Left scaler
+ * @param A Right matrix
+ * @return Matrix<NumericalType> 
+ */
 template<typename NumericalType>
 Matrix<NumericalType> operator*(NumericalType a, Matrix<NumericalType>& A) {
-    Matrix<NumericalType> res(A.nRows(), A.nCols());
-    for (auto i = 0; i < res.nRows(); i++) {
-        for (auto j = 0; j < res.nCols(); j++) {
+    Matrix<NumericalType> res(A.nrows(), A.ncols());
+    for (auto i = 0; i < res.nrows(); i++) {
+        for (auto j = 0; j < res.ncols(); j++) {
             res(i,j) = a * A(i,j);
         }
     }
     return res;
 }
 
+/**
+ * @brief Multiplication operator for a matrix and a vector
+ * 
+ * Wraps LAPACK `dgemv`.
+ * 
+ * @param A Left matrix
+ * @param x Right vector
+ * @return Vector<double> 
+ */
 static Vector<double> operator*(Matrix<double>& A, Vector<double>& x) {
-    if (A.nCols() != x.size()) {
-        std::string errorMessage = "[EllipticForest::Matrix::operator*] Invalid matrix and vector dimensions; `A.nCols() != x.size()`:\n";
-        errorMessage += "\tA.nRows = " + std::to_string(A.nRows()) + "\n";
-        errorMessage += "\tA.nCols = " + std::to_string(A.nCols()) + "\n";
-        errorMessage += "\tx.size = " + std::to_string(x.size()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.ncols() != x.size()) {
+        std::string error_msg = "[EllipticForest::Matrix::operator*] Invalid matrix and vector dimensions; `A.ncols() != x.size()`:\n";
+        error_msg += "\tA.nrows = " + std::to_string(A.nrows()) + "\n";
+        error_msg += "\tA.ncols = " + std::to_string(A.ncols()) + "\n";
+        error_msg += "\tx.size = " + std::to_string(x.size()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
 
-    Vector<double> b(A.nRows());
+    Vector<double> b(A.nrows());
 
     char TRANS_ = 'C';
-    int M_ = A.nCols();
-    int N_ = A.nRows();
+    int M_ = A.ncols();
+    int N_ = A.nrows();
     double ALPHA_ = 1.0;
     double* A_ = A.dataPointer();
-    int LDA_ = A.nCols();
+    int LDA_ = A.ncols();
     double* X_ = x.dataPointer();
     int INCX_ = 1;
     double BETA_ = 0.0;
@@ -499,24 +801,32 @@ static Vector<double> operator*(Matrix<double>& A, Vector<double>& x) {
     return b;
 }
 
+/**
+ * @brief Multiplication operator for two matrices
+ * 
+ * Wraps LAPACK `dgemm`.
+ * 
+ * @param A Left matrix
+ * @param B Right matrix
+ * @return Matrix<double> 
+ */
 static Matrix<double> operator*(Matrix<double>& A, Matrix<double>& B) {
-    if (A.nCols() != B.nRows()) {
-        std::string errorMessage = "[EllipticForest::Matrix::operator*=] Invalid matrix dimensions, `A` must have same number of columnes as rows in `B`:\n";
-        errorMessage += "\tA = [" + std::to_string(A.nRows()) + ", " + std::to_string(A.nCols()) + "]\n";
-        errorMessage += "\tB = [" + std::to_string(B.nRows()) + ", " + std::to_string(B.nCols()) + "]\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.ncols() != B.nrows()) {
+        std::string error_msg = "[EllipticForest::Matrix::operator*=] Invalid matrix dimensions, `A` must have same number of columnes as rows in `B`:\n";
+        error_msg += "\tA = [" + std::to_string(A.nrows()) + ", " + std::to_string(A.ncols()) + "]\n";
+        error_msg += "\tB = [" + std::to_string(B.nrows()) + ", " + std::to_string(B.ncols()) + "]\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
     
-    Matrix<double> CT(B.nCols(), A.nRows(), 0);
+    Matrix<double> CT(B.ncols(), A.nrows(), 0);
 
     // Setup call
-    // void dgemm_(char* TRANSA, char* TRANSB, int* M, int* N, int* K, double* ALPHA, double* A, int* LDA, double* B, int* LDB, double* BETA, dobule* C, int* LDC);
     char TRANSA_ = 'C';
     char TRANSB_ = 'C';
-    int M_ = A.nRows();
-    int N_ = B.nCols();
-    int K_ = A.nCols(); // B.cols();
+    int M_ = A.nrows();
+    int N_ = B.ncols();
+    int K_ = A.ncols(); // B.cols();
     double ALPHA_ = 1.0;
     double* A_ = A.dataPointer();
     int LDA_ = K_;
@@ -530,20 +840,29 @@ static Matrix<double> operator*(Matrix<double>& A, Matrix<double>& B) {
 	return CT.T();
 }
 
+/**
+ * @brief Linear solver for a matrix and a vector
+ * 
+ * Wraps LAPACK `dgesv`.
+ * 
+ * @param A System matrix
+ * @param b RHS vector
+ * @return Vector<double> 
+ */
 static Vector<double> solve(Matrix<double>& A, Vector<double>& b) {
-    if (A.nRows() != A.nCols()) {
-        std::string errorMessage = "[EllipticForest::Matrix::solve] Matrix `A` is not square:\n";
-        errorMessage += "\tnRows = " + std::to_string(A.nRows()) + "\n";
-        errorMessage += "\tnCols = " + std::to_string(A.nCols()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.nrows() != A.ncols()) {
+        std::string error_msg = "[EllipticForest::Matrix::solve] Matrix `A` is not square:\n";
+        error_msg += "\tnrows = " + std::to_string(A.nrows()) + "\n";
+        error_msg += "\tncols = " + std::to_string(A.ncols()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
-    if (A.nRows() != b.size()) {
-        std::string errorMessage = "[EllipticForest::Matrix::solve] Matrix `A` and vector `b` are not the correct size:\n";
-        errorMessage += "\tA.nRows() = " + std::to_string(A.nRows()) + "\n";
-        errorMessage += "\tb.size() = " + std::to_string(b.size()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.nrows() != b.size()) {
+        std::string error_msg = "[EllipticForest::Matrix::solve] Matrix `A` and vector `b` are not the correct size:\n";
+        error_msg += "\tA.nrows() = " + std::to_string(A.nrows()) + "\n";
+        error_msg += "\tb.size() = " + std::to_string(b.size()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
 
     Vector<double> x(b);
@@ -551,10 +870,10 @@ static Vector<double> solve(Matrix<double>& A, Vector<double>& b) {
     Vector<int> p(b.size());
 
     // Setup call
-    int N_ = AT.nRows();
+    int N_ = AT.nrows();
     int NRHS_ = 1;
     double* A_ = AT.dataPointer();
-    int LDA_ = AT.nRows();
+    int LDA_ = AT.nrows();
     int* IPIV_ = p.dataPointer();
     double* B_ = x.dataPointer();
     int LDB_ = b.size();
@@ -570,34 +889,43 @@ static Vector<double> solve(Matrix<double>& A, Vector<double>& b) {
 
 }
 
+/**
+ * @brief Linear solver for two matrices
+ * 
+ * Wraps LAPACK `dgesv`.
+ * 
+ * @param A System matrix
+ * @param B RHS matrix
+ * @return Matrix<double> 
+ */
 static Matrix<double> solve(Matrix<double>& A, Matrix<double>& B) {
-    if (A.nRows() != A.nCols()) {
-        std::string errorMessage = "[EllipticForest::Matrix::solve] Matrix `A` is not square:\n";
-        errorMessage += "\tnRows = " + std::to_string(A.nRows()) + "\n";
-        errorMessage += "\tnCols = " + std::to_string(A.nCols()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.nrows() != A.ncols()) {
+        std::string error_msg = "[EllipticForest::Matrix::solve] Matrix `A` is not square:\n";
+        error_msg += "\tnrows = " + std::to_string(A.nrows()) + "\n";
+        error_msg += "\tncols = " + std::to_string(A.ncols()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
-    if (A.nRows() != B.nRows()) {
-        std::string errorMessage = "[EllipticForest::Matrix::solve] Matrix `A` and `B` are not the correct size:\n";
-        errorMessage += "\tA.nRows() = " + std::to_string(A.nRows()) + "\n";
-        errorMessage += "\tB.nRows() = " + std::to_string(B.nRows()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.nrows() != B.nrows()) {
+        std::string error_msg = "[EllipticForest::Matrix::solve] Matrix `A` and `B` are not the correct size:\n";
+        error_msg += "\tA.nrows() = " + std::to_string(A.nrows()) + "\n";
+        error_msg += "\tB.nrows() = " + std::to_string(B.nrows()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
 
     Matrix<double> X = B.T();
     Matrix<double> AT = A.T();
-    Vector<int> p(B.nRows());
+    Vector<int> p(B.nrows());
 
     // Setup call
-    int N_ = AT.nRows();
-    int NRHS_ = B.nCols();
+    int N_ = AT.nrows();
+    int NRHS_ = B.ncols();
     double* A_ = AT.dataPointer();
-    int LDA_ = AT.nRows();
+    int LDA_ = AT.nrows();
     int* IPIV_ = p.dataPointer();
     double* B_ = X.dataPointer();
-    int LDB_ = B.nRows();
+    int LDB_ = B.nrows();
     int INFO_;
     dgesv_(&N_, &NRHS_, A_, &LDA_, IPIV_, B_, &LDB_, &INFO_);
 
@@ -610,49 +938,64 @@ static Matrix<double> solve(Matrix<double>& A, Matrix<double>& B) {
 
 }
 
+/**
+ * @brief Creates a block diagonal matrix
+ * 
+ * @tparam NumericalType 
+ * @param diag Vector of matrices to place on the diagonal of output matrix
+ * @return Matrix<NumericalType> 
+ */
 template<typename NumericalType>
 Matrix<NumericalType> blockDiagonalMatrix(std::vector<Matrix<NumericalType>> diag) {
 
-    std::size_t nRowsTotal = 0;
-    std::size_t nColsTotal = 0;
+    std::size_t nrows_total = 0;
+    std::size_t ncols_total = 0;
     for (auto& d : diag) {
-        nRowsTotal += d.nRows();
-        nColsTotal += d.nCols();
+        nrows_total += d.nrows();
+        ncols_total += d.ncols();
     }
 
-    Matrix<NumericalType> res(nRowsTotal, nColsTotal, 0);
+    Matrix<NumericalType> res(nrows_total, ncols_total, 0);
 
-    std::size_t rowIndex = 0;
-    std::size_t colIndex = 0;
+    std::size_t row_index = 0;
+    std::size_t col_index = 0;
     for (auto& d : diag) {
-        res.setBlock(rowIndex, colIndex, d);
-        rowIndex += d.nRows();
-        colIndex += d.nCols();
+        res.setBlock(row_index, col_index, d);
+        row_index += d.nrows();
+        col_index += d.ncols();
     }
     return res;
 
 }
 
+/**
+ * @brief Returns the infinity norm of a the difference of two matrices
+ * 
+ * @tparam NumericalType 
+ * @param A Left matrix
+ * @param B Right matrix
+ * @return double 
+ */
 template<typename NumericalType>
 double matrixInfNorm(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
-    if (A.nRows() != B.nRows()) {
-        std::string errorMessage = "[EllipticForest::Matrix::matrixInfNorm] Number of rows in `A` is not equal to number of rows in `B`:";
-        errorMessage += "\tA.nRows = " + std::to_string(A.nRows()) + "\n";
-        errorMessage += "\tB.nRows = " + std::to_string(B.nRows()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.nrows() != B.nrows()) {
+        std::string error_msg = "[EllipticForest::Matrix::matrixInfNorm] Number of rows in `A` is not equal to number of rows in `B`:";
+        error_msg += "\tA.nrows = " + std::to_string(A.nrows()) + "\n";
+        error_msg += "\tB.nrows = " + std::to_string(B.nrows()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
-    if (A.nCols() != B.nCols()) {
-        std::string errorMessage = "[EllipticForest::Matrix::matrixInfNorm] Number of columns in `A` is not equal to number of columns in `B`:";
-        errorMessage += "\tA.nCols = " + std::to_string(A.nCols()) + "\n";
-        errorMessage += "\tB.nCols = " + std::to_string(B.nCols()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+    if (A.ncols() != B.ncols()) {
+        std::string error_msg = "[EllipticForest::Matrix::matrixInfNorm] Number of columns in `A` is not equal to number of columns in `B`:";
+        error_msg += "\tA.ncols = " + std::to_string(A.ncols()) + "\n";
+        error_msg += "\tB.ncols = " + std::to_string(B.ncols()) + "\n";
+        std::cerr << error_msg << std::endl;
+        throw std::invalid_argument(error_msg);
     }
 
     double maxDiff = 0;
-    for (auto i = 0; i < A.nRows(); i++) {
-        for (auto j = 0; j < B.nCols(); j++) {
+    for (auto i = 0; i < A.nrows(); i++) {
+        for (auto j = 0; j < B.ncols(); j++) {
             maxDiff = fmax(maxDiff, fabs(A(i,j) - B(i,j)));
         }
     }
@@ -662,19 +1005,40 @@ double matrixInfNorm(Matrix<NumericalType>& A, Matrix<NumericalType>& B) {
 
 namespace MPI {
 
+/**
+ * @brief Wrapper of MPI_Send for Matrix<T>
+ * 
+ * @tparam T 
+ * @param matrix Matrix to send
+ * @param dest Destination rank
+ * @param tag Message tag
+ * @param comm Communicator
+ * @return int 
+ */
 template<class T>
-int send(Matrix<T>& matrix, int dest, int tag, MPI_Comm comm) {
+int send(Matrix<T>& matrix, int dest, int tag, MPI::Communicator comm) {
     int rows, cols;
-    rows = static_cast<int>(matrix.nRows());
-    cols = static_cast<int>(matrix.nCols());
+    rows = static_cast<int>(matrix.nrows());
+    cols = static_cast<int>(matrix.ncols());
     send(rows, dest, tag+1, comm);
     send(cols, dest, tag+2, comm);
     send(matrix.dataNoConst(), dest, tag, comm);
     return 0;
 }
 
+/**
+ * @brief Wrapper of MPI_Recv for Matrix<T>
+ * 
+ * @tparam T 
+ * @param matrix Matrix to receive
+ * @param src Source rank
+ * @param tag Message tag
+ * @param comm Communicator
+ * @param status Message status
+ * @return int 
+ */
 template<class T>
-int receive(Matrix<T>& matrix, int src, int tag, MPI_Comm comm, MPI_Status* status) {
+int receive(Matrix<T>& matrix, int src, int tag, MPI::Communicator comm, MPI::Status* status) {
     int rows, cols;
     std::vector<T> vec;
     receive(rows, src, tag+1, comm, status);
@@ -684,14 +1048,23 @@ int receive(Matrix<T>& matrix, int src, int tag, MPI_Comm comm, MPI_Status* stat
     return 0;
 }
 
+/**
+ * @brief Wrapper of MPI_Bcast for Matrix<T>
+ * 
+ * @tparam T 
+ * @param matrix Matrix to broadcast
+ * @param root Root rank
+ * @param comm Communicator
+ * @return int 
+ */
 template<class T>
-int broadcast(Matrix<T>& matrix, int root, MPI_Comm comm) {
+int broadcast(Matrix<T>& matrix, int root, MPI::Communicator comm) {
     int rank; MPI_Comm_rank(comm, &rank);
     int rows, cols;
     std::vector<T> vec;
     if (rank == root) {
-        rows = static_cast<int>(matrix.nRows());
-        cols = static_cast<int>(matrix.nCols());
+        rows = static_cast<int>(matrix.nrows());
+        cols = static_cast<int>(matrix.ncols());
         vec = matrix.dataNoConst();
     }
     broadcast(rows, root, comm);
@@ -769,8 +1142,8 @@ public:
         MPIObject(comm),
         local_rows(PETSC_DECIDE),
         local_cols(PETSC_DECIDE),
-        global_rows(serial_matrix.nRows()),
-        global_cols(serial_matrix.nCols()) {
+        global_rows(serial_matrix.nrows()),
+        global_cols(serial_matrix.ncols()) {
 
         // Create parallel matrix
         create();
@@ -786,8 +1159,8 @@ public:
         MPIObject(comm),
         local_rows(PETSC_DECIDE),
         local_cols(PETSC_DECIDE),
-        global_rows(serial_matrix.nRows()),
-        global_cols(serial_matrix.nCols()) {
+        global_rows(serial_matrix.nrows()),
+        global_cols(serial_matrix.ncols()) {
 
         // Create parallel matrix
         create();
