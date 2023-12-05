@@ -31,7 +31,6 @@ enum NodeCommunicationPolicy {
 	STRIPE
 };
 
-
 template<typename T>
 class Quadtree : public MPI::MPIObject {
 
