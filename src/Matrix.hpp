@@ -194,11 +194,25 @@ public:
     std::size_t nrows() const { return nrows_; }
 
     /**
+     * @brief Returns the number of rows
+     * 
+     * @return std::size_t 
+     */
+    std::size_t nRows() const { return nrows_; }
+
+    /**
      * @brief Returns the number of columns
      * 
      * @return std::size_t 
      */
     std::size_t ncols() const { return ncols_; }
+
+    /**
+     * @brief Returns the number of columns
+     * 
+     * @return std::size_t 
+     */
+    std::size_t nCols() const { return ncols_; }
 
     /**
      * @brief Returns the data vector
