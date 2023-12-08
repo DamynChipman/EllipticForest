@@ -16,15 +16,64 @@ class PatchBase {
 
 public:
 
+    /**
+     * @brief Storage for the parallel matrix X
+     * 
+     */
     ParallelMatrix<double> par_matrix_X;
+
+    /**
+     * @brief Storage for the parallel matrix H
+     * 
+     */
     ParallelMatrix<double> par_matrix_H;
+
+    /**
+     * @brief Storage for the parallel matrix S
+     * 
+     */
     ParallelMatrix<double> par_matrix_S;
+
+    /**
+     * @brief Storage for the parallel matrix T
+     * 
+     */
     ParallelMatrix<double> par_matrix_T;
+
+    /**
+     * @brief Storage for the parallel vector u
+     * 
+     */
     ParallelVector<double> par_vector_u;
+
+    /**
+     * @brief Storage for the parallel vector g
+     * 
+     */
     ParallelVector<double> par_vector_g;
+
+    /**
+     * @brief Storage for the parallel vector v
+     * 
+     */
     ParallelVector<double> par_vector_v;
+
+    /**
+     * @brief Storage for the parallel vector f
+     * 
+     */
     ParallelVector<double> par_vector_f;
+
+    /**
+     * @brief Storage for the parallel vector h
+     * 
+     */
     ParallelVector<double> par_vector_h;
+
+    /**
+     * @brief Storage for the parallel vector w
+     * 
+     */
     ParallelVector<double> par_vector_w;
 
     /**

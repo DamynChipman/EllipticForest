@@ -92,6 +92,11 @@ public:
      */
     virtual FloatingPointType operator()(std::size_t DIM, std::size_t index) = 0;
 
+    /**
+     * @brief Returns a string version of the grid
+     * 
+     * @return std::string 
+     */
     std::string str() {
         std::string out = "";
         out += "X: [" + std::to_string(xLower()) + ":" + std::to_string(xUpper()) + "], nx = " + std::to_string(nx()) + ", dx = " + std::to_string(dx()) + "  ";
@@ -100,6 +105,17 @@ public:
     }
 
 #if USE_MATPLOTLIBCPP
+    /**
+     * @brief Plots the patch with matplotlibcpp
+     * 
+     * @param name Title of plot
+     * @param plotBox Flag to plot box around grid
+     * @param plotPoints Flag to plot points in grid
+     * @param plotEdges Flag to plot edges in grid
+     * @param plotName Flag to display plot name
+     * @param edgeColor String with color specifier for edges (standard matplotlib colors)
+     * @param pointColor String with color specifier for points (standard matplotlib colors)
+     */
     void plot(std::string name = "", bool plotBox = true, bool plotPoints = true, bool plotEdges = true, bool plotName = true, std::string edgeColor = "b", std::string pointColor = "r") {
 
         std::vector<double> xPoints(nx());

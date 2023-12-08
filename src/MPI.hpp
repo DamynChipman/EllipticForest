@@ -116,8 +116,6 @@ public:
 
 };
 
-void communicatorUnion(std::vector<Communicator> comms);
-
 /**
  * @brief Creates a sub communicator from a range of ranks on the super communicator
  * 
@@ -129,12 +127,24 @@ void communicatorUnion(std::vector<Communicator> comms);
  */
 void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, int tag, Communicator* sub_comm);
 
+/**
+ * @brief Sets the name of the communicator
+ * 
+ * @param comm MPI communicator
+ * @param name Name to set
+ */
 void communicatorSetName(Communicator comm, const std::string& name);
 
+/**
+ * @brief Gets the name of the communicator
+ * 
+ * @param comm MPI communicator
+ * @return std::string 
+ */
 std::string communicatorGetName(Communicator comm);
 
 /**
- * @brief MPI type traits for primative, C++, and user defined objects
+ * @brief MPI type traits for primitive, C++, and user defined objects
  * 
  * This struct provides an interface for templated MPI calls to get the corresponding data types,
  * as well as getting the necessary data (data type, size, and address) for the communication.
@@ -272,6 +282,17 @@ int allgather(T& send_data, T& recv_data, int recv_count, Communicator comm) {
     return MPI_Allgather(TypeTraits<T>::getAddress(send_data), TypeTraits<T>::getSize(send_data), TypeTraits<T>::getType(send_data), TypeTraits<T>::getAddress(recv_data), recv_count, TypeTraits<T>::getType(recv_data), comm);
 }
 
+/**
+ * @brief Wrapper for MPI_Allgatherv
+ * 
+ * @tparam T Type of object to communicate
+ * @param send_data Reference of data to send
+ * @param recv_data Storage for data to receive from involved ranks
+ * @param recv_counts Vector of counts of elements received from ranks
+ * @param displacements Vector of displacements of elements received from ranks to put into `recv_data`
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int allgatherv(T& send_data, T& recv_data, std::vector<int> recv_counts, std::vector<int> displacements, Communicator comm) {
     return MPI_Allgatherv(TypeTraits<T>::getAddress(send_data), TypeTraits<T>::getSize(send_data), TypeTraits<T>::getType(send_data), TypeTraits<T>::getAddress(recv_data), recv_counts.data(), TypeTraits<T>::getType(recv_data), displacements.data(), comm);
@@ -365,11 +386,32 @@ int broadcast(std::vector<T>& data, int root, Communicator comm) {
     return MPI_Bcast(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), root, comm);
 }
 
+/**
+ * @brief Function overload of @sa `allgather` for std::vector<T>
+ * 
+ * @tparam T Type of object in vector
+ * @param send_data Reference to vector to send
+ * @param recv_data Storage for vector to receive from involved ranks
+ * @param recv_count Count of elements received from any rank
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int allgather(std::vector<T>& send_data, std::vector<T>& recv_data, int recv_count, Communicator comm) {
     return MPI_Allgather(TypeTraits<std::vector<T>>::getAddress(send_data), TypeTraits<std::vector<T>>::getSize(send_data), TypeTraits<std::vector<T>>::getType(send_data), TypeTraits<std::vector<T>>::getAddress(recv_data), recv_count, TypeTraits<std::vector<T>>::getType(recv_data), comm);
 }
 
+/**
+ * @brief Function overload of @sa `allgatherv` for std::vector<T>
+ * 
+ * @tparam T Type of object in vector
+ * @param send_data Reference of vector to send
+ * @param recv_data Storage for vector to receive from involved ranks
+ * @param recv_counts Vector of counts of elements received from ranks
+ * @param displacements Vector of displacements of elements received from ranks to put into `recv_data`
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int allgatherv(std::vector<T>& send_data, std::vector<T>& recv_data, std::vector<int> recv_counts, std::vector<int> displacements, Communicator comm) {
     return MPI_Allgatherv(TypeTraits<std::vector<T>>::getAddress(send_data), TypeTraits<std::vector<T>>::getSize(send_data), TypeTraits<std::vector<T>>::getType(send_data), TypeTraits<std::vector<T>>::getAddress(recv_data), recv_counts.data(), displacements.data(), TypeTraits<std::vector<T>>::getType(recv_data), comm);

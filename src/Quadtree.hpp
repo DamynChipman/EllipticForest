@@ -21,6 +21,12 @@
 namespace EllipticForest {
 
 /**
+ * @brief Alias for a node path key for the map
+ * 
+ */
+using NodePathKey = std::string;
+
+/**
  * @brief Parallel communication policy for the quadtree nodes
  * BROADCAST: Each node broadcasts its data to other siblings
  * STRIPE: Each node stripes its data to other siblings

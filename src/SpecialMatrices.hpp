@@ -10,6 +10,11 @@ class IdentityMatrix : public Matrix<NumericalType> {
 
 public:
 
+    /**
+     * @brief Construct a new Identity Matrix object of size `N`
+     * 
+     * @param N Size of matrix
+     */
     IdentityMatrix(std::size_t N) :
         Matrix<NumericalType>(N, N, 0) {
 
@@ -68,6 +73,11 @@ class DiagonalMatrix : public Matrix<NumericalType> {
 
 public:
 
+    /**
+     * @brief Construct a new Diagonal Matrix object with entries from `diag`
+     * 
+     * @param diag Vector of diagonal entries
+     */
     DiagonalMatrix(Vector<NumericalType> diag) :
         Matrix<NumericalType>(diag.size(), diag.size(), 0) {
 
@@ -84,6 +94,11 @@ class InterpolationMatrixFine2Coarse : public Matrix<NumericalType> {
 
 public:
 
+    /**
+     * @brief Construct a new Interpolation Matrix Fine 2 Coarse object
+     * 
+     * @param nCoarse Number of coarse cells
+     */
     InterpolationMatrixFine2Coarse(std::size_t nCoarse) :
         Matrix<NumericalType>(nCoarse, 2*nCoarse, 0) {
 
@@ -122,6 +137,11 @@ class InterpolationMatrixCoarse2Fine : public Matrix<NumericalType> {
 
 public:
 
+    /**
+     * @brief Construct a new Interpolation Matrix Coarse 2 Fine object
+     * 
+     * @param nFine Number of fine cells
+     */
     InterpolationMatrixCoarse2Fine(std::size_t nFine) :
         Matrix<NumericalType>(nFine, nFine/2, 0) {
 

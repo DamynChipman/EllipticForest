@@ -11,37 +11,32 @@ endif()
 # --=== Create EllipticForest Library ===--
 add_library(EllipticForest)
 set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
-
 target_link_libraries(EllipticForest PUBLIC common)
-
-# set(ELLIPTIC_FOREST_SOURCES
-#     XMLTree.cpp
-#     EllipticForestApp.cpp
-#     Interpolation.cpp
-#     FISHPACK.cpp
-#     MPI.cpp
-#     P4est.cpp
-#     PETSc.cpp
-#     VTK.cpp
-#     Patches/FiniteVolume/FiniteVolumeGrid.cpp
-# )
-
 target_sources(EllipticForest PUBLIC
-    XMLTree.cpp
+    DataCache.cpp
     EllipticForestApp.cpp
+    HPSAlgorithm.cpp
+    InputParser.cpp
     Interpolation.cpp
-    FISHPACK.cpp
+    Logger.cpp
     MPI.cpp
+    Matrix.cpp
+    Mesh.cpp
+    Options.cpp
     P4est.cpp
-    PETSc.cpp
+    Patch.cpp
+    PatchGrid.cpp
+    PatchSolver.cpp
+    PlotUtils.cpp
+    QuadNode.cpp
+    Quadtree.cpp
+    SpecialMatrices.cpp
+    Timer.cpp
     VTK.cpp
+    Vector.cpp
+    XMLTree.cpp
 )
-
 add_subdirectory(Patches/FiniteVolume)
-
-# target_sources(EllipticForest PRIVATE
-#     ${ELLIPTIC_FOREST_SOURCES}
-# )
 
 target_include_directories(EllipticForest PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

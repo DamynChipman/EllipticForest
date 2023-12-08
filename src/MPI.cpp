@@ -4,25 +4,6 @@ namespace EllipticForest {
 
 namespace MPI {
 
-// void communicatorUnion(std::vector<Communicator> comms, Communicator* comm_union) {
-//     // Get the groups from the communicators
-//     std::vector<Group> groups;
-//     for (auto& comm : comms) {
-//         Group group
-//         MPI_Comm_group(comm, &group);
-//         groups.push_back(group)
-//     }
-
-//     // Iterate over groups and combine
-//     Group unioned_group;
-//     for (auto& group : groups) {
-//         MPI_Group_union(unioned_group, group, &unioned_group);
-//     }
-
-//     // Create new communicator
-//     MPI_Comm_create_group()
-// }
-
 void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, int tag, Communicator* sub_comm) {
 
     // // Get group of super communicator
@@ -53,7 +34,6 @@ void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, i
     // Free groups
     // MPI_Group_free(&super_group);
     // MPI_Group_free(&sub_group);
-
 
 }
 

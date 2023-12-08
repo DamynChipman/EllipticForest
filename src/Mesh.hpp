@@ -13,22 +13,67 @@ class Mesh : public MPI::MPIObject, public UnstructuredGridNodeBase {
 
 public:
 
+    /**
+     * @brief The data container for the cells in the mesh
+     * 
+     */
     Quadtree<PatchType> quadtree;
-    // PatchType* root_patch;
-    // AbstractNodeFactory<PatchType>* node_factory;
-    int nPoints = 0;
-    int nCells = 0;
-    Vector<double> points{};
-    Vector<int> connectivity{};
-    Vector<int> offsets{};
-    Vector<int> types{};
-    std::vector<Vector<double>*> meshFunctions{};
-    // void* utility_pointer;
 
+    /**
+     * @brief Number of points in the mesh
+     * 
+     */
+    int npoints = 0;
+
+    /**
+     * @brief Number of cells in the mesh
+     * 
+     */
+    int ncells = 0;
+
+    /**
+     * @brief Vector of points
+     * 
+     */
+    Vector<double> points{};
+
+    /**
+     * @brief Vector of connectivity data
+     * 
+     */
+    Vector<int> connectivity{};
+
+    /**
+     * @brief Vector of offset data
+     * 
+     */
+    Vector<int> offsets{};
+
+    /**
+     * @brief Vector of cell types
+     * 
+     */
+    Vector<int> types{};
+
+    /**
+     * @brief Vector of analytical functions for mesh (solution data, RHS data, etc.)
+     * 
+     */
+    std::vector<Vector<double>*> mesh_functions{};
+
+    /**
+     * @brief Construct a new Mesh object (default)
+     * 
+     */
     Mesh() :
         MPIObject{MPI_COMM_WORLD}
             {}
 
+    /**
+     * @brief Construct a new Mesh object from a quadtree
+     * 
+     * @param quadtree The quadtree representing the mesh
+     */
     Mesh(Quadtree<PatchType> quadtree) :
         MPIObject{quadtree.getComm()},
         quadtree{quadtree} {
@@ -37,15 +82,34 @@ public:
 
     }
 
-    Mesh(MPI_Comm comm, p4est_t* p4est, PatchType& rootData, AbstractNodeFactory<PatchType>& nodeFactory) :
+    /**
+     * @brief Construct a new Mesh object from a p4est, template root patch, and a node factory (wraps Quadtree constructor)
+     * 
+     * @param comm MPI communicator
+     * @param p4est The forest with mesh topology
+     * @param root_data Prototype root patch
+     * @param node_factory Node factory reference to pass to quadtree constructor
+     */
+    Mesh(MPI_Comm comm, p4est_t* p4est, PatchType& root_data, AbstractNodeFactory<PatchType>& node_factory) :
         MPIObject{comm},
-        quadtree{comm, p4est, rootData, nodeFactory} {
+        quadtree{comm, p4est, root_data, node_factory} {
     
         setMeshFromQuadtree();
     
     }
 
+    /**
+     * @brief Refine a mesh according to an analytical function in x and y refining according to the value of the function and the provided threshold
+     * 
+     * @param fn Analytical function in x and y
+     * @param threshold Threshold for refinement (refine if threshold )
+     * @param min_level 
+     * @param max_level 
+     * @param root_patch 
+     * @param node_factory 
+     */
     void refineByFunction(std::function<bool(double x, double y)> fn, double threshold, int min_level, int max_level, PatchType& root_patch, AbstractNodeFactory<PatchType>& node_factory) {
+
         // Create p4est to create quadtree
         auto& root_grid = root_patch.grid();
         double xlower = root_grid.xLower();
@@ -115,6 +179,10 @@ public:
         return;
     }
 
+    /**
+     * @brief Builds up the mesh (cells, connectivity, etc.) from a path-indexed quadtree
+     * 
+     */
     void setMeshFromQuadtree() {
 
         points.name() = "points";
@@ -183,8 +251,8 @@ public:
                         };
                         
                         index += 4;
-                        nPoints += 4;
-                        nCells += 1;
+                        npoints += 4;
+                        ncells += 1;
 
                         points.append(cellCorners);
                         connectivity.append(cellConnectivity);
@@ -198,13 +266,53 @@ public:
 
     }
 
-    std::string getNumberOfPoints() { return std::to_string(nPoints); }
-    std::string getNumberOfCells() { return std::to_string(nCells); }
+    /**
+     * @brief Get the number of points in the mesh
+     * 
+     * @return std::string 
+     */
+    std::string getNumberOfPoints() { return std::to_string(npoints); }
+
+    /**
+     * @brief Get the number of cells in the mesh
+     * 
+     * @return std::string 
+     */
+    std::string getNumberOfCells() { return std::to_string(ncells); }
+
+    /**
+     * @brief Get the points data array
+     * 
+     * @return DataArrayNodeBase& 
+     */
     DataArrayNodeBase& getPoints() { return points; }
+
+    /**
+     * @brief Get the connectivity data array
+     * 
+     * @return DataArrayNodeBase& 
+     */
     DataArrayNodeBase& getConnectivity() { return connectivity; }
+
+    /**
+     * @brief Get the offsets data array
+     * 
+     * @return DataArrayNodeBase& 
+     */
     DataArrayNodeBase& getOffsets() { return offsets; }
+
+    /**
+     * @brief Get the types data array
+     * 
+     * @return DataArrayNodeBase& 
+     */
     DataArrayNodeBase& getTypes() { return types; }
 
+    /**
+     * @brief Iterate over the mesh with a callback to the leaf patches
+     * 
+     * @param fn Callback to the patch
+     */
     void iteratePatches(std::function<void(PatchType& patch)> fn) {
         quadtree.traversePreOrder([&](Node<PatchType>* node){
             if (node->leaf) {
@@ -215,6 +323,11 @@ public:
         });
     }
 
+    /**
+     * @brief Iterate over the mesh with a callback to the cells on leaf patches
+     * 
+     * @param fn Callback to the cell centers
+     */
     void iterateCells(std::function<void(double xc, double yc)> fn) {
         quadtree.traversePreOrder([&](Node<PatchType>* node){
             if (node->leaf) {
@@ -236,40 +349,52 @@ public:
         });
     }
 
-    // void refineByFunction(std::function<bool(double x, double y, double threshold) fn, bool recursiveRefinement) {
-    //     // NOTE: Working here!
+    /**
+     * @brief Adds a mesh function
+     * 
+     * @param meshFunction Vector mesh function
+     */
+    void addMeshFunction(Vector<double>& meshFunction) { mesh_functions.push_back(&meshFunction); }
 
-    //     p4est_refine(quadtree.p4est, recursiveRefinement,
-    //     [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
-
-    //     });
-    // }
-
-    void addMeshFunction(Vector<double>& meshFunction) { meshFunctions.push_back(&meshFunction); }
-
+    /**
+     * @brief Adds a mesh function
+     * 
+     * @param meshFunction Function mesh function
+     * @param meshFunctionName Name of mesh function
+     */
     void addMeshFunction(std::function<double(double x, double y)> meshFunction, std::string meshFunctionName) {
 
-        std::size_t nCells = 0;
+        std::size_t ncells = 0;
         iteratePatches([&](PatchType& patch){
             auto& grid = patch.grid();
-            nCells += grid.nx() * grid.ny();
+            ncells += grid.nx() * grid.ny();
         });
 
-        Vector<double>* meshFunctionVector = new Vector<double>(nCells);
+        Vector<double>* meshFunctionVector = new Vector<double>(ncells);
         meshFunctionVector->name() = meshFunctionName;
         int i = 0;
         iterateCells([&](double xc, double yc){
             (*meshFunctionVector)[i++] = meshFunction(xc, yc);
         });
 
-        meshFunctions.push_back(meshFunctionVector);
+        mesh_functions.push_back(meshFunctionVector);
 
     }
 
+    /**
+     * @brief Clears the mesh functions from the mesh
+     * 
+     */
     void clearMeshFunctions() {
-        meshFunctions.clear();
+        mesh_functions.clear();
     }
 
+    /**
+     * @brief Writes the mesh to a VTK file as an unstructured VTK file
+     * 
+     * @param baseFilename Base filename
+     * @param number Flag for multiple VTK files (time stepping for example)
+     */
     void toVTK(std::string baseFilename, int number=-1) {
         // Output mesh
         std::string meshFilename = baseFilename + "-mesh";
@@ -280,7 +405,7 @@ public:
         }
         PUnstructuredGridVTK pvtu{};
         pvtu.buildMesh(*this);
-        for (auto& meshFunction : meshFunctions) {
+        for (auto& meshFunction : mesh_functions) {
             pvtu.addCellData(*meshFunction);
         }
         pvtu.toVTK(meshFilename);
@@ -301,15 +426,66 @@ public:
 private:
 
     // Variables to pass to p4est_refine via this pointer
+    /**
+     * @brief The refine function
+     * 
+     * @sa `refineByFunction`
+     * 
+     */
     std::function<bool(double x, double y)> refine_fn_;
+
+    /**
+     * @brief Refinement threshold
+     * 
+     */
     double threshold_;
+
+    /**
+     * @brief Patch x-lower
+     * 
+     */
     double x_lower_;
+
+    /**
+     * @brief Patch x-upper
+     * 
+     */
     double x_upper_;
+
+    /**
+     * @brief Patch y-lower
+     * 
+     */
     double y_lower_;
+
+    /**
+     * @brief Patch y-upper
+     * 
+     */
     double y_upper_;
+
+    /**
+     * @brief Patch number of x-cells
+     * 
+     */
     int nx_;
+
+    /**
+     * @brief Patch number of y-cells
+     * 
+     */
     int ny_;
+
+    /**
+     * @brief Minimum level of refinement
+     * 
+     */
     int min_level_;
+
+    /**
+     * @brief Maximum level of refinement
+     * 
+     */
     int max_level_;
 
 };
