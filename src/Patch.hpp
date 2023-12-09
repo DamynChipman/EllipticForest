@@ -80,7 +80,7 @@ public:
      * @brief Number of times the patch has been coarsened
      * 
      */
-    int nCoarsens = 0;
+    int n_coarsens = 0;
 
     /**
      * @brief Returns the name of the patch
@@ -97,7 +97,7 @@ public:
     virtual PatchGridBase<FloatingPointType>& grid() = 0;
 
     int size() {
-        return grid().nx() / pow(2, nCoarsens);
+        return grid().nx() / pow(2, n_coarsens);
     }
 
     /**

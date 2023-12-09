@@ -11,12 +11,8 @@ FiniteVolumeSolver::FiniteVolumeSolver(MPI::Communicator comm, Analytical2DFunct
     alpha_function(alpha_function),
     beta_function(beta_function),
     lambda_function(lambda_function),
-    rhs_function(rhs_function) {
-
-
-    //
-
-}
+    rhs_function(rhs_function)
+        {}
 
 int FiniteVolumeSolver::gridIndex2MatrixIndex(int i, int j, int nx, int ny) {
     return j + i*ny;
@@ -30,11 +26,11 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
 
     if (solver_type == FiniteVolumeSolverType::FivePointStencil) {
         // Unpack Dirichlet data
-        int nSide = grid.nx();
-        Vector<double> gWest = dirichlet_data.getSegment(0*nSide, nSide);
-        Vector<double> gEast = dirichlet_data.getSegment(1*nSide, nSide);
-        Vector<double> gSouth = dirichlet_data.getSegment(2*nSide, nSide);
-        Vector<double> gNorth = dirichlet_data.getSegment(3*nSide, nSide);
+        int nside = grid.nx();
+        Vector<double> g_west = dirichlet_data.getSegment(0*nside, nside);
+        Vector<double> g_east = dirichlet_data.getSegment(1*nside, nside);
+        Vector<double> g_south = dirichlet_data.getSegment(2*nside, nside);
+        Vector<double> g_north = dirichlet_data.getSegment(3*nside, nside);
 
         // Unpack grid data
         int nx = grid.nx();
@@ -106,7 +102,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[0] = JE; v[0] = cE;
                     idxn[1] = JN; v[1] = cN;
                     idxn[2] = JC; v[2] = cC - cW - cS;
-                    f_boundary = -2.0*(cW*gWest[j] + cS*gSouth[i]);
+                    f_boundary = -2.0*(cW*g_west[j] + cS*g_south[i]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (i == nx-1 && j == 0) {
@@ -115,7 +111,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[0] = JW; v[0] = cW;
                     idxn[1] = JN; v[1] = cN;
                     idxn[2] = JC; v[2] = cC - cE - cS;
-                    f_boundary = -2.0*(cE*gEast[j] + cS*gSouth[i]);
+                    f_boundary = -2.0*(cE*g_east[j] + cS*g_south[i]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (i == 0 && j == ny-1) {
@@ -124,7 +120,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[0] = JE; v[0] = cE;
                     idxn[1] = JS; v[1] = cS;
                     idxn[2] = JC; v[2] = cC - cW - cN;
-                    f_boundary = -2.0*(cW*gWest[j] + cN*gNorth[i]);
+                    f_boundary = -2.0*(cW*g_west[j] + cN*g_north[i]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (i == nx-1 && j == ny-1) {
@@ -133,7 +129,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[0] = JW; v[0] = cW;
                     idxn[1] = JS; v[1] = cS;
                     idxn[2] = JC; v[2] = cC - cE - cN;
-                    f_boundary = -2.0*(cE*gEast[j] + cN*gNorth[i]);
+                    f_boundary = -2.0*(cE*g_east[j] + cN*g_north[i]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (i == 0) {
@@ -143,7 +139,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[1] = JN; v[1] = cN;
                     idxn[2] = JS; v[2] = cS;
                     idxn[3] = JC; v[3] = cC - cW;
-                    f_boundary = -2.0*(cW*gWest[j]);
+                    f_boundary = -2.0*(cW*g_west[j]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (i == nx-1) {
@@ -153,7 +149,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[1] = JN; v[1] = cN;
                     idxn[2] = JS; v[2] = cS;
                     idxn[3] = JC; v[3] = cC - cE;
-                    f_boundary = -2.0*(cE*gEast[j]);
+                    f_boundary = -2.0*(cE*g_east[j]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (j == 0) {
@@ -163,7 +159,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[1] = JW; v[1] = cW;
                     idxn[2] = JN; v[2] = cN;
                     idxn[3] = JC; v[3] = cC - cS;
-                    f_boundary = -2.0*(cS*gSouth[i]);
+                    f_boundary = -2.0*(cS*g_south[i]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else if (j == ny-1) {
@@ -173,7 +169,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
                     idxn[1] = JW; v[1] = cW;
                     idxn[2] = JS; v[2] = cS;
                     idxn[3] = JC; v[3] = cC - cN;
-                    f_boundary = -2.0*(cN*gNorth[i]);
+                    f_boundary = -2.0*(cN*g_north[i]);
                     VecSetValue(f, IC, f_boundary, ADD_VALUES);
                 }
                 else {
@@ -231,17 +227,17 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
     else if (solver_type == FiniteVolumeSolverType::FISHPACK90) {
         
         // Unpack Dirichlet Data
-        int nSide = grid.nx();
-        Vector<double> gWest = dirichlet_data.getSegment(0*nSide, nSide);
-        Vector<double> gEast = dirichlet_data.getSegment(1*nSide, nSide);
-        Vector<double> gSouth = dirichlet_data.getSegment(2*nSide, nSide);
-        Vector<double> gNorth = dirichlet_data.getSegment(3*nSide, nSide);
+        int nside = grid.nx();
+        Vector<double> g_west = dirichlet_data.getSegment(0*nside, nside);
+        Vector<double> g_east = dirichlet_data.getSegment(1*nside, nside);
+        Vector<double> g_south = dirichlet_data.getSegment(2*nside, nside);
+        Vector<double> g_north = dirichlet_data.getSegment(3*nside, nside);
 
         // Transpose RHS data for FORTRAN call
-        Vector<double> fT(nSide * nSide);
+        Vector<double> fT(nside * nside);
         for (int i = 0; i < grid.nx(); i++) {
             for (int j = 0; j < grid.ny(); j++) {
-                fT[i + j*nSide] = rhs_data[j + i*nSide];
+                fT[i + j*nside] = rhs_data[j + i*nside];
             }
         }
 
@@ -250,14 +246,14 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         double B = grid.xUpper();
         int M = grid.nx();
         int MBDCND = 1;
-        double* BDA = gWest.dataPointer();
-        double* BDB = gEast.dataPointer();
+        double* BDA = g_west.dataPointer();
+        double* BDB = g_east.dataPointer();
         double C = grid.yLower();
         double D = grid.yUpper();
         int N = grid.ny();
         int NBDCND = 1;
-        double* BDC = gSouth.dataPointer();
-        double* BDD = gNorth.dataPointer();
+        double* BDC = g_south.dataPointer();
+        double* BDD = g_north.dataPointer();
         double ELMBDA = lambda_function(0,0); // @TODO: Implement or get lambda value
         double* F = fT.dataPointer();
         // double* F = rhs_data.dataPointer();
@@ -285,8 +281,8 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         Vector<double> solution(grid.nx() * grid.ny());
         for (int i = 0; i < grid.nx(); i++) {
             for (int j = 0; j < grid.ny(); j++) {
-                // solution[j + i*nSide] = F[i + j*nSide];
-                solution[j + i*nSide] = F[i + j*nSide];
+                // solution[j + i*nside] = F[i + j*nside];
+                solution[j + i*nside] = F[i + j*nside];
             }
         }
 
@@ -301,59 +297,59 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
 Vector<double> FiniteVolumeSolver::mapD2N(FiniteVolumeGrid& grid, Vector<double>& dirichlet_data, Vector<double>& rhs_data) {
 
     // Unpack grid data
-	int nSide = grid.nx();
+	int nside = grid.nx();
 
 	// Unpack Dirichlet data
-	Vector<double> gWest = dirichlet_data.getSegment(0*nSide, nSide);
-	Vector<double> gEast = dirichlet_data.getSegment(1*nSide, nSide);
-	Vector<double> gSouth = dirichlet_data.getSegment(2*nSide, nSide);
-	Vector<double> gNorth = dirichlet_data.getSegment(3*nSide, nSide);
+	Vector<double> g_west = dirichlet_data.getSegment(0*nside, nside);
+	Vector<double> g_east = dirichlet_data.getSegment(1*nside, nside);
+	Vector<double> g_south = dirichlet_data.getSegment(2*nside, nside);
+	Vector<double> g_north = dirichlet_data.getSegment(3*nside, nside);
 
 	// Compute solution on interior nodes
 	Vector<double> u = solve(grid, dirichlet_data, rhs_data);
 
 	// Get interior edge cell data and compute Neumann data
 	//    Interior cell data
-	Vector<double> uWest(nSide);
-	Vector<double> uEast(nSide);
-	Vector<double> uSouth(nSide);
-	Vector<double> uNorth(nSide);
+	Vector<double> u_west(nside);
+	Vector<double> u_east(nside);
+	Vector<double> u_south(nside);
+	Vector<double> u_north(nside);
 	
 	//    Fill interior cell data
-	for (int j = 0; j < nSide; j++) {
+	for (int j = 0; j < nside; j++) {
         int idxW = j;
-        int idxE = (nSide-1)*nSide + j;
-		uWest[j] = u[idxW];
-		uEast[j] = u[idxE];
+        int idxE = (nside-1)*nside + j;
+		u_west[j] = u[idxW];
+		u_east[j] = u[idxE];
 	}
-	for (int i = 0; i < nSide; i++) {
-        int idxS = i*nSide;
-        int idxN = (i+1)*nSide - 1;
-		uSouth[i] = u[idxS];
-		uNorth[i] = u[idxN];
+	for (int i = 0; i < nside; i++) {
+        int idxS = i*nside;
+        int idxN = (i+1)*nside - 1;
+		u_south[i] = u[idxS];
+		u_north[i] = u[idxN];
 	}
 
 	//    Neumann data
 	double dtn_x = 2.0 / grid.dx();
 	double dtn_y = 2.0 / grid.dy();
-	Vector<double> hWest(nSide);
-	Vector<double> hEast(nSide);
-	Vector<double> hSouth(nSide);
-	Vector<double> hNorth(nSide);
-	for (int i = 0; i < nSide; i++) {
-		hWest[i]  = (dtn_x)  * (uWest[i] - gWest[i]);
-		hEast[i]  = (-dtn_x) * (uEast[i] - gEast[i]);
-		hSouth[i] = (dtn_y)  * (uSouth[i] - gSouth[i]);
-		hNorth[i] = (-dtn_y) * (uNorth[i] - gNorth[i]);
+	Vector<double> h_west(nside);
+	Vector<double> h_east(nside);
+	Vector<double> h_south(nside);
+	Vector<double> h_north(nside);
+	for (int i = 0; i < nside; i++) {
+		h_west[i]  = (dtn_x)  * (u_west[i] - g_west[i]);
+		h_east[i]  = (-dtn_x) * (u_east[i] - g_east[i]);
+		h_south[i] = (dtn_y)  * (u_south[i] - g_south[i]);
+		h_north[i] = (-dtn_y) * (u_north[i] - g_north[i]);
 	}
 
 	//    Column stack and return
-	Vector<double> neumannData(4*nSide);
-	neumannData.setSegment(0*nSide, hWest);
-	neumannData.setSegment(1*nSide, hEast);
-	neumannData.setSegment(2*nSide, hSouth);
-	neumannData.setSegment(3*nSide, hNorth);
-	return neumannData;
+	Vector<double> neumann_data(4*nside);
+	neumann_data.setSegment(0*nside, h_west);
+	neumann_data.setSegment(1*nside, h_east);
+	neumann_data.setSegment(2*nside, h_south);
+	neumann_data.setSegment(3*nside, h_north);
+	return neumann_data;
 
 }
 
@@ -461,8 +457,8 @@ Matrix<double> FiniteVolumeSolver::buildD2N(FiniteVolumeGrid& grid) {
 
 Vector<double> FiniteVolumeSolver::particularNeumannData(FiniteVolumeGrid& grid, Vector<double>& rhs_data) {
 
-    Vector<double> gZero(2*grid.nx() + 2*grid.ny(), 0);
-    return mapD2N(grid, gZero, rhs_data);
+    Vector<double> g_zero(2*grid.nx() + 2*grid.ny(), 0);
+    return mapD2N(grid, g_zero, rhs_data);
 
 }
 

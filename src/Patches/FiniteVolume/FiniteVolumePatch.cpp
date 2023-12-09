@@ -16,9 +16,8 @@ FiniteVolumePatch::FiniteVolumePatch(MPI::Communicator comm, FiniteVolumeGrid gr
     grid_(grid)
         {}
 
-FiniteVolumePatch::~FiniteVolumePatch() {
-    // printf("[RANK %i/%i] Calling FiniteVolumePatch destructor.\n", this->getRank(), this->getSize());
-}
+FiniteVolumePatch::~FiniteVolumePatch()
+    {}
 
 std::string FiniteVolumePatch::name() {
     return "FiniteVolumePatch";
@@ -90,15 +89,15 @@ double FiniteVolumePatch::dataSize() {
 std::string FiniteVolumePatch::str() {
     std::string res;
 
-    res += "nCoarsens = " + std::to_string(nCoarsens) + "\n";
+    res += "n_coarsens = " + std::to_string(n_coarsens) + "\n";
 
     res += "grid:\n";
     res += "  nx = " + std::to_string(grid().nx()) + "\n";
     res += "  ny = " + std::to_string(grid().ny()) + "\n";
-    res += "  xLower = " + std::to_string(grid().xLower()) + "\n";
-    res += "  xUpper = " + std::to_string(grid().xUpper()) + "\n";
-    res += "  yLower = " + std::to_string(grid().yLower()) + "\n";
-    res += "  yUpper = " + std::to_string(grid().yUpper()) + "\n";
+    res += "  x_lower = " + std::to_string(grid().xLower()) + "\n";
+    res += "  x_upper = " + std::to_string(grid().xUpper()) + "\n";
+    res += "  y_lower = " + std::to_string(grid().yLower()) + "\n";
+    res += "  y_upper = " + std::to_string(grid().yUpper()) + "\n";
 
     res += "data:\n";
     res += "  X = [" + std::to_string(matrixX().nRows()) + ", " + std::to_string(matrixX().nCols()) + "]\n";
@@ -119,21 +118,8 @@ namespace MPI {
 template<>
 int broadcast(FiniteVolumePatch& patch, int root, MPI::Communicator comm) {
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
-    broadcast(patch.nCoarsens, root, comm);
+    broadcast(patch.n_coarsens, root, comm);
     broadcast(patch.grid(), root, comm);
-    
-    // app.log("HERE 1");
-    // if (patch.par_matrix_T.mat == NULL) {
-    //     app.log("HERE 2");
-    //     patch.par_matrix_T = ParallelMatrix<double>(MPI_COMM_SELF, PETSC_DECIDE, PETSC_DECIDE, 0, 0, MATMPIDENSE);
-    // }
-    // else {
-    //     app.log("HERE 3");
-    // }
-    // app.log("HERE 4");
-    // patch.par_matrix_T = ParallelMatrix<double>(comm, patch.par_matrix_T);
-    
-    // Only broadcast meta data, matrices and vectors are local (maybe...)
     broadcast(patch.matrixX(), root, comm);
     broadcast(patch.matrixH(), root, comm);
     broadcast(patch.matrixS(), root, comm);
