@@ -29,17 +29,37 @@ class Vector : public DataArrayNodeBase, public MPI::MPIObject {
 
 protected:
 
+    /**
+     * @brief Size of the vector
+     * 
+     */
     std::size_t size_;
+
+    /**
+     * @brief Backend storage of data
+     * 
+     */
     std::vector<NumericalType> data_;
+
+    /**
+     * @brief Name of vector (for VTK)
+     * 
+     */
     std::string name_ = "Vector";
+
+    /**
+     * @brief Number of components for each element in data array
+     * 
+     */
     std::string vtkComponents_ = "1";
+
+    /**
+     * @brief Type of data
+     * 
+     */
     std::string vtkType_ = "Float32";
 
 public:
-
-    // ---======---
-    // Constructors
-    // ---======---
 
     /**
      * @brief Default constructor sets size and data to zero
@@ -53,16 +73,6 @@ public:
      * @param size Size of vector
      */
     Vector(std::size_t size) : size_(size), data_(size) {}
-
-    /**
-     * @brief Create a vector and assign it to already allocated memory array
-     * 
-     * @param size Size of vector
-     * @param dataArray Pointer of beginning of memory block
-     */
-    // Vector(std::size_t size, NumericalType* dataArray) : size_(size) {
-    //     data_.assign(dataArray, dataArray + size);
-    // }
 
     /**
      * @brief Create a vector of a given size, setting all elements to `value`
@@ -122,14 +132,6 @@ public:
         }
         return *this;
     }
-
-    // Vector(Vector&& v) {
-    //     *this = std::move(v);
-    // }
-
-    // ---=========================---
-    // "Getter" and "Setter" functions
-    // ---=========================---
 
     /**
      * @brief Get an entry in the vector
@@ -211,11 +213,12 @@ public:
         return data_[index];
     }
 
+    /**
+     * @brief Return the name of the vector
+     * 
+     * @return std::string& 
+     */
     std::string& name() { return name_; }
-    
-    // ---============---
-    // "Getter" functions
-    // ---============---
 
     /**
      * @brief Return the size of vector
@@ -231,6 +234,11 @@ public:
      */
     const std::vector<NumericalType>& data() const { return data_; }
 
+    /**
+     * @brief Return a non-const version of the backend storage vector
+     * 
+     * @return std::vector<NumericalType>& 
+     */
     std::vector<NumericalType>& dataNoConst() { return data_; }
 
     /**
@@ -292,6 +300,13 @@ public:
         return v;
     }
 
+    /**
+     * @brief Get a segment of the vector from starting index to starting index plus length
+     * 
+     * @param startIndex Starting index of segment
+     * @param length Length of segment
+     * @return Vector<NumericalType> 
+     */
     Vector<NumericalType> getSegment(std::size_t startIndex, std::size_t length) {
         if (startIndex + length > size_) {
             std::string errorMessage = "[EllipticForest::Vector::getSegment] Index mismatch. `startIndex` + `length` is greater than size of vector:\n";
@@ -311,6 +326,12 @@ public:
 
     }
 
+    /**
+     * @brief Set a segment of the data
+     * 
+     * @param startIndex Starting index of segment
+     * @param vec Vector of data to set into this vector
+     */
     void setSegment(std::size_t startIndex, const Vector<NumericalType>& vec) {
         if (startIndex + vec.size() > size_) {
             std::string errorMessage = "[EllipticForest::Vector::setSegment] Index mismatch. `startIndex` + `vec.size()` is greater than size of host vector:\n";
@@ -326,6 +347,11 @@ public:
         }
     }
 
+    /**
+     * @brief Append vector to this vector
+     * 
+     * @param vec Vector to append
+     */
     void append(const Vector<NumericalType>& vec) {
         size_ += vec.size();
         data_.insert(data_.end(), vec.data().begin(), vec.data().end());
@@ -430,6 +456,13 @@ public:
 
     }
 
+    /**
+     * @brief Write to an ostream
+     * 
+     * @param os Ostream reference
+     * @param v Vector to write
+     * @return std::ostream& 
+     */
     friend std::ostream& operator<<(std::ostream& os, Vector<NumericalType>& v) {
         os << "  [" << v.size() << "]" << std::endl;
         for (auto i = 0; i < v.size(); i++) {
@@ -446,10 +479,11 @@ public:
         return os;
     }
 
-    // ---=========---
-    // Math operations
-    // ---=========---
-
+    /**
+     * @brief Subtraction operator
+     * 
+     * @return Vector<NumericalType> 
+     */
     Vector<NumericalType> operator-() {
         Vector<NumericalType> res(size_);
         for (auto i = 0; i < res.size(); i++) {
@@ -458,6 +492,12 @@ public:
         return res;
     }
 
+    /**
+     * @brief Addition update operator
+     * 
+     * @param rhs RHS vector
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator+=(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
             std::string errorMessage = "[EllipticForest::Vector::operator+=] Size of `rhs` is not the same of `this`:\n";
@@ -473,6 +513,12 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Addition update operator
+     * 
+     * @param rhs RHS scalar
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator+=(const NumericalType rhs) {
         for (auto i = 0; i < size_; i++) {
             data_[i] += rhs;
@@ -480,6 +526,12 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Addition operator
+     * 
+     * @param rhs RHS vector
+     * @return Vector<NumericalType> 
+     */
     Vector<NumericalType> operator+(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
             std::string errorMessage = "[EllipticForest::Vector::operator+] Size of `rhs` is not the same of `this`:\n";
@@ -493,10 +545,22 @@ public:
         
     }
 
+    /**
+     * @brief Addition operator
+     * 
+     * @param rhs RHS scalar
+     * @return Vector<NumericalType> 
+     */
     Vector<NumericalType> operator+(const NumericalType rhs) {
         return Vector<NumericalType>(*this) += rhs;
     }
 
+    /**
+     * @brief Subtract update operator
+     * 
+     * @param rhs RHS vector
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator-=(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
             std::string errorMessage = "[EllipticForest::Vector::operator-=] Size of `rhs` is not the same of `this`:\n";
@@ -512,6 +576,12 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Subtract update operator
+     * 
+     * @param rhs RHS scalar
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator-=(const NumericalType& rhs) {
         for (auto i = 0; i < size_; i++) {
             data_[i] -= rhs;
@@ -519,6 +589,12 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Subtract operator
+     * 
+     * @param rhs RHS vector
+     * @return Vector<NumericalType> 
+     */
     Vector<NumericalType> operator-(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
             std::string errorMessage = "[EllipticForest::Vector::operator-] Size of `rhs` is not the same of `this`:\n";
@@ -532,25 +608,22 @@ public:
         
     }
 
+    /**
+     * @brief Subtract operator
+     * 
+     * @param rhs RHS scalar
+     * @return Vector<NumericalType> 
+     */
     Vector<NumericalType> operator-(const NumericalType rhs) {
         return Vector<NumericalType>(*this) -= rhs;
     }
 
-    // Vector<NumericalType>& operator*=(const Vector<NumericalType>& rhs) {
-    //     if (rhs.size() != size_) {
-    //         std::string errorMessage = "[EllipticForest::Vector::operator*=] Size of `rhs` is not the same of `this`:\n";
-    //         errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-    //         errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-    //         std::cerr << errorMessage << std::endl;
-    //         throw std::invalid_argument(errorMessage);
-    //     }
-
-    //     for (auto i = 0; i < size_; i++) {
-    //         data_[i] *= rhs[i];
-    //     }
-    //     return *this;
-    // }
-
+    /**
+     * @brief Multiplication update operator
+     * 
+     * @param rhs RHS scalar
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator*=(const NumericalType& rhs) {
         for (auto i = 0; i < size_; i++) {
             data_[i] *= rhs;
@@ -558,6 +631,12 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Multiplication operator
+     * 
+     * @param rhs RHS vector
+     * @return NumericalType 
+     */
     NumericalType operator*(Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
             std::string errorMessage = "[EllipticForest::Vector::operator*] Size of `rhs` is not the same of `this`:\n";
@@ -574,21 +653,12 @@ public:
         return res;
     }
 
-    // Vector<NumericalType>& operator/=(const Vector<NumericalType>& rhs) {
-    //     if (rhs.size() != size_) {
-    //         std::string errorMessage = "[EllipticForest::Vector::operator/=] Size of `rhs` is not the same of `this`:\n";
-    //         errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-    //         errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-    //         std::cerr << errorMessage << std::endl;
-    //         throw std::invalid_argument(errorMessage);
-    //     }
-
-    //     for (auto i = 0; i < size_; i++) {
-    //         data_[i] /= rhs[i];
-    //     }
-    //     return *this;
-    // }
-
+    /**
+     * @brief Division update operator
+     * 
+     * @param rhs RHS scalar
+     * @return Vector<NumericalType>& 
+     */
     Vector<NumericalType>& operator/=(const NumericalType& rhs) {
         for (auto i = 0; i < size_; i++) {
             data_[i] /= rhs;
@@ -596,40 +666,85 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Set the type of the data in the data array
+     * 
+     * @param t Type
+     */
     void setType(std::string t) {
         vtkType_ = t;
     }
 
+    /**
+     * @brief Get the type of data in the data array
+     * 
+     * @return std::string 
+     */
     virtual std::string getType() {
         return vtkType_;
     }
 
+    /**
+     * @brief Get the name of the data array
+     * 
+     * @return std::string 
+     */
     virtual std::string getName() {
         return name_;
     }
 
+    /**
+     * @brief Set the number of components per entry in the data array
+     * 
+     * @param n Number of components
+     */
     void setNumberOfComponents(std::string n) {
         vtkComponents_ = n;
     }
 
+    /**
+     * @brief Get the number of components per entry in the data array
+     * 
+     * @return std::string 
+     */
     virtual std::string getNumberOfComponents() {
         return vtkComponents_;
     }
 
+    /**
+     * @brief Get the format of the data array
+     * 
+     * @return std::string 
+     */
     virtual std::string getFormat() {
         return "ascii";
     }
 
+    /**
+     * @brief Get the minimum of the data
+     * 
+     * @return std::string 
+     */
     virtual std::string getRangeMin() {
         NumericalType min = *std::min_element(data_.begin(), data_.end());
         return std::to_string(min);
     }
 
+    /**
+     * @brief Get the maximum of the data
+     * 
+     * @return std::string 
+     */
     virtual std::string getRangeMax() {
         NumericalType max = *std::max_element(data_.begin(), data_.end());
         return std::to_string(max);
     }
 
+    /**
+     * @brief Get the data
+     * 
+     * @return std::string 
+     */
     virtual std::string getData() {
         std::string str = "";
         for (auto p : data_) { str += std::to_string(p) + " "; }
@@ -638,6 +753,13 @@ public:
 
 };
 
+/**
+ * @brief Create a vector of integers from [`start` to `end`)
+ * 
+ * @param start Starting value
+ * @param end Ending value
+ * @return Vector<int> 
+ */
 static Vector<int> vectorRange(int start, int end) {
     int N = (end - start) + 1;
     Vector<int> res(N);
@@ -647,6 +769,14 @@ static Vector<int> vectorRange(int start, int end) {
     return res;
 }
 
+/**
+ * @brief Multiplication operator
+ * 
+ * @tparam NumericalType 
+ * @param lhs LHS scalar
+ * @param rhs RHS vector
+ * @return Vector<NumericalType> 
+ */
 template<typename NumericalType>
 Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
     Vector<NumericalType> res(rhs.size());
@@ -656,6 +786,14 @@ Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
     return res;
 }
 
+/**
+ * @brief Multiplication operator (entry-wise multiplication)
+ * 
+ * @tparam NumericalType 
+ * @param lhs LHS vector
+ * @param rhs RHS vector
+ * @return Vector<NumericalType> 
+ */
 template<typename NumericalType>
 Vector<NumericalType> operator*(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
     if (lhs.size() != rhs.size()) {
@@ -672,6 +810,14 @@ Vector<NumericalType> operator*(Vector<NumericalType> lhs, Vector<NumericalType>
     return res;
 }
 
+/**
+ * @brief Division operator (entry-wise division)
+ * 
+ * @tparam NumericalType 
+ * @param lhs LHS vector
+ * @param rhs RHS vector
+ * @return Vector<NumericalType> 
+ */
 template<typename NumericalType>
 Vector<NumericalType> operator/(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
     if (lhs.size() != rhs.size()) {
@@ -688,6 +834,13 @@ Vector<NumericalType> operator/(Vector<NumericalType> lhs, Vector<NumericalType>
     return res;
 } 
 
+/**
+ * @brief Concatenates a vector of vectors
+ * 
+ * @tparam NumericalType 
+ * @param vectors Vector of vectors to concatentate
+ * @return Vector<NumericalType> 
+ */
 template<typename NumericalType>
 Vector<NumericalType> concatenate(std::vector<Vector<NumericalType>> vectors) {
     std::size_t nEntries = 0;
@@ -702,12 +855,27 @@ Vector<NumericalType> concatenate(std::vector<Vector<NumericalType>> vectors) {
     return res;
 }
 
+/**
+ * @brief Concatenates an initialization list of vectors
+ * 
+ * @tparam NumericalType 
+ * @param vectors Initialization list
+ * @return Vector<NumericalType> 
+ */
 template<typename NumericalType>
 Vector<NumericalType> concatenate(std::initializer_list<Vector<NumericalType>> vectors) {
     std::vector<Vector<NumericalType>> v(vectors);
     return concatenate(v);
 }
 
+/**
+ * @brief Computes the inf-norm of the difference of two vectors
+ * 
+ * @tparam NumericalType 
+ * @param a LHS vector
+ * @param b RHS vector
+ * @return double 
+ */
 template<typename NumericalType>
 double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
     if (a.size() != b.size()) {
@@ -726,6 +894,14 @@ double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 
 }
 
+/**
+ * @brief Computes the L2-norm of the difference of two vectors
+ * 
+ * @tparam NumericalType 
+ * @param a LHS vector
+ * @param b RHS vector
+ * @return double 
+ */
 template<typename NumericalType>
 double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
     if (a.size() != b.size()) {
@@ -746,11 +922,32 @@ double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 
 namespace MPI {
 
+/**
+ * @brief Function overload of @sa `send` for EllipticForest::Vector<T>
+ * 
+ * @tparam T Type of data in vector
+ * @param vector Reference to vector
+ * @param dest Destination rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int send(Vector<T>& vector, int dest, int tag, Communicator comm) {
     return send(vector.dataNoConst(), dest, tag, comm);
 }
 
+/**
+ * @brief Function overload of @sa `recieve` for EllipticForest::Vector<T>
+ * 
+ * @tparam T Type of data in vector
+ * @param vector Reference to vector
+ * @param src Source rank
+ * @param tag Message tag
+ * @param comm MPI communicator
+ * @param status MPI status
+ * @return int 
+ */
 template<class T>
 int receive(Vector<T>& vector, int src, int tag, Communicator comm, Status* status) {
     std::vector<T> vec;
@@ -759,6 +956,15 @@ int receive(Vector<T>& vector, int src, int tag, Communicator comm, Status* stat
     return res;
 }
 
+/**
+ * @brief Function overload of @sa `broadcast` for EllipticForest::Vector<T>
+ * 
+ * @tparam T Type of data in vector
+ * @param vector Reference to vector
+ * @param root Root rank
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int broadcast(Vector<T>& vector, int root, Communicator comm) {
     int rank; MPI_Comm_rank(comm, &rank);
@@ -769,11 +975,32 @@ int broadcast(Vector<T>& vector, int root, Communicator comm) {
     return res;
 }
 
+/**
+ * @brief Function overload of @sa `allgather` for EllipticForest::Vector<T>
+ * 
+ * @tparam T Type of data in vector
+ * @param send_vector Reference to vector to send
+ * @param recv_vector Storage for vector to receive from involved ranks
+ * @param recv_count Count of elements received from any rank
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int allgather(Vector<T>& send_vector, Vector<T>& recv_vector, int recv_count, Communicator comm) {
     return allgather(send_vector.dataNoConst(), recv_vector.dataNoConst(), recv_count, comm);
 }
 
+/**
+ * @brief Function overload of @sa `allgatherv` for EllipticForest::Vector<T>
+ * 
+ * @tparam T Type of data in vector
+ * @param send_vector Reference of vector to send
+ * @param recv_vector Storage for vector to receive from involved ranks
+ * @param recv_counts Vector of counts of elements received from ranks
+ * @param displacements Vector of displacements of elements received from ranks to put into `recv_data`
+ * @param comm MPI communicator
+ * @return int 
+ */
 template<class T>
 int allgatherv(Vector<T>& send_vector, Vector<T>& recv_vector, std::vector<int> recv_counts, std::vector<int> displacements, Communicator comm) {
     return allgatherv(send_vector.dataNoConst(), recv_vector.dataNoConst(), recv_counts, displacements, comm);
