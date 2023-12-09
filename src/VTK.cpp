@@ -3,25 +3,25 @@
 namespace EllipticForest {
 
 XMLNode* DataArrayNodeBase::toVTK() {
-    XMLNode* nodeDataArray = new XMLNode("DataArray");
-    nodeDataArray->addAttribute("type", getType());
-    nodeDataArray->addAttribute("Name", getName());
-    nodeDataArray->addAttribute("NumberOfComponents", getNumberOfComponents());
-    nodeDataArray->addAttribute("format", getFormat());
-    nodeDataArray->addAttribute("RangeMin", getRangeMin());
-    nodeDataArray->addAttribute("RangeMax", getRangeMax());
-    nodeDataArray->data = getData();
-    return nodeDataArray;
+    XMLNode* node_data_array = new XMLNode("DataArray");
+    node_data_array->addAttribute("type", getType());
+    node_data_array->addAttribute("Name", getName());
+    node_data_array->addAttribute("NumberOfComponents", getNumberOfComponents());
+    node_data_array->addAttribute("format", getFormat());
+    node_data_array->addAttribute("RangeMin", getRangeMin());
+    node_data_array->addAttribute("RangeMax", getRangeMax());
+    node_data_array->data = getData();
+    return node_data_array;
 }
 
 XMLNode* DataArrayNodeBase::toPVTK() {
-    XMLNode* nodeDataArray = new XMLNode("PDataArray");
-    nodeDataArray->addAttribute("type", getType());
-    nodeDataArray->addAttribute("Name", getName());
-    nodeDataArray->addAttribute("NumberOfComponents", getNumberOfComponents());
-    nodeDataArray->addAttribute("format", getFormat());
-    nodeDataArray->data = "";
-    return nodeDataArray;
+    XMLNode* node_data_array = new XMLNode("PDataArray");
+    node_data_array->addAttribute("type", getType());
+    node_data_array->addAttribute("Name", getName());
+    node_data_array->addAttribute("NumberOfComponents", getNumberOfComponents());
+    node_data_array->addAttribute("format", getFormat());
+    node_data_array->data = "";
+    return node_data_array;
 }
 
 EmptyDataArrayNode::EmptyDataArrayNode() {}
@@ -33,89 +33,82 @@ std::string EmptyDataArrayNode::getRangeMin() { return "0.0"; }
 std::string EmptyDataArrayNode::getRangeMax() { return "0.0"; }
 std::string EmptyDataArrayNode::getData() { return "0.0"; }
 
-RectilinearGridVTK::RectilinearGridVTK() : meshComplete_(false), coordsDataVector_(0), pointDataVector_(0), cellDataVector_(0), root_("VTKFile") {
+RectilinearGridVTK::RectilinearGridVTK() : mesh_complete_(false), coords_data_vector_(0), point_data_vector_(0), cell_data_vector_(0), root_("VTKFile") {
     root_.addAttribute("type", "RectilinearGrid");
     root_.addAttribute("version", "0.1");
     root_.addAttribute("byte_order", "LittleEndian");
 }
 
-void RectilinearGridVTK::buildMesh(RectilinearGridNodeBase& mesh, DataArrayNodeBase* xCoords, DataArrayNodeBase* yCoords, DataArrayNodeBase* zCoords) {
+void RectilinearGridVTK::buildMesh(RectilinearGridNodeBase& mesh, DataArrayNodeBase* x_coords, DataArrayNodeBase* y_coords, DataArrayNodeBase* z_coords) {
     mesh_ = &mesh;
     
-    if (xCoords != nullptr) {
-        coordsDataVector_.push_back(xCoords);
+    if (x_coords != nullptr) {
+        coords_data_vector_.push_back(x_coords);
     }
     else {
-        coordsDataVector_.push_back(&emptyDataArray_);
+        coords_data_vector_.push_back(&empty_data_array_);
     }
 
-    if (yCoords != nullptr) {
-        coordsDataVector_.push_back(yCoords);
+    if (y_coords != nullptr) {
+        coords_data_vector_.push_back(y_coords);
     }
     else {
-        coordsDataVector_.push_back(&emptyDataArray_);
+        coords_data_vector_.push_back(&empty_data_array_);
     }
 
-    if (zCoords != nullptr) {
-        coordsDataVector_.push_back(zCoords);
+    if (z_coords != nullptr) {
+        coords_data_vector_.push_back(z_coords);
     }
     else {
-        coordsDataVector_.push_back(&emptyDataArray_);
+        coords_data_vector_.push_back(&empty_data_array_);
     }
 
-    meshComplete_ = true;
+    mesh_complete_ = true;
     return;
 }
 
-void RectilinearGridVTK::addPointData(DataArrayNodeBase& pointData) {
-    pointDataVector_.push_back(&pointData);
+void RectilinearGridVTK::addPointData(DataArrayNodeBase& point_data) {
+    point_data_vector_.push_back(&point_data);
 }
 
-void RectilinearGridVTK::addCellData(DataArrayNodeBase& cellData) {
-    cellDataVector_.push_back(&cellData);
+void RectilinearGridVTK::addCellData(DataArrayNodeBase& cell_data) {
+    cell_data_vector_.push_back(&cell_data);
 }
 
 void RectilinearGridVTK::toVTK(std::string filename) {
 
-    if (meshComplete_) {
+    if (mesh_complete_) {
 
-        XMLNode nodeRectilinearGrid("RectilinearGrid");
-        nodeRectilinearGrid.addAttribute("WholeExtent", mesh_->getWholeExtent());
+        XMLNode node_rectilinear_grid("RectilinearGrid");
+        node_rectilinear_grid.addAttribute("WholeExtent", mesh_->getWholeExtent());
 
-        XMLNode nodePiece("Piece");
-        nodePiece.addAttribute("Extent", mesh_->getExtent());
+        XMLNode node_piece("Piece");
+        node_piece.addAttribute("Extent", mesh_->getExtent());
 
-        XMLNode nodeCellData("CellData");
-        if (!cellDataVector_.empty()) {
+        XMLNode node_cell_data("CellData");
+        if (!cell_data_vector_.empty()) {
             std::string names = "";
-            for (auto& cellData : cellDataVector_) names += cellData->getName() + " ";
-            nodeCellData.addAttribute("Scalars", names);
+            for (auto& cell_data : cell_data_vector_) names += cell_data->getName() + " ";
+            node_cell_data.addAttribute("Scalars", names);
         }
-        // for (auto cellData : cellDataVector_) {
-        //     nodeCellData.addAttribute("Scalars", cellData->getName());
-        // }
 
-        XMLNode nodePointData("PointData");
-        if (!pointDataVector_.empty()) {
+        XMLNode node_point_data("PointData");
+        if (!point_data_vector_.empty()) {
             std::string names = "";
-            for (auto& pointData : pointDataVector_) names += pointData->getName() + " ";
-            nodePointData.addAttribute("Scalars", names);
+            for (auto& point_data : point_data_vector_) names += point_data->getName() + " ";
+            node_point_data.addAttribute("Scalars", names);
         }
-        // for (auto pointData : pointDataVector_) {
-        //     nodePointData.addAttribute("Scalars", pointData->getName());
-        // }
 
-        XMLNode nodeCoordinates("Coordinates");
+        XMLNode node_coordinates("Coordinates");
         
-        root_.addChild(nodeRectilinearGrid);
-        nodeRectilinearGrid.addChild(nodePiece);
-        if (!cellDataVector_.empty()) nodePiece.addChild(nodeCellData);
-        if (!pointDataVector_.empty()) nodePiece.addChild(nodePointData);
-        nodePiece.addChild(nodeCoordinates);
-        for (auto cellData : cellDataVector_) nodeCellData.addChild(cellData->toVTK());
-        for (auto pointData : pointDataVector_) nodePointData.addChild(pointData->toVTK());
-        for (auto coordData : coordsDataVector_) nodeCoordinates.addChild(coordData->toVTK());
-        // for (auto i = 0; i < coordsDataVector_.size(); i++) nodeCoordinates.addChild(coordsDataVector_[i]->toVTK());
+        root_.addChild(node_rectilinear_grid);
+        node_rectilinear_grid.addChild(node_piece);
+        if (!cell_data_vector_.empty()) node_piece.addChild(node_cell_data);
+        if (!point_data_vector_.empty()) node_piece.addChild(node_point_data);
+        node_piece.addChild(node_coordinates);
+        for (auto cell_data : cell_data_vector_) node_cell_data.addChild(cell_data->toVTK());
+        for (auto point_data : point_data_vector_) node_point_data.addChild(point_data->toVTK());
+        for (auto coordData : coords_data_vector_) node_coordinates.addChild(coordData->toVTK());
 
         XMLTree tree(root_);
         tree.write(filename);
@@ -128,9 +121,9 @@ void RectilinearGridVTK::toVTK(std::string filename) {
 }
 
 UnstructuredGridVTK::UnstructuredGridVTK() :
-    meshComplete_(false),
-    pointDataVector_(0),
-    cellDataVector_(0),
+    mesh_complete_(false),
+    point_data_vector_(0),
+    cell_data_vector_(0),
     root_("VTKFile") {
     root_.addAttribute("type", "UnstructuredGrid");
     root_.addAttribute("version", "0.1");
@@ -142,67 +135,67 @@ UnstructuredGridNodeBase& UnstructuredGridVTK::mesh() {
 }
 
 std::vector<DataArrayNodeBase*>& UnstructuredGridVTK::pointDataVector() {
-    return pointDataVector_;
+    return point_data_vector_;
 }
 
 std::vector<DataArrayNodeBase*>& UnstructuredGridVTK::cellDataVector() {
-    return cellDataVector_;
+    return cell_data_vector_;
 }
 
 void UnstructuredGridVTK::buildMesh(UnstructuredGridNodeBase& mesh) {
 
     mesh_ = &mesh;
-    meshComplete_ = true;
+    mesh_complete_ = true;
 
 }
 
-void UnstructuredGridVTK::addPointData(DataArrayNodeBase& pointData) {
-    pointDataVector_.push_back(&pointData);
+void UnstructuredGridVTK::addPointData(DataArrayNodeBase& point_data) {
+    point_data_vector_.push_back(&point_data);
 }
 
-void UnstructuredGridVTK::addCellData(DataArrayNodeBase& cellData) {
-    cellDataVector_.push_back(&cellData);
+void UnstructuredGridVTK::addCellData(DataArrayNodeBase& cell_data) {
+    cell_data_vector_.push_back(&cell_data);
 }
 
 void UnstructuredGridVTK::toVTK(std::string filename) {
 
-    if (meshComplete_) {
+    if (mesh_complete_) {
 
-        XMLNode nodeUnstructuredGrid("UnstructuredGrid");
+        XMLNode node_unstructured_grid("UnstructuredGrid");
 
-        XMLNode nodePiece("Piece");
-        nodePiece.addAttribute("NumberOfPoints", mesh_->getNumberOfPoints());
-        nodePiece.addAttribute("NumberOfCells", mesh_->getNumberOfCells());
+        XMLNode node_piece("Piece");
+        node_piece.addAttribute("NumberOfPoints", mesh_->getNumberOfPoints());
+        node_piece.addAttribute("NumberOfCells", mesh_->getNumberOfCells());
 
-        XMLNode nodePoints("Points");
-        XMLNode nodeCells("Cells");
+        XMLNode node_points("Points");
+        XMLNode node_cells("Cells");
 
-        XMLNode nodeCellData("CellData");
-        if (!cellDataVector_.empty()) {
+        XMLNode node_cell_data("CellData");
+        if (!cell_data_vector_.empty()) {
             std::string names = "";
-            for (auto& cellData : cellDataVector_) names += cellData->getName() + " ";
-            nodeCellData.addAttribute("Scalars", names);
+            for (auto& cell_data : cell_data_vector_) names += cell_data->getName() + " ";
+            node_cell_data.addAttribute("Scalars", names);
         }
 
-        XMLNode nodePointData("PointData");
-        if (!pointDataVector_.empty()) {
+        XMLNode node_point_data("PointData");
+        if (!point_data_vector_.empty()) {
             std::string names = "";
-            for (auto& pointData : pointDataVector_) names += pointData->getName() + " ";
-            nodePointData.addAttribute("Scalars", names);
+            for (auto& point_data : point_data_vector_) names += point_data->getName() + " ";
+            node_point_data.addAttribute("Scalars", names);
         }
 
-        root_.addChild(nodeUnstructuredGrid);
-            nodeUnstructuredGrid.addChild(nodePiece);
-                nodePiece.addChild(nodePoints);
-                    nodePoints.addChild(mesh_->getPoints().toVTK());
-                nodePiece.addChild(nodeCells);
-                    nodeCells.addChild(mesh_->getConnectivity().toVTK());
-                    nodeCells.addChild(mesh_->getOffsets().toVTK());
-                    nodeCells.addChild(mesh_->getTypes().toVTK());
-                if (!cellDataVector_.empty()) nodePiece.addChild(nodeCellData);
-                    for (auto& cellData : cellDataVector_) nodeCellData.addChild(cellData->toVTK());
-                if (!pointDataVector_.empty()) nodePiece.addChild(nodePointData);
-                    for (auto& pointData : pointDataVector_) nodePointData.addChild(pointData->toVTK());
+        root_.addChild(node_unstructured_grid);
+            node_unstructured_grid.addChild(node_piece);
+                node_piece.addChild(node_points);
+                    node_points.addChild(mesh_->getPoints().toVTK());
+                node_piece.addChild(node_cells);
+                    node_cells.addChild(mesh_->getConnectivity().toVTK());
+                    node_cells.addChild(mesh_->getOffsets().toVTK());
+                    node_cells.addChild(mesh_->getTypes().toVTK());
+                if (!cell_data_vector_.empty()) node_piece.addChild(node_cell_data);
+                    for (auto& cell_data : cell_data_vector_) node_cell_data.addChild(cell_data->toVTK());
+                if (!point_data_vector_.empty()) node_piece.addChild(node_point_data);
+                    for (auto& point_data : point_data_vector_) node_point_data.addChild(point_data->toVTK());
 
         XMLTree tree(root_);
         tree.write(filename);
@@ -234,12 +227,12 @@ void PUnstructuredGridVTK::buildMesh(UnstructuredGridNodeBase& mesh) {
     vtu.buildMesh(mesh);
 }
 
-void PUnstructuredGridVTK::addPointData(DataArrayNodeBase& pointData) {
-    vtu.addPointData(pointData);
+void PUnstructuredGridVTK::addPointData(DataArrayNodeBase& point_data) {
+    vtu.addPointData(point_data);
 }
 
-void PUnstructuredGridVTK::addCellData(DataArrayNodeBase& cellData) {
-    vtu.addCellData(cellData);
+void PUnstructuredGridVTK::addCellData(DataArrayNodeBase& cell_data) {
+    vtu.addCellData(cell_data);
 }
 
 void PUnstructuredGridVTK::toVTK(std::string filenameBase) {
@@ -256,48 +249,48 @@ void PUnstructuredGridVTK::toVTK(std::string filenameBase) {
 
         // Get references to mesh and data
         auto& mesh = vtu.mesh();
-        auto& pointDataVector = vtu.pointDataVector();
-        auto& cellDataVector = vtu.cellDataVector();
+        auto& point_data_vector = vtu.pointDataVector();
+        auto& cell_data_vector = vtu.cellDataVector();
 
         // Build nodes
-        XMLNode nodePUnstructuredGrid("PUnstructuredGrid");
-        nodePUnstructuredGrid.addAttribute("GhostLevel", "0");
+        XMLNode node_p_unstructured_grid("PUnstructuredGrid");
+        node_p_unstructured_grid.addAttribute("GhostLevel", "0");
 
-        XMLNode nodePPoints("PPoints");
+        XMLNode node_p_points("PPoints");
         
-        XMLNode nodePPointData("PPointData");
-        if (!pointDataVector.empty()) {
+        XMLNode node_p_pointData("PPointData");
+        if (!point_data_vector.empty()) {
             std::string names = "";
-            for (auto& pointData : pointDataVector) names += pointData->getName() + " ";
-            nodePPointData.addAttribute("Scalars", names);
+            for (auto& point_data : point_data_vector) names += point_data->getName() + " ";
+            node_p_pointData.addAttribute("Scalars", names);
         }
 
-        XMLNode nodePCellData("PCellData");
-        if (!cellDataVector.empty()) {
+        XMLNode node_p_cell_data("PCellData");
+        if (!cell_data_vector.empty()) {
             std::string names = "";
-            for (auto& cellData : cellDataVector) names += cellData->getName() + " ";
-            nodePCellData.addAttribute("Scalars", names);
+            for (auto& cell_data : cell_data_vector) names += cell_data->getName() + " ";
+            node_p_cell_data.addAttribute("Scalars", names);
         }
 
-        std::vector<XMLNode> nodePieceVector;
+        std::vector<XMLNode> node_piece_vector;
         for (int i = 0; i < this->getSize(); i++) {
             filename = filenameBase + "_%04i.vtu";
             snprintf(str_buffer, 256, filename.c_str(), i);
             filename = std::string(str_buffer);
-            XMLNode nodePiece("Piece");
-            nodePiece.addAttribute("Source", filename);
-            nodePieceVector.push_back(nodePiece);
+            XMLNode node_piece("Piece");
+            node_piece.addAttribute("Source", filename);
+            node_piece_vector.push_back(node_piece);
         }
 
         // Build structure
-        root_.addChild(nodePUnstructuredGrid);
-            nodePUnstructuredGrid.addChild(nodePPoints);
-                nodePPoints.addChild(mesh.getPoints().toPVTK());
-            nodePUnstructuredGrid.addChild(nodePPointData);
-                for (auto& pointData : pointDataVector) nodePPointData.addChild(pointData->toPVTK());
-            nodePUnstructuredGrid.addChild(nodePCellData);
-                for (auto& cellData : cellDataVector) nodePCellData.addChild(cellData->toPVTK());
-            for (auto& nodePiece : nodePieceVector) nodePUnstructuredGrid.addChild(nodePiece);
+        root_.addChild(node_p_unstructured_grid);
+            node_p_unstructured_grid.addChild(node_p_points);
+                node_p_points.addChild(mesh.getPoints().toPVTK());
+            node_p_unstructured_grid.addChild(node_p_pointData);
+                for (auto& point_data : point_data_vector) node_p_pointData.addChild(point_data->toPVTK());
+            node_p_unstructured_grid.addChild(node_p_cell_data);
+                for (auto& cell_data : cell_data_vector) node_p_cell_data.addChild(cell_data->toPVTK());
+            for (auto& node_piece : node_piece_vector) node_p_unstructured_grid.addChild(node_piece);
         
         // Write to file
         XMLTree tree(root_);
