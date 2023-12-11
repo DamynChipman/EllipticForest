@@ -1,0 +1,3 @@
+[submodule "extern/fishpack90"]
+	path = extern/fishpack90
+	url = https://github.com/DamynChipman/fishpack90
