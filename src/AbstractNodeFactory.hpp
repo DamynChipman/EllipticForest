@@ -1,5 +1,5 @@
-#ifndef PATCH_NODE_FACTORY_HPP_
-#define PATCH_NODE_FACTORY_HPP_
+#ifndef ABSTRACT_NODE_FACTORY_HPP_
+#define ABSTRACT_NODE_FACTORY_HPP_
 
 #include "QuadNode.hpp"
 
@@ -46,4 +46,4 @@ public:
 
 } // NAMESPACE : EllipticForest
 
-#endif // PATCH_NODE_FACTORY_HPP_
+#endif // ABSTRACT_NODE_FACTORY_HPP_

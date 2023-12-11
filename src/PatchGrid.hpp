@@ -6,6 +6,9 @@
 #include "MPI.hpp"
 
 #if USE_MATPLOTLIBCPP
+#ifdef _GNU_SOURCE
+#undef _GNU_SOURCE
+#endif
 #include <matplotlibcpp.h>
 namespace plt = matplotlibcpp;
 #endif

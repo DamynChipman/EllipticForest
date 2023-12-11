@@ -80,7 +80,11 @@ protected:
 
 public:
 
-    // Petsc::DataManagement dm = PETSC_NULLPTR;
+    /**
+     * @brief The PETSc data management handle
+     * 
+     */
+    Petsc::DataManagement dm = PETSC_NULLPTR;
 
     /**
      * @brief Construct a new FiniteVolumeGrid object (default)

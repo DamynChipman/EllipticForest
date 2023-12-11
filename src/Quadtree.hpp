@@ -17,6 +17,7 @@
 #include "MPI.hpp"
 #include "P4est.hpp"
 #include "QuadNode.hpp"
+#include "AbstractNodeFactory.hpp"
 
 namespace EllipticForest {
 

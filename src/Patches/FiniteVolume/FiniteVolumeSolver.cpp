@@ -292,6 +292,8 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
 
     }
 
+    return {};
+
 }
 
 Vector<double> FiniteVolumeSolver::mapD2N(FiniteVolumeGrid& grid, Vector<double>& dirichlet_data, Vector<double>& rhs_data) {
