@@ -1,3 +1,6 @@
 [submodule "extern/fishpack90"]
 	path = extern/fishpack90
 	url = https://github.com/DamynChipman/fishpack90
+[submodule "extern/p4est"]
+	path = extern/p4est
+	url = https://github.com/cburstedde/p4est
