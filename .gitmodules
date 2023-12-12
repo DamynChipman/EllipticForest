@@ -4,3 +4,6 @@
 [submodule "extern/p4est"]
 	path = extern/p4est
 	url = https://github.com/cburstedde/p4est
+[submodule "extern/googletest"]
+	path = extern/googletest
+	url = https://github.com/google/googletest
