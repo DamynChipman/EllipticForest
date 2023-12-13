@@ -172,3 +172,19 @@ The user may also provide paths to already installed versions of each of these p
 ```bash
 >>> make install
 ```
+
+## Examples
+
+There are some additional examples found in the `examples` directory. See the `README` therein for an overview of examples.
+
+## References
+
+[1] S. Balay, S. Abhyankar, M. F. Adams, S. Benson, J. Brown, P. Brune, K. Buschelman, E. Constantinescu, L. Dalcin, A. Dener, V. Eijkhout, J. Faibussowitsch, W. D. Gropp, V. Hapla, T. Isaac, P. Jolivet, D. Karpeev, D. Kaushik, M. G. Knepley, F. Kong, S. Kruger, D. A. May, L. C. McInnes, R. T. Mills, L. Mitchell, T. Munson, J. E. Roman, K. Rupp, P. Sanan, J. Sarich, B. F. Smith, S. Zampini, H. Zhang, H. Zhang, and J. Zhang. PETSc/TAO users manual. Technical Report ANL-21/39 - Revision 3.20, Argonne National Laboratory, 2023.
+
+[2] C. Burstedde, L. C. Wilcox, and O. Ghattas. p4est: Scalable algorithms for parallel adaptive mesh refinement on forests of octrees. SIAM Journal on Scientific Computing, 33(3):1103–1133, 2011.
+
+[3] A. Gillman and P.-G. Martinsson. A direct solver with O(N) complexity for variable coefficient ellip- tic PDEs discretized via a high-order composite spectral collocation method. SIAM J. Sci. Comput., 36(4):A2023–A2046, 2014.
+
+[4] P. Martinsson. The hierarchical Poincar ́e-Steklov (HPS) solver for elliptic PDEs: A tutorial. arXiv preprint arXiv:1506.01308, 2015.
+
+[5] P.-G. Martinsson. Fast direct solvers for elliptic PDEs. SIAM, 2019.

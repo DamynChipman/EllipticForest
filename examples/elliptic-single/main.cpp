@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
     int min_level = 0;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 7;
+    int max_level = 6;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
@@ -145,10 +145,10 @@ int main(int argc, char** argv) {
     double y_upper = 10.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 16;
+    int nx = 8;
     app.options.setOption("nx", nx);
     
-    int ny = 16;
+    int ny = 8;
     app.options.setOption("ny", ny);
 
     // ====================================================
