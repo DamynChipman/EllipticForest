@@ -14,11 +14,7 @@
 #include <cctype>
 
 #include <mpi.h>
-
-#if USE_PETSC
 #include <petsc.h>
-#endif
-
 #include <p4est.h>
 
 #include "Logger.hpp"

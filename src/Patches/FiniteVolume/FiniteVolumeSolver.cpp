@@ -44,7 +44,8 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         Mat A;
         MatCreate(MPI_COMM_SELF, &A);
         MatSetSizes(A, N, N, N, N);
-        MatSetFromOptions(A);
+        // MatSetFromOptions(A);
+        MatSetType(A, MATDENSE);
         MatSetUp(A);
 
         Vec f;
@@ -192,20 +193,16 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
         VecAssemblyEnd(f);
 
-        // Solve the linear system
-        // KSP ksp;
-        // PC pc;
-        // KSPCreate(MPI_COMM_SELF, &ksp);
-        // // KSPSetType(ksp, KSPPREONLY);
-        // // KSPGetPC(ksp, &pc);
-        // // PCSetType(pc, PCLU);
-        // KSPSetOperators(ksp, A, A);
-        // KSPSolve(ksp, f, x);
+        // Setup factorization
+        IS row_perm, col_perm;
+        Vector<int> idx_row = vectorRange(0, N-1);
+        Vector<int> idx_col = vectorRange(0, N-1);
+        ISCreateGeneral(MPI_COMM_WORLD, N, idx_row.data().data(), PETSC_COPY_VALUES, &row_perm);
+        ISCreateGeneral(MPI_COMM_WORLD, N, idx_col.data().data(), PETSC_COPY_VALUES, &col_perm);
         MatFactorInfo mat_factor_info;
         MatFactorInfoInitialize(&mat_factor_info);
-        IS row_perm, col_perm;
-        ISCreateStride(MPI_COMM_SELF, N, 0, 1, &row_perm);
-        ISCreateStride(MPI_COMM_SELF, N, 0, 1, &col_perm);
+
+        // Solve linear system
         MatLUFactor(A, row_perm, col_perm, &mat_factor_info);
         MatSolve(A, f, x);
 

@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     // ====================================================
     // Set up convergence parameters
     // ====================================================
-    std::vector<int> ns = {8, 16, 32, 64, 128, 256, 512, 1024};
+    std::vector<int> ns = {8, 16, 32, 64, 128};
     std::vector<double> errors;
     EllipticForest::Vector<double> u_exact, u_petsc;
     int nx, ny;
@@ -67,12 +67,12 @@ int main(int argc, char** argv) {
     // Create patch solver
     // ====================================================
     EllipticForest::FiniteVolumeSolver solver;
-    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FivePointStencil;
     solver.alpha_function = [&](double x, double y){
         return 1.0;
     };
     solver.beta_function = [&](double x, double y){
-        return 0.0;
+        return 1.0;
     };
     solver.lambda_function = [&](double x, double y){
         return 0.0;
