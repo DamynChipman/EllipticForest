@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include <EllipticForestApp.hpp>
+#include <EllipticForest.hpp>
 #include <Interpolation.hpp>
 
 using namespace EllipticForest;
