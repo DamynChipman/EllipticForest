@@ -3,96 +3,62 @@ if (${matplotlibcpp})
     FetchContent_GetProperties(matplotlibcpp)
 endif()
 
-# find_package(Kokkos REQUIRED)
-# if(Kokkos_FOUND)
-#     message(STATUS "Found Kokkos: ${Kokkos_DIR} (version \"${Kokkos_VERSION}\")")
-# endif()
-
 # --=== Create EllipticForest Library ===--
 add_library(EllipticForest)
 set_target_properties(EllipticForest PROPERTIES EXPORT_NAME EllipticForest)
 target_link_libraries(EllipticForest PUBLIC common)
-target_sources(EllipticForest PUBLIC
-    DataCache.cpp
-    EllipticForestApp.cpp
-    HPSAlgorithm.cpp
-    InputParser.cpp
-    Interpolation.cpp
-    Logger.cpp
-    MPI.cpp
-    Matrix.cpp
-    Mesh.cpp
-    Options.cpp
-    P4est.cpp
-    Patch.cpp
-    PatchGrid.cpp
-    PatchSolver.cpp
-    PlotUtils.cpp
-    QuadNode.cpp
-    Quadtree.cpp
-    SpecialMatrices.cpp
-    Timer.cpp
-    VTK.cpp
-    Vector.cpp
-    XMLTree.cpp
-)
+
+# EllipticForest sources
+file(GLOB ELLIPTIC_FOREST_SOURCES "*.cpp")
+file(GLOB ELLIPTIC_FOREST_HEADERS "*.hpp")
+target_sources(EllipticForest PUBLIC ${ELLIPTIC_FOREST_SOURCES} ${ELLIPTIC_FOREST_HEADERS})
+set_target_properties(EllipticForest PROPERTIES PUBLIC_HEADER "${ELLIPTIC_FOREST_HEADERS}")
+
+# FiniteVolume Patches
 add_subdirectory(Patches/FiniteVolume)
 
 target_include_directories(EllipticForest PUBLIC
+    ${P4EST_INCLUDE}
+    ${PETSC_INCLUDE}
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${EXTERNAL_PKGS_INCLUDE}
 )
-
-set(${PROJECT_NAME}_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR} ${EXTERNAL_PKGS_INCLUDE} CACHE INTERNAL "EllipticForest's include directories" FORCE)
 
 target_link_directories(EllipticForest PUBLIC
-    ${EXTERNAL_PKGS_LIB}
+    ${P4EST_LIB}
+    ${PETSC_LIB}
 )
 
-if(WITH_PETSC)
-    target_link_libraries(EllipticForest PUBLIC
-        fishpack90 petsc sc p4est ${PYTHON_VERSION} lapack blas z
-    )
-else()
-    target_link_libraries(EllipticForest PUBLIC
-        fishpack90 sc p4est ${PYTHON_VERSION} lapack blas z
-    )
-endif()
+target_link_libraries(EllipticForest PUBLIC
+    ${LAPACK_LIBRARIES}
+    ${BLAS_LIBRARIES}
+    ${FISHPACK90_LIBRARIES}
+    ${P4EST_LIBRARIES}
+    ${PETSC_LIBRARIES}
+    ${PYTHON_VERSION}
+)
 
 install(
-    FILES
-    DataCache.hpp
-    EllipticForest.hpp
-    EllipticForestApp.hpp
-    EllipticProblem.hpp
-    FISHPACK.hpp
-    ForestClaw.hpp
-    GenericSingleton.hpp
-    HPSAlgorithm.hpp
-    Interpolation.hpp
-    MPI.hpp
-    Matrix.hpp
-    Mesh.hpp
-    P4est.hpp
-    PETSc.hpp
-    Patch.hpp
-    PatchGrid.hpp
-    PatchSolver.hpp
-    PlotUtils.hpp
-    QuadNode.hpp
-    Quadtree.hpp
-    SpecialMatrices.hpp
-    VTK.hpp
-    Vector.hpp
-    VectorBase.hpp
-    XMLTree.hpp
-    DESTINATION include
+    DIRECTORY
+        Patches
+    DESTINATION
+        include
+    FILES_MATCHING PATTERN
+        "*.hpp"
 )
 
-install(TARGETS EllipticForest fishpack90
-    EXPORT ${PROJECT_NAME}-targets
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-    PUBLIC_HEADER DESTINATION include
+install(
+    TARGETS
+        EllipticForest
+    EXPORT
+        EllipticForest-targets
+    ARCHIVE DESTINATION
+        lib
+    LIBRARY DESTINATION
+        lib
+    RUNTIME DESTINATION
+        bin
+    INCLUDES DESTINATION
+        include
+    PUBLIC_HEADER DESTINATION
+        include
 )

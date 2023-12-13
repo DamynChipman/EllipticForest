@@ -1,4 +1,4 @@
-add_subdirectory(toybox)
+# add_subdirectory(toybox)
 add_subdirectory(hello)
 add_subdirectory(patch-solver)
 add_subdirectory(elliptic-single)
