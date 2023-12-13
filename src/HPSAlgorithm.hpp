@@ -686,11 +686,11 @@ private:
             sides[i] = patches[i]->size();
 
         // Get minimum side length
-        int minSide = *std::min_element(sides.begin(), sides.end());
+        int min_side = *std::min_element(sides.begin(), sides.end());
 
         // Get tags based on side lengths
         for (auto i = 0; i < 4; i++) 
-            tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(minSide));
+            tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(min_side));
 
         return {tags};
     }
@@ -707,33 +707,33 @@ private:
     void coarsen_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check for adaptivity
-        std::vector<PatchType*> patchPointers = {&alpha, &beta, &gamma, &omega};
+        std::vector<PatchType*> patch_pointers = {&alpha, &beta, &gamma, &omega};
         Vector<int> tags = tagPatchesForCoarsening_(tau, alpha, beta, gamma, omega);
 
         // Iterate over patches
         for (auto i = 0; i < 4; i++) {
-            auto& patch = *patchPointers[i];
+            auto& patch = *patch_pointers[i];
 
             // Iterate over number of tagged
             for (auto n = 0; n < tags[i]; n++) {
                 auto& grid = patch.grid();
-                int nGrid = grid.nx();
-                int coarsenFactor = tags[i] - (tags[i] - n);
-                int nFine = nGrid / pow(2, coarsenFactor);
-                int nCoarse = nFine / 2;
+                int ngrid = grid.nx();
+                int coarsen_factor = tags[i] - (tags[i] - n);
+                int nfine = ngrid / pow(2, coarsen_factor);
+                int ncoarse = nfine / 2;
 
-                InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
-                std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
-                Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
+                InterpolationMatrixFine2Coarse<double> L21_side(ncoarse);
+                std::vector<Matrix<double>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<double> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-                InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
-                std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
-                Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
+                InterpolationMatrixCoarse2Fine<double> L12_side(nfine);
+                std::vector<Matrix<double>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                Matrix<double> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
-                patch.matrixT() = L21Patch * patch.matrixT();
-                patch.matrixT() = patch.matrixT() * L12Patch;
+                patch.matrixT() = L21_patch * patch.matrixT();
+                patch.matrixT() = patch.matrixT() * L12_patch;
 
-                patch.nCoarsens++;
+                patch.n_coarsens++;
             }
         }
 
@@ -752,21 +752,21 @@ private:
     void createIndexSets_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check that all children patches are the same size (should be handled from the coarsening step if not)
-        int nAlpha = alpha.size();
-        int nBeta = beta.size();
-        int nGamma = gamma.size();
-        int nOmega = omega.size();
-        Vector<int> n = {nAlpha, nBeta, nGamma, nOmega};
+        int nalpha = alpha.size();
+        int nbeta = beta.size();
+        int ngamma = gamma.size();
+        int nomega = omega.size();
+        Vector<int> n = {nalpha, nbeta, ngamma, nomega};
         if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
             throw std::invalid_argument("[EllipticForest::FISHPACK::FISHPACKHPSMethod::createIndexSets_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
-        int nSide = alpha.matrixT().nRows() / 4;
+        int nside = alpha.matrixT().nRows() / 4;
 
-        Vector<int> I_W = vectorRange(0, nSide-1);
-        Vector<int> I_E = vectorRange(nSide, 2*nSide - 1);
-        Vector<int> I_S = vectorRange(2*nSide, 3*nSide - 1);
-        Vector<int> I_N = vectorRange(3*nSide, 4*nSide - 1);
+        Vector<int> I_W = vectorRange(0, nside-1);
+        Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+        Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+        Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
 
         IS_alpha_beta_ = I_E;
         IS_alpha_gamma_ = I_N;
@@ -877,19 +877,19 @@ private:
         std::vector<Matrix<double>> diag = {T_diag1, T_diag2, T_diag3, T_diag4};
 
         // Create row and column block index starts
-        std::vector<std::size_t> rowStarts = { 0, T_diag1.nRows(), T_diag1.nRows() + T_diag2.nRows(), T_diag1.nRows() + T_diag2.nRows() + T_diag3.nRows() };
-        std::vector<std::size_t> colStarts = { 0, T_diag1.nCols(), T_diag1.nCols() + T_diag2.nCols(), T_diag1.nCols() + T_diag2.nCols() + T_diag3.nCols() };
+        std::vector<std::size_t> row_starts = { 0, T_diag1.nRows(), T_diag1.nRows() + T_diag2.nRows(), T_diag1.nRows() + T_diag2.nRows() + T_diag3.nRows() };
+        std::vector<std::size_t> col_starts = { 0, T_diag1.nCols(), T_diag1.nCols() + T_diag2.nCols(), T_diag1.nCols() + T_diag2.nCols() + T_diag3.nCols() };
         
         // Create matrix and set blocks
         tau.matrixX() = blockDiagonalMatrix(diag);
-        tau.matrixX().setBlock(rowStarts[0], colStarts[2], T_ag_ab);
-        tau.matrixX().setBlock(rowStarts[0], colStarts[3], T_ga_go);
-        tau.matrixX().setBlock(rowStarts[1], colStarts[2], T_bo_ba);
-        tau.matrixX().setBlock(rowStarts[1], colStarts[3], T_ob_og);
-        tau.matrixX().setBlock(rowStarts[2], colStarts[0], T_ab_ag);
-        tau.matrixX().setBlock(rowStarts[2], colStarts[1], T_ba_bo);
-        tau.matrixX().setBlock(rowStarts[3], colStarts[0], T_go_ga);
-        tau.matrixX().setBlock(rowStarts[3], colStarts[1], T_og_ob);
+        tau.matrixX().setBlock(row_starts[0], col_starts[2], T_ag_ab);
+        tau.matrixX().setBlock(row_starts[0], col_starts[3], T_ga_go);
+        tau.matrixX().setBlock(row_starts[1], col_starts[2], T_bo_ba);
+        tau.matrixX().setBlock(row_starts[1], col_starts[3], T_ob_og);
+        tau.matrixX().setBlock(row_starts[2], col_starts[0], T_ab_ag);
+        tau.matrixX().setBlock(row_starts[2], col_starts[1], T_ba_bo);
+        tau.matrixX().setBlock(row_starts[3], col_starts[0], T_go_ga);
+        tau.matrixX().setBlock(row_starts[3], col_starts[1], T_og_ob);
 
         return;
     }
@@ -906,21 +906,21 @@ private:
     void mergeS_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Create right hand side
-        std::size_t nRows = T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() + T_go_gt.nRows();
-        std::size_t nCols = T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() + T_ob_ot.nCols();
-        Matrix<double> S_RHS(nRows, nCols, 0);
+        std::size_t nrows = T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() + T_go_gt.nRows();
+        std::size_t ncols = T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() + T_ob_ot.nCols();
+        Matrix<double> S_RHS(nrows, ncols, 0);
 
-        std::vector<std::size_t> rowStarts = { 0, T_ag_at.nRows(), T_ag_at.nRows() + T_bo_bt.nRows(), T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() };
-        std::vector<std::size_t> colStarts = { 0, T_ag_at.nCols(), T_ag_at.nCols() + T_bo_bt.nCols(), T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() };
+        std::vector<std::size_t> row_starts = { 0, T_ag_at.nRows(), T_ag_at.nRows() + T_bo_bt.nRows(), T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() };
+        std::vector<std::size_t> col_starts = { 0, T_ag_at.nCols(), T_ag_at.nCols() + T_bo_bt.nCols(), T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() };
 
-        S_RHS.setBlock(rowStarts[0], colStarts[0], T_ag_at);
-        S_RHS.setBlock(rowStarts[0], colStarts[2], T_ga_gt);
-        S_RHS.setBlock(rowStarts[1], colStarts[1], T_bo_bt);
-        S_RHS.setBlock(rowStarts[1], colStarts[3], T_ob_ot);
-        S_RHS.setBlock(rowStarts[2], colStarts[0], T_ab_at);
-        S_RHS.setBlock(rowStarts[2], colStarts[1], T_ba_bt);
-        S_RHS.setBlock(rowStarts[3], colStarts[2], T_go_gt);
-        S_RHS.setBlock(rowStarts[3], colStarts[3], T_og_ot);
+        S_RHS.setBlock(row_starts[0], col_starts[0], T_ag_at);
+        S_RHS.setBlock(row_starts[0], col_starts[2], T_ga_gt);
+        S_RHS.setBlock(row_starts[1], col_starts[1], T_bo_bt);
+        S_RHS.setBlock(row_starts[1], col_starts[3], T_ob_ot);
+        S_RHS.setBlock(row_starts[2], col_starts[0], T_ab_at);
+        S_RHS.setBlock(row_starts[2], col_starts[1], T_ba_bt);
+        S_RHS.setBlock(row_starts[3], col_starts[2], T_go_gt);
+        S_RHS.setBlock(row_starts[3], col_starts[3], T_og_ot);
         
         // Solve to set S_tau
         tau.matrixS() = solve(tau.matrixX(), S_RHS);
@@ -944,21 +944,21 @@ private:
         Matrix<double> T_LHS = blockDiagonalMatrix(diag);
 
         // Create right hand side
-        std::size_t nRows = T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() + T_ot_ob.nRows();
-        std::size_t nCols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
-        tau.matrixH() = Matrix<double>(nRows, nCols, 0);
+        std::size_t nrows = T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() + T_ot_ob.nRows();
+        std::size_t ncols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
+        tau.matrixH() = Matrix<double>(nrows, ncols, 0);
 
-        std::vector<std::size_t> rowStarts = { 0, T_at_ag.nRows(), T_at_ag.nRows() + T_bt_bo.nRows(), T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() };
-        std::vector<std::size_t> colStarts = { 0, T_at_ag.nCols(), T_at_ag.nCols() + T_bt_bo.nCols(), T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() };
+        std::vector<std::size_t> row_starts = { 0, T_at_ag.nRows(), T_at_ag.nRows() + T_bt_bo.nRows(), T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() };
+        std::vector<std::size_t> col_starts = { 0, T_at_ag.nCols(), T_at_ag.nCols() + T_bt_bo.nCols(), T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() };
 
-        tau.matrixH().setBlock(rowStarts[0], colStarts[0], T_at_ag);
-        tau.matrixH().setBlock(rowStarts[0], colStarts[2], T_at_ab);
-        tau.matrixH().setBlock(rowStarts[1], colStarts[1], T_bt_bo);
-        tau.matrixH().setBlock(rowStarts[1], colStarts[2], T_bt_ba);
-        tau.matrixH().setBlock(rowStarts[2], colStarts[0], T_gt_ga);
-        tau.matrixH().setBlock(rowStarts[2], colStarts[3], T_gt_go);
-        tau.matrixH().setBlock(rowStarts[3], colStarts[1], T_ot_ob);
-        tau.matrixH().setBlock(rowStarts[3], colStarts[3], T_ot_og);
+        tau.matrixH().setBlock(row_starts[0], col_starts[0], T_at_ag);
+        tau.matrixH().setBlock(row_starts[0], col_starts[2], T_at_ab);
+        tau.matrixH().setBlock(row_starts[1], col_starts[1], T_bt_bo);
+        tau.matrixH().setBlock(row_starts[1], col_starts[2], T_bt_ba);
+        tau.matrixH().setBlock(row_starts[2], col_starts[0], T_gt_ga);
+        tau.matrixH().setBlock(row_starts[2], col_starts[3], T_gt_go);
+        tau.matrixH().setBlock(row_starts[3], col_starts[1], T_ot_ob);
+        tau.matrixH().setBlock(row_starts[3], col_starts[3], T_ot_og);
 
         // Compute and set T_tau
         Matrix<double> T_RHS = tau.matrixH() * tau.matrixS();
@@ -979,11 +979,11 @@ private:
     void reorderOperators_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Form permutation vector and block sizes
-        int nSide = alpha.matrixT().nRows() / 4;
+        int nside = alpha.matrixT().nRows() / 4;
         Vector<int> pi_noChange = {0, 1, 2, 3};
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
-        Vector<int> blockSizes1(4, nSide);
-        Vector<int> blockSizes2(8, nSide);
+        Vector<int> blockSizes1(4, nside);
+        Vector<int> blockSizes2(8, nside);
 
         // Permute S and T
         tau.matrixS() = tau.matrixS().blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
@@ -1003,8 +1003,8 @@ private:
      */
     void mergePatch_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        PatchGridType mergedGrid(MPI_COMM_SELF, alpha.size() + beta.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.size() + gamma.size(), alpha.grid().yLower(), gamma.grid().yUpper());
-        tau.grid() = mergedGrid;
+        PatchGridType merged_grid(MPI_COMM_SELF, alpha.size() + beta.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.size() + gamma.size(), alpha.grid().yLower(), gamma.grid().yUpper());
+        tau.grid() = merged_grid;
 
     }
 
@@ -1024,23 +1024,23 @@ private:
     void coarsenUpwards_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         // Check for adaptivity
-        std::vector<PatchType*> patchPointers = {&alpha, &beta, &gamma, &omega};
+        std::vector<PatchType*> patch_pointers = {&alpha, &beta, &gamma, &omega};
 
         // Iterate over patches
         for (auto i = 0; i < 4; i++) {
-            auto& patch = *patchPointers[i];
+            auto& patch = *patch_pointers[i];
 
             // Iterate over tagged patches
-            for (auto n = 0; n < patch.nCoarsens; n++) {
+            for (auto n = 0; n < patch.n_coarsens; n++) {
                 auto& grid = patch.grid();
-                int nGrid = grid.nx();
-                int nFine = nGrid / pow(2, n);
-                int nCoarse = nFine / 2;
+                int ngrid = grid.nx();
+                int nfine = ngrid / pow(2, n);
+                int ncoarse = nfine / 2;
 
-                InterpolationMatrixFine2Coarse<double> L21Side(nCoarse);
-                std::vector<Matrix<double>> L21Diagonals = {L21Side, L21Side, L21Side, L21Side};
-                Matrix<double> L21Patch = blockDiagonalMatrix(L21Diagonals);
-                patchPointers[i]->vectorH() = L21Patch * patchPointers[i]->vectorH();
+                InterpolationMatrixFine2Coarse<double> L21_side(ncoarse);
+                std::vector<Matrix<double>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<double> L21_patch = blockDiagonalMatrix(L21_diagonals);
+                patch_pointers[i]->vectorH() = L21_patch * patch_pointers[i]->vectorH();
             }
         }
 
@@ -1068,16 +1068,16 @@ private:
         Vector<double> h_og = omega.vectorH()(IS_omega_gamma_);
         Vector<double> h_go = gamma.vectorH()(IS_gamma_omega_);
 
-        Vector<double> hDiff_gamma_alpha = h_ga - h_ag;
-        Vector<double> hDiff_omega_beta = h_ob - h_bo;
-        Vector<double> hDiff_beta_alpha = h_ba - h_ab;
-        Vector<double> hDiff_omega_gamma = h_og - h_go;
+        Vector<double> h_diff_gamma_alpha = h_ga - h_ag;
+        Vector<double> h_diff_omega_beta = h_ob - h_bo;
+        Vector<double> h_diff_beta_alpha = h_ba - h_ab;
+        Vector<double> h_diff_omega_gamma = h_og - h_go;
 
         Vector<double> hDiff = concatenate({
-            hDiff_gamma_alpha,
-            hDiff_omega_beta,
-            hDiff_beta_alpha,
-            hDiff_omega_gamma
+            h_diff_gamma_alpha,
+            h_diff_omega_beta,
+            h_diff_beta_alpha,
+            h_diff_omega_gamma
         });
 
         // Compute and set w_tau
@@ -1105,13 +1105,13 @@ private:
         Vector<double> h_beta_tau = beta.vectorH()(IS_beta_tau_);
         Vector<double> h_gamma_tau = gamma.vectorH()(IS_gamma_tau_);
         Vector<double> h_omega_tau = omega.vectorH()(IS_omega_tau_);
-        Vector<double> hUpdate = concatenate({
+        Vector<double> h_update = concatenate({
             h_alpha_tau,
             h_beta_tau,
             h_gamma_tau,
             h_omega_tau
         });
-        tau.vectorH() += hUpdate;
+        tau.vectorH() += h_update;
 
         return;
     }
@@ -1127,23 +1127,23 @@ private:
      */
     void reorderOperatorsUpwards_(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
-        // int nAlpha = alpha.grid().nx();
-        // int nBeta = beta.grid().nx();
-        // int nGamma = gamma.grid().nx();
-        // int nOmega = omega.grid().nx();
-        int nAlpha = alpha.size();
-        int nBeta = beta.size();
-        int nGamma = gamma.size();
-        int nOmega = omega.size();
-        Vector<int> n = {nAlpha, nBeta, nGamma, nOmega};
+        // int nalpha = alpha.grid().nx();
+        // int nbeta = beta.grid().nx();
+        // int ngamma = gamma.grid().nx();
+        // int nomega = omega.grid().nx();
+        int nalpha = alpha.size();
+        int nbeta = beta.size();
+        int ngamma = gamma.size();
+        int nomega = omega.size();
+        Vector<int> n = {nalpha, nbeta, ngamma, nomega};
         if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
             throw std::invalid_argument("[EllipticForest::HPSAlgorithm::reorderOperatorsUpwards_] Size of children patches are not the same; something probably went wrong with the coarsening...");
         }
 
         // Form permutation vector and block sizes
-        int nSide = alpha.matrixT().nRows() / 4;
+        int nside = alpha.matrixT().nRows() / 4;
         Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
-        Vector<int> blockSizes(8, nSide);
+        Vector<int> blockSizes(8, nside);
 
         // Reorder
         tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
@@ -1166,17 +1166,17 @@ private:
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
 
-        for (auto n = 0; n < tau.nCoarsens; n++) {
+        for (auto n = 0; n < tau.n_coarsens; n++) {
             auto& grid = tau.grid();
-            int nGrid = grid.nx();
-            int coarsenFactor = tau.nCoarsens - (n + 1);
-            int nFine = nGrid / pow(2, coarsenFactor);
-            int nCoarse = nFine / 2;
+            int ngrid = grid.nx();
+            int coarsen_factor = tau.n_coarsens - (n + 1);
+            int nfine = ngrid / pow(2, coarsen_factor);
+            int ncoarse = nfine / 2;
 
-            InterpolationMatrixCoarse2Fine<double> L12Side(nFine);
-            std::vector<Matrix<double>> L12Diagonals = {L12Side, L12Side, L12Side, L12Side};
-            Matrix<double> L12Patch = blockDiagonalMatrix(L12Diagonals);
-            tau.vectorG() = L12Patch * tau.vectorG();
+            InterpolationMatrixCoarse2Fine<double> L12_side(nfine);
+            std::vector<Matrix<double>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            Matrix<double> L12_patch = blockDiagonalMatrix(L12_diagonals);
+            tau.vectorG() = L12_patch * tau.vectorG();
         }
      
         return;
@@ -1204,21 +1204,21 @@ private:
         }
 
         // Extract components of interior of tau
-        int nSide = alpha.size();
-        Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nSide, nSide);
-        Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nSide, nSide);
-        Vector<double> g_alpha_beta = u_tau_interior.getSegment(2*nSide, nSide);
-        Vector<double> g_gamma_omega = u_tau_interior.getSegment(3*nSide, nSide);
+        int nside = alpha.size();
+        Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nside, nside);
+        Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nside, nside);
+        Vector<double> g_alpha_beta = u_tau_interior.getSegment(2*nside, nside);
+        Vector<double> g_gamma_omega = u_tau_interior.getSegment(3*nside, nside);
 
         // Extract components of exterior of tau
-        Vector<double> g_alpha_W = tau.vectorG().getSegment(0*nSide, nSide);
-        Vector<double> g_gamma_W = tau.vectorG().getSegment(1*nSide, nSide);
-        Vector<double> g_beta_E = tau.vectorG().getSegment(2*nSide, nSide);
-        Vector<double> g_omega_E = tau.vectorG().getSegment(3*nSide, nSide);
-        Vector<double> g_alpha_S = tau.vectorG().getSegment(4*nSide, nSide);
-        Vector<double> g_beta_S = tau.vectorG().getSegment(5*nSide, nSide);
-        Vector<double> g_gamma_N = tau.vectorG().getSegment(6*nSide, nSide);
-        Vector<double> g_omega_N = tau.vectorG().getSegment(7*nSide, nSide);
+        Vector<double> g_alpha_W = tau.vectorG().getSegment(0*nside, nside);
+        Vector<double> g_gamma_W = tau.vectorG().getSegment(1*nside, nside);
+        Vector<double> g_beta_E = tau.vectorG().getSegment(2*nside, nside);
+        Vector<double> g_omega_E = tau.vectorG().getSegment(3*nside, nside);
+        Vector<double> g_alpha_S = tau.vectorG().getSegment(4*nside, nside);
+        Vector<double> g_beta_S = tau.vectorG().getSegment(5*nside, nside);
+        Vector<double> g_gamma_N = tau.vectorG().getSegment(6*nside, nside);
+        Vector<double> g_omega_N = tau.vectorG().getSegment(7*nside, nside);
 
         // Set child patch Dirichlet data
         alpha.vectorG() = concatenate({g_alpha_W, g_alpha_beta, g_alpha_S, g_alpha_gamma});

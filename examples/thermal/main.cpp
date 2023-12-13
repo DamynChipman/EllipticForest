@@ -41,7 +41,7 @@
  * 
  * which is solved using EllipticForest. The mesh is built with according to a user defined
  * criteria (defaults to refinement at the edges of the domain). The set of solution operators
- * are built and then used for each time step, resulting in a very fast time per timestep.
+ * are built and then used for each time step, resulting in a very fast time per time step.
  * 
  * The user can mess around with most pieces of this equation to your heart's desire! Boundary
  * conditions are imposed in the functions `uWest`, `uEast`, `dudnSouth`, and `dudnNorth`. The
@@ -56,6 +56,7 @@
 #include <format>
 
 #include <EllipticForest.hpp>
+#include <Patches/FiniteVolume/FiniteVolume.hpp>
 
 /**
  * @brief Function for west boundary
@@ -159,7 +160,7 @@ double lambdaFunction(double x, double y) {
 /**
  * @brief Main driver for thermal
  * 
- * Solves the variable coefficiant heat equation via implicit backward Euler
+ * Solves the variable coefficient heat equation via implicit backward Euler
  * 
  * @param argc 
  * @param argv 
@@ -236,14 +237,14 @@ int main(int argc, char** argv) {
     // ====================================================
     // Create grid and patch prototypes
     // ====================================================
-    EllipticForest::Petsc::PetscGrid grid(nx, ny, x_lower, x_upper, y_lower, y_upper);
-    EllipticForest::Petsc::PetscPatch root_patch(grid);
+    EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
+    EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
 
     // ====================================================
     // Create node factory and mesh
     // ====================================================
-    EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory{};
-    EllipticForest::Mesh<EllipticForest::Petsc::PetscPatch> mesh{};
+    EllipticForest::FiniteVolumeNodeFactory nodeFactory{};
+    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
     mesh.refineByFunction(
         [&](double x, double y){
             double eps = 1.0;
@@ -259,19 +260,20 @@ int main(int argc, char** argv) {
     // ====================================================
     // Create patch solver
     // ====================================================
-    EllipticForest::Petsc::PetscPatchSolver solver{};
-    solver.setAlphaFunction(alphaFunction);
-    solver.setBetaFunction(betaFunction);
-    solver.setLambdaFunction(lambdaFunction);
+    EllipticForest::FiniteVolumeSolver solver{};
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FivePointStencil;
+    solver.alpha_function = alphaFunction;
+    solver.beta_function = betaFunction;
+    solver.lambda_function = lambdaFunction;
 
     // ====================================================
     // Create and run HPS solver
     // ====================================================
     // 1. Create the HPSAlgorithm instance
     EllipticForest::HPSAlgorithm
-        <EllipticForest::Petsc::PetscGrid,
-         EllipticForest::Petsc::PetscPatchSolver,
-         EllipticForest::Petsc::PetscPatch,
+        <EllipticForest::FiniteVolumeGrid,
+         EllipticForest::FiniteVolumeSolver,
+         EllipticForest::FiniteVolumePatch,
          double>
             HPS(MPI_COMM_WORLD, mesh, solver);
 
@@ -290,7 +292,7 @@ int main(int argc, char** argv) {
         app.logHead("n = %4i, time = %f", n, time);
 
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
-        HPS.upwardsStage([&](EllipticForest::Petsc::PetscPatch& patch){
+        HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
             auto& grid = patch.grid();
             int nx = grid.nx();
             int ny = grid.ny();
@@ -369,7 +371,7 @@ int main(int argc, char** argv) {
             EllipticForest::Vector<double> fMesh{};
             fMesh.name() = "f_rhs";
             
-            mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+            mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
                 if (node->leaf) {
                     auto& patch = node->data;
                     auto& grid = patch.grid();
@@ -385,19 +387,19 @@ int main(int argc, char** argv) {
             mesh.addMeshFunction(fMesh);
             mesh.addMeshFunction(
                 [&](double x, double y){
-                    return solver.alphaFunction(x, y);
+                    return solver.alpha_function(x, y);
                 },
                 "alpha_fn"
             );
             mesh.addMeshFunction(
                 [&](double x, double y){
-                    return solver.betaFunction(x, y);
+                    return solver.beta_function(x, y);
                 },
                 "beta_fn"
             );
             mesh.addMeshFunction(
                 [&](double x, double y){
-                    return solver.lambdaFunction(x, y);
+                    return solver.lambda_function(x, y);
                 },
                 "lambda_fn"
             );

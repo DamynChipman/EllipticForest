@@ -31,10 +31,7 @@
 #include <fstream>
 
 #include <EllipticForest.hpp>
-#include <MPI.hpp>
-#include <FISHPACK.hpp>
-#include <PETSc.hpp>
-#include <Mesh.hpp>
+#include <Patches/FiniteVolume/FiniteVolume.hpp>
 
 #ifdef USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
@@ -89,7 +86,7 @@ double alphaFunction(double x, double y) {
  * @return double 
  */
 double betaFunction(double x, double y) {
-    return 1.0;
+    return 0.0;
 }
 
 /**
@@ -223,14 +220,14 @@ ResultsData solveEllipticViaHPS() {
     // ====================================================
     // Create grid and patch prototypes
     // ====================================================
-    EllipticForest::Petsc::PetscGrid grid(nx, ny, x_lower, x_upper, y_lower, y_upper);
-    EllipticForest::Petsc::PetscPatch root_patch(grid);
+    EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
+    EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
 
     // ====================================================
     // Create node factory and mesh
     // ====================================================
-    EllipticForest::Petsc::PetscPatchNodeFactory nodeFactory{};
-    EllipticForest::Mesh<EllipticForest::Petsc::PetscPatch> mesh{};
+    EllipticForest::FiniteVolumeNodeFactory nodeFactory{};
+    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
     mesh.refineByFunction(
         [&](double x, double y){
             double f = fFunction(x, y);
@@ -246,19 +243,20 @@ ResultsData solveEllipticViaHPS() {
     // ====================================================
     // Create patch solver
     // ====================================================
-    EllipticForest::Petsc::PetscPatchSolver solver{};
-    solver.setAlphaFunction(alphaFunction);
-    solver.setBetaFunction(betaFunction);
-    solver.setLambdaFunction(lambdaFunction);
+    EllipticForest::FiniteVolumeSolver solver{};
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.alpha_function = alphaFunction;
+    solver.beta_function = betaFunction;
+    solver.lambda_function = lambdaFunction;
 
     // ====================================================
     // Create and run HPS solver
     // ====================================================
     // 1. Create the HPSAlgorithm instance
     EllipticForest::HPSAlgorithm
-        <EllipticForest::Petsc::PetscGrid,
-         EllipticForest::Petsc::PetscPatchSolver,
-         EllipticForest::Petsc::PetscPatch,
+        <EllipticForest::FiniteVolumeGrid,
+         EllipticForest::FiniteVolumeSolver,
+         EllipticForest::FiniteVolumePatch,
          double>
             HPS(MPI_COMM_WORLD, mesh, solver);
 
@@ -297,7 +295,7 @@ ResultsData solveEllipticViaHPS() {
         EllipticForest::Vector<double> fMesh{};
         fMesh.name() = "f_rhs";
         
-        mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+        mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
             if (node->leaf) {
                 auto& patch = node->data;
                 auto& grid = patch.grid();
@@ -313,19 +311,19 @@ ResultsData solveEllipticViaHPS() {
         mesh.addMeshFunction(fMesh);
         mesh.addMeshFunction(
             [&](double x, double y){
-                return solver.alphaFunction(x, y);
+                return solver.alpha_function(x, y);
             },
             "alpha_fn"
         );
         mesh.addMeshFunction(
             [&](double x, double y){
-                return solver.betaFunction(x, y);
+                return solver.beta_function(x, y);
             },
             "beta_fn"
         );
         mesh.addMeshFunction(
             [&](double x, double y){
-                return solver.lambdaFunction(x, y);
+                return solver.lambda_function(x, y);
             },
             "lambda_fn"
         );
@@ -350,7 +348,7 @@ ResultsData solveEllipticViaHPS() {
     double l2_error = 0;
     double lI_error = 0;
     int n_leaf_patches = 0;
-    mesh.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::Petsc::PetscPatch>* node){
+    mesh.quadtree.traversePostOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
         if (node->leaf) {
             auto& patch = node->data;
             auto& grid = patch.grid();
@@ -377,7 +375,7 @@ ResultsData solveEllipticViaHPS() {
 
     // Compute size of quadtree and data
     double size_MB = 0;
-    mesh.quadtree.traversePostOrder([&](EllipticForest::Petsc::PetscPatch& patch){
+    mesh.quadtree.traversePostOrder([&](EllipticForest::FiniteVolumePatch& patch){
         size_MB += patch.dataSize();
     });
 
@@ -443,7 +441,7 @@ int main(int argc, char** argv) {
     // ====================================================
     // Setup convergence analysis parameters
     // ====================================================
-    std::vector<int> patch_size_vector = {4, 8, 16, 32, 64};
+    std::vector<int> patch_size_vector = {4, 8, 16, 32};
     std::vector<int> min_level_vector = {0, 0, 0, 0};
     std::vector<int> max_level_vector = {1, 2, 3, 4, 5, 6, 7};
 
@@ -571,14 +569,14 @@ int main(int argc, char** argv) {
     }
 
     // Write results to file
-    std::ofstream csvFile;
+    std::ofstream csv_file;
     std::string results_filename = "elliptic_results_" + std::to_string(mpi.getRank()) + ".csv";
-    csvFile.open(results_filename.c_str());
-    csvFile << ResultsData::headers() << std::endl;
+    csv_file.open(results_filename.c_str());
+    csv_file << ResultsData::headers() << std::endl;
     for (auto& results : results_vector) {
-        csvFile << results.csv() << std::endl;
+        csv_file << results.csv() << std::endl;
     }
-    csvFile.close();
+    csv_file.close();
     
     // ====================================================
     // Make and output plots

@@ -13,6 +13,7 @@
 #include <map>
 
 #include <EllipticForest.hpp>
+#include <Patches/FiniteVolume/FiniteVolume.hpp>
 
 #ifdef USE_MATPLOTLIBCPP
 namespace plt = matplotlibcpp;
@@ -65,16 +66,17 @@ int main(int argc, char** argv) {
     // ====================================================
     // Create patch solver
     // ====================================================
-    EllipticForest::Petsc::PetscPatchSolver solver;
-    solver.setAlphaFunction([&](double x, double y){
+    EllipticForest::FiniteVolumeSolver solver;
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.alpha_function = [&](double x, double y){
         return 1.0;
-    });
-    solver.setBetaFunction([&](double x, double y){
-        return 1.0;
-    });
-    solver.setLambdaFunction([&](double x, double y){
+    };
+    solver.beta_function = [&](double x, double y){
         return 0.0;
-    });
+    };
+    solver.lambda_function = [&](double x, double y){
+        return 0.0;
+    };
 
     // ====================================================
     // Run convergence sweep
@@ -90,7 +92,7 @@ int main(int argc, char** argv) {
         double x_upper = 1;
         double y_lower = -1;
         double y_upper = 1;
-        EllipticForest::Petsc::PetscGrid grid(nx, ny, x_lower, x_upper, y_lower, y_upper);
+        EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
 
         // ====================================================
         // Create boundary data

@@ -97,13 +97,13 @@ public:
     /**
      * @brief Construct a new Interpolation Matrix Fine 2 Coarse object
      * 
-     * @param nCoarse Number of coarse cells
+     * @param ncoarse Number of coarse cells
      */
-    InterpolationMatrixFine2Coarse(std::size_t nCoarse) :
-        Matrix<NumericalType>(nCoarse, 2*nCoarse, 0) {
+    InterpolationMatrixFine2Coarse(std::size_t ncoarse) :
+        Matrix<NumericalType>(ncoarse, 2*ncoarse, 0) {
 
-        for (auto i = 0; i < this->nRows_; i++) {
-            for (auto j = 0; j < this->nCols_; j++) {
+        for (auto i = 0; i < this->nrows_; i++) {
+            for (auto j = 0; j < this->ncols_; j++) {
                 if (j == 2*i) {
                     this->operator()(i,j) = 0.5;
                     this->operator()(i,j+1) = 0.5;
@@ -140,26 +140,26 @@ public:
     /**
      * @brief Construct a new Interpolation Matrix Coarse 2 Fine object
      * 
-     * @param nFine Number of fine cells
+     * @param nfine Number of fine cells
      */
-    InterpolationMatrixCoarse2Fine(std::size_t nFine) :
-        Matrix<NumericalType>(nFine, nFine/2, 0) {
+    InterpolationMatrixCoarse2Fine(std::size_t nfine) :
+        Matrix<NumericalType>(nfine, nfine/2, 0) {
 
         int k = 3;
-        Vector<NumericalType> edgeCoefs = {1.40625, -0.5625, 0.15625};
-        for (auto i = 0; i < this->nRows_; i++) {
-            for (auto j = 0; j < this->nCols_; j++) {
+        Vector<NumericalType> edge_coefficients = {1.40625, -0.5625, 0.15625};
+        for (auto i = 0; i < this->nrows_; i++) {
+            for (auto j = 0; j < this->ncols_; j++) {
                 if (i == 0 && j == 0) {
-                    this->operator()(i,j) = edgeCoefs[0];
-                    this->operator()(i,j+1) = edgeCoefs[1];
-                    this->operator()(i,j+2) = edgeCoefs[2];
+                    this->operator()(i,j) = edge_coefficients[0];
+                    this->operator()(i,j+1) = edge_coefficients[1];
+                    this->operator()(i,j+2) = edge_coefficients[2];
                 }
-                else if (i == this->nRows_-1 && j == this->nCols_-k) {
-                    this->operator()(i,j) = edgeCoefs[2];
-                    this->operator()(i,j+1) = edgeCoefs[1];
-                    this->operator()(i,j+2) = edgeCoefs[0];
+                else if (i == this->nrows_-1 && j == this->ncols_-k) {
+                    this->operator()(i,j) = edge_coefficients[2];
+                    this->operator()(i,j+1) = edge_coefficients[1];
+                    this->operator()(i,j+2) = edge_coefficients[0];
                 }
-                else if (i == 2*j+1 && i%2 == 1 && i != this->nRows_-1) {
+                else if (i == 2*j+1 && i%2 == 1 && i != this->nrows_-1) {
                     this->operator()(i,j) = 0.75;
                     this->operator()(i,j+1) = 0.25;
                     this->operator()(i+1,j) = 0.25;

@@ -1,6 +1,3 @@
-target_sources(EllipticForest PUBLIC
-    FiniteVolumeGrid.cpp
-    FiniteVolumeSolver.cpp
-    FiniteVolumePatch.cpp
-    FiniteVolumeNodeFactory.cpp
-)
+file(GLOB ELLIPTIC_FOREST_FV_SOURCES "*.cpp")
+file(GLOB ELLIPTIC_FOREST_FV_HEADERS "*.hpp")
+target_sources(EllipticForest PUBLIC ${ELLIPTIC_FOREST_FV_SOURCES} ${ELLIPTIC_FOREST_FV_HEADERS})
