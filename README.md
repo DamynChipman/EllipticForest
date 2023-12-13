@@ -4,109 +4,171 @@ A Quadtree-Adatpive implementation of the Hierarchical Poincaré-Steklov (HPS) m
 
 ## Features
 
-- A flexible implementation for use with different patch solvers
-- Ability to solve Laplace's and Poisson's equation (with variable coefficient elliptic forthcoming)
+- Solve elliptic PDEs on an adaptive mesh
+- User-friendly implementation of the HPS method with VTK output
+- An object-oriented code allows for user-expandability for additional patch solvers
+- Ability to solve elliptic PDEs of the forms:
+  - Laplace equation : $\Delta u(x,y) = 0$
+  - Poisson equation : $\Delta u(x,y) = f(x,y)$
+  - Helmholtz equation : $\Delta u(x,y) + \lambda u(x,y) = f(x,y)$
+  - Variable coefficient elliptic equation : $\alpha(x,y) \nabla \cdot  \left[\beta(x,y) \nabla u(x,y)\right] + \lambda(x,y) u(x,y) = f(x,y)$
 
 ## Usage
 
-See `examples` for usage.
+Here is a minimum working example of using the HPS stages to solve an elliptic problem:
 
-## Installation
+```C++
+#include <EllipticForest.hpp>
+#include <Patches/FiniteVolume/FiniteVolume.hpp>
 
-`EllipticForest` relies on several external packages for the linear algebra and patch solvers:
+int main(int argc, char** argv) {
 
-    - `p4est` : Library for managing a collection of quadtrees or octrees for adaptive meshes.
-    - `petsc` : Scalable linear algebra package for solving PDEs on distributed meshes.
-    - `FISHPACK` : A FORTRAN70 code for solving elliptic PDEs on strucutres meshes.
-    - `matplotlibcpp` : A C++ wrapper for some `matplotlib` functionality.
+    // ====================================================
+    // Initialize app and MPI
+    // ====================================================
+    EllipticForest::EllipticForestApp app(&argc, &argv);
+    EllipticForest::MPI::MPIObject mpi(MPI_COMM_WORLD);
 
-The user must have `p4est` already installed to use `EllipticForest`. Optionally, the user can use a pre-installed `petsc`, or allow `EllipticForest` to download and build it's own.
+    // ====================================================
+    // Setup options
+    // ====================================================
+    bool cache_operators = false;
+    bool homogeneous_rhs = false;
+    bool vtk_flag = true;
+    double threshold = 1.2;
+    int n_solves = 1;
+    int min_level = 0;
+    int max_level = 7;
+    double x_lower = -10.0;
+    double x_upper = 10.0;
+    double y_lower = -10.0;
+    double y_upper = 10.0;
+    int nx = 16;
+    int ny = 16;
+
+    // ====================================================
+    // Create grid and patch prototypes
+    // ====================================================
+    EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
+    EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
+
+    // ====================================================
+    // Create node factory and mesh
+    // ====================================================
+    EllipticForest::FiniteVolumeNodeFactory node_factory(MPI_COMM_WORLD);
+    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
+    mesh.refineByFunction(
+        [&](double x, double y){
+            double f = -(sin(x) + sin(y));
+            return fabs(f) > threshold;
+        },
+        threshold,
+        min_level,
+        max_level,
+        root_patch,
+        node_factory
+    );
+
+    // ====================================================
+    // Create patch solver
+    // ====================================================
+    EllipticForest::FiniteVolumeSolver solver{};
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.alpha_function = alphaFunction;
+    solver.beta_function = betaFunction;
+    solver.lambda_function = lambdaFunction;
+
+    // ====================================================
+    // Create and run HPS solver
+    // ====================================================
+    // 1. Create the HPSAlgorithm instance
+    EllipticForest::HPSAlgorithm<EllipticForest::FiniteVolumeGrid, EllipticForest::FiniteVolumeSolver, EllipticForest::FiniteVolumePatch, double> HPS(MPI_COMM_WORLD, mesh, solver);
+
+    // 2. Call the setup stage
+    HPS.setupStage();
+
+    // 3. Call the build stage
+    HPS.buildStage();
+
+    // 4. Call the upwards stage; provide a callback to set load data on leaf patches
+    HPS.upwardsStage([&](double x, double y){
+        return -(sin(x) + sin(y));
+    });
+
+    // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
+    HPS.solveStage([&](int side, double x, double y, double* a, double* b){
+        *a = 1.0;
+        *b = 0.0;
+        return sin(x) + sin(y);
+    });
+
+    // All clean up is done in destructors
+    return EXIT_SUCCESS;
+}
+```
+
+Running the above (which is a selection from `examples/elliptic-single`) outputs Unstructured Mesh VTK files which can be visualized with ParaView, VisIt, etc.:
+
+![](examples/elliptic-single/output.png)
+
+## Configuring, Building, and Installing
+
+`EllipticForest` relies on several external packages for the mesh adaptivity, linear algebra, and parallelism:
+
+Required:
+- `MPI` : Message-passing interface for distributed memory parallelism
+- `BLAS` and `LAPACK` : Basic Linear Algebra Subprograms and Linear Algebra PACKage
+- `FISHPACK90` [(GitHub)](https://github.com/DamynChipman/fishpack90) : A FORTRAN90 code for solving elliptic PDEs on structured grids (leaf patches).
+- `p4est` [(GitHub)](https://github.com/cburstedde/p4est) : Library for managing a collection of quadtrees or octrees for adaptive meshes.
+- `petsc` [(GitLab)](https://gitlab.com/petsc/petsc) : Scalable linear algebra package for solving PDEs on distributed meshes.
+
+Optional:
+- `matplotlibcpp` [(GitHub)](https://github.com/DamynChipman/matplotlib-cpp) : A C++ wrapper for some `matplotlib` functionality.
+  
+The only packages the user is required to have installed are `MPI`, `BLAS`, and `LAPACK`; `EllipticForest` will attempt to build `FISHPACK90`, `p4est`, and `petsc` internally if not provided externally. Because `petsc` is not built with CMake, it is built with CMake's `ExternalProject` which adds a lot of extra compilation and additional steps. Ideally, the user will install `petsc` themselves and provide the path to it as detailed below. Instructions for installing `petsc` can be found [here](https://petsc.org/release/install/) and can be done with `apt install`, Homebrew (Mac), and Spack.
+
+The user may also provide paths to already installed versions of each of these packages and `EllipticForest` will use them accordingly.
+
+`EllipticForest` uses CMake as the build system.
+
+### Configuration Examples
+
+#### Minimum Configuration
+
+```bash
+>>> cmake -S . -B build -DCMAKE_CXX_COMPILER=mpicxx -DCMAKE_C_COMPILER=mpicc -DMPI_PATH=${PATH_TO_MPI}
+```
+
+#### Pre-Installed Packages
+
+```bash
+>>> cmake -S . -B build -DCMAKE_CXX_COMPILER=mpicxx -DCMAKE_C_COMPILER=mpicc -DMPI_PATH=${PATH_TO_MPI} -DFISHPACK90_PATH=${PATH_TO_FISHPACK90} -DP4EST_PATH=${PATH_TO_P4EST} -DPETSC_PATH=${PATH_TO_PETSC}
+```
+
+#### `matplotlibcpp` Plotting Features
+
+```bash
+>>> cmake -S . -B build -DCMAKE_CXX_COMPILER=mpicxx -DCMAKE_C_COMPILER=mpicc -DMPI_PATH=${PATH_TO_MPI} -DWITH_MATPLOTLIBCPP=true -DPYTHON_ENV_PATH=${PYTHON_ENV_PATH} -DPYTHON_VERSION=${PYTHON_VERSION}
+```
+
+### Building Examples
+
+#### Minimum Building
+
+```bash
+>>> make
+```
+
+#### Testing Interface
+
+`EllipticForest` uses GoogleTest and CTest for unit testing.
+
+```bash
+>>> make test
+```
 
 ### Installation Examples
 
-Here's an example of a minimum configure script:
-
-```Bash
-#!/bin/sh
-
-# HOME : Path to home directory
-HOME=/Users/damynchipman
-
-# --=== REQUIRED User Variables ===--
-# ELLIPTIC_FOREST : Absolute path to source code for EllipticForest
-ELLIPTIC_FOREST=${HOME}/packages/EllipticForest
-
-# P4EST_PATH : Path to p4est install (i.e., ${P4EST_PATH}/include, ${P4EST_PATH}/lib, ...)
-P4EST_PATH=${HOME}/packages/p4est/p4est_source_git/build/local
-
-# MPI_PATH : Directory with MPI headers (i.e. ${MPI_PATH}/include)
-MPI_PATH=/opt/homebrew
-# --=== END User Variables ===--
-
-# --=== Create Build Directory ===--
-BUILD_DIR=build-$(git branch --show-current)
-mkdir -p ${BUILD_DIR}
-cd ${BUILD_DIR}
-
-# --=== CMake Configure ===--
-cmake ${ELLIPTIC_FOREST} \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_CXX_COMPILER=mpic++ \
-    -DCMAKE_C_COMPILER=mpicc \
-    -DMPI_PATH=${MPI_PATH} \
-    -DP4EST_PATH=${P4EST_PATH}
-
-echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"
-```
-
-Here's an example of a full configure script:
-
-```Bash
-#!/bin/sh
-
-# HOME : Path to home directory
-HOME=/Users/damynchipman
-
-# --=== REQUIRED User Variables ===--
-# ELLIPTIC_FOREST : Absolute path to source code for EllipticForest
-ELLIPTIC_FOREST=${HOME}/packages/EllipticForest
-
-# P4EST_PATH : Path to p4est install (i.e., ${P4EST_PATH}/include, ${P4EST_PATH}/lib, ...)
-P4EST_PATH=${HOME}/packages/p4est/p4est_source_git/build/local
-
-# MPI_PATH : Directory with MPI headers (i.e. ${MPI_PATH}/include)
-MPI_PATH=/opt/homebrew
-
-# --=== OPTIONAL User Variables ===--
-# For build with matplotlibcpp:
-# PYTHON_ENV_PATH : Path to conda `EllipticForest` environment directory
-# NOTE: Also check ${HOME}/miniconda3 or ${HOME}/anaconda
-PYTHON_ENV_PATH=${HOME}/miniforge3/envs/HydroForest
-
-# PYTHON_VERSION : Version of Python in conda `EllipticForest` envrionment
-PYTHON_VERSION=python3.9
-
-# For pre-installed PETSc:
-# PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
-PETSC_PATH=${HOME}/packages/petsc/petsc-build
-# --=== END User Variables ===--
-
-# --=== Create Build Directory ===--
-BUILD_DIR=build-$(git branch --show-current)
-mkdir -p ${BUILD_DIR}
-cd ${BUILD_DIR}
-
-# --=== CMake Configure ===--
-cmake ${ELLIPTIC_FOREST} \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_CXX_COMPILER=mpic++ \
-    -DCMAKE_C_COMPILER=mpicc \
-    -DMPI_PATH=${MPI_PATH} \
-    -DP4EST_PATH=${P4EST_PATH} \
-    -DPETSC_PATH=${PETSC_PATH} \
-    -DWITH_MATPLOTLIBCPP=true \
-    -DPYTHON_ENV_PATH=${PYTHON_ENV_PATH} \
-    -DPYTHON_VERSION=${PYTHON_VERSION}
-
-echo "Now cd to $(pwd)/${BUILD_DIR} and run make to compile"
+```bash
+>>> make install
 ```
