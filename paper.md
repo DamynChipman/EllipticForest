@@ -44,7 +44,7 @@ Similar to other direct methods, the HPS method is comprised of two stages: a bu
 
 # Statement of need
 
-The novelty of EllipticForest as software is the implementation of the HPS method for coupling with other scientific software as well as user extension. Currently, all other implementations of the HPS method are MATLAB codes designed by research groups and used in-house for solving specific problems. EllipticForest is the first C++ implementation of the HPS method. The numerical methods used in EllipticForest are detailed in [TODO: Cite paper 1] and the parallel counterpart in [TODO: Cite paper 2]. This paper highlights the software implementation including the user-friend interface to the HPS method and the ability for users to extend the solver interface using object-oriented programming (OOP) paradigms.
+The novelty of EllipticForest as software is the implementation of the HPS method for coupling with other scientific software as well as user extension. Currently, all other implementations of the HPS method are MATLAB codes designed by research groups and used in-house for solving specific problems [@ultraSEM; @HPS_Demos]. EllipticForest is the first C++ implementation of the HPS method. The numerical methods used in EllipticForest are detailed in [TODO: Cite paper 1] and the parallel counterpart in [TODO: Cite paper 2]. This paper highlights the software implementation including the user-friend interface to the HPS method and the ability for users to extend the solver interface using object-oriented programming (OOP) paradigms.
 
 # Software Overview
 
