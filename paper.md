@@ -1,5 +1,5 @@
 ---
-title: 'EllipticForest: A Fast Solver for Elliptic Partial Differential Equations on Adaptive Meshes'
+title: 'EllipticForest: A Direct Solver for Elliptic Partial Differential Equations on Adaptive Meshes'
 tags:
   - C++
   - numerical linear algebra
@@ -24,37 +24,13 @@ bibliography: paper.bib
 
 # Summary
 
-The forces on stars, galaxies, and dark matter under external gravitational
-fields lead to the dynamical evolution of structures in the universe. The orbits
-of these bodies are therefore key to understanding the formation, history, and
-future state of galaxies. The field of "galactic dynamics," which aims to model
-the gravitating components of galaxies to study their structure and evolution,
-is now well-established, commonly taught, and frequently used in astronomy.
-Aside from toy problems and demonstrations, the majority of problems require
-efficient numerical tools, many of which require the same base code (e.g., for
-performing numerical orbit integration).
+EllipticForest is a software library with utilities to solve elliptic partial differential equations (PDEs) with adaptive mesh refinement (AMR) using a direct matrix factorization. It is a quadtree-adaptive implementation of the Hierarchical Poincaré-Steklov (HPS) method @Gillman:2014. The HPS method is a direct method for solving elliptic PDEs based on the recursive merging of Poincaré-Steklov operators @Quarteroni:1991. EllipticForest features coupling with the parallel and highly efficient mesh library `p4est` @Burstedde:2011 for mesh adaptivity and mesh management. Distributed memory parallelism is implemented through the Message Passing Interface (MPI) @Walker:1996, which is a first for the HPS method. The primary feature of EllipticForest is the modularity for users to extend the solver interface to custom solvers at the leaf-level. By default, EllipticForest implements fast cyclic-reduction methods as found in the FISHPACK @Swarztrauber:1999 library and updated in the FISHPACK90 @Adams:2016 code.
+
+Similar to other direct methods, the HPS method is comprised of two stages: a build stage and a solve stage. In the build stage, a set of solution operators are formed that act as the factorization of the system matrix corresponding to the discretization stencil. In the solve stage, the factorization is applied to a right-hand side vector corresponding to boundary and non-homogeneous data to solve the problem with linear complexity $\mathcal{O}(N)$ where $N$ is the size of the system matrix. The advantages of this approach over iterative methods such as conjugate gradient and multi-grid methods include the ability to apply the factorization to multiple right-hand sides.
 
 # Statement of need
 
-`Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
-enables wrapping low-level languages (e.g., C) for speed without losing
-flexibility or ease-of-use in the user-interface. The API for `Gala` was
-designed to provide a class-based and user-friendly interface to fast (C or
-Cython-optimized) implementations of common operations such as gravitational
-potential and force evaluation, orbit integration, dynamical transformations,
-and chaos indicators for nonlinear dynamics. `Gala` also relies heavily on and
-interfaces well with the implementations of physical units and astronomical
-coordinate systems in the `Astropy` package [@astropy] (`astropy.units` and
-`astropy.coordinates`).
-
-`Gala` was designed to be used by both astronomical researchers and by
-students in courses on gravitational dynamics or astronomy. It has already been
-used in a number of scientific publications [@Pearson:2017] and has also been
-used in graduate courses on Galactic dynamics to, e.g., provide interactive
-visualizations of textbook material [@Binney:2008]. The combination of speed,
-design, and support for Astropy functionality in `Gala` will enable exciting
-scientific explorations of forthcoming data releases from the *Gaia* mission
-[@gaia] by students and experts alike.
+The primary novelty of EllipticForest as software is the implementation of the HPS method for user extension. The quadtree-adaptive implementation of the HPS method as featured in [TODO: Cite paper 1] and it's parallel counterpart in [TODO: Cite paper 2] is novel in the field of fast solvers for AMR. This paper highlights the software implementation including  the user-friend interface to the HPS method and the ability for users to extend the solver interface using object-oriented programming (OOP) paradigms. Currently, all other implementations of the HPS method are MATLAB codes that are tailored to each research groups' needs and research endeavors. EllipticForest is the first C++ software ready for user-extension and coupling with other scientific solver libraries.
 
 # Mathematics
 
