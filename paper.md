@@ -50,6 +50,10 @@ The novelty of EllipticForest as software is the implementation of the HPS metho
 
 [TODO]
 
+| | |
+|:-:|:-:|
+| ![A mesh refined at the center of the domain to level 3. The colors indicate parallel partitions.\label{fig:parallel_mesh}](assets/parallel_adaptive_mesh_indexing.png) | ![A path-indexed quadtree representation of the mesh. The nodes colored by gradient indicate they are owned by multiple ranks.\label{fig:parallel_quadtree}](assets/parallel_path_indexed_tree.png) |
+
 ![Solution of Poisson equation on a quadtree mesh using EllipticForest.\label{fig:poisson_solution}](examples/elliptic-single/output.png)
 
 # References
