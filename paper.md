@@ -54,15 +54,13 @@ Below, we outline various components of the software implemented in EllipticFore
 
 The underlying data structure that encodes the mesh is a path-indexed quadtree. The `Quadtree` object is a class that implements a path-indexed quadtree using a `NodeMap`, which is equivalent to `std::map<std::string, Node<T>*>`. The template parameter `T` refers to the type of data that is stored on quadtree nodes. The `Quadtree` implemented in EllipticForest wraps the `p4est` leaf-indexed quadtree to create, iterate, and operate on the path-indexed quadtree. Functions to iterate over the quadtree include `traversePreOrder`, `traversePostOrder`, `merge`, and `split`. The `traversePreOrder` and `traversePostOrder` functions iterate over the tree in a pre- and post-order fashion, respectively, and provide the user with access to the node or node data via a provided callback function. The `merge` and `split` functions iterate over the tree in a post- and pre-order fashion, respectively, and provide the user with access to a family of nodes, or a group of four siblings and their parent node.
 
-![A path-indexed quadtree representation of the mesh in \autoref{fig:parallel_mesh}. The nodes colored by gradient indicate they are owned by multiple ranks.\label{fig:parallel_quadtree}](assets/parallel_path_indexed_tree.png)
+![A path-indexed quadtree representation of a mesh. The nodes colored by gradient indicate they are owned by multiple ranks.\label{fig:parallel_quadtree}](assets/parallel_path_indexed_tree.png)
 
 ## Mesh
 
 The user interfaces with the domain discretization through the `Mesh` class. The `Mesh` class has an instance of the `Quadtree` detailed above. `Mesh` provides functions to iterate over patches or cells via `iteratePatches` or `iterateCells`.
 
 `Mesh` also provides the user with an interface to the visualization features of EllipticForest. A user may add mesh functions via `addMeshFunction`, which are functions in $x$ and $y$ that are defined over the entire mesh. This can either be a mathematical function $f(x,y)$ that is provided via a `std::function<double(double x, double y)>`, or as a `Vector<double>` that has the value of $f(x,y)$ at each cell in the domain, ordered by patch and then by the ordering of patch grid. Once a mesh function is added to the mesh, the user may call `toVTK`, which writes the mesh to a parallel, unstructured VTK file format. See the section below on output and visualization for more information.
-
-![A mesh refined at the center of the domain to level 3. The colors indicate parallel partitions.\label{fig:parallel_mesh}](assets/parallel_adaptive_mesh_indexing.png)
 
 ## Patches
 
