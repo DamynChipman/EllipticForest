@@ -4,284 +4,346 @@
 
 using namespace EllipticForest;
 
-// Commenting out becuase parallel quadtree doesn't work with adaptive rebuild yet...
-#if 0
-std::vector<double> refineFunction(double& parentData) {
-    std::vector<double> childrenData = {parentData/4.0, parentData/4.0, parentData/4.0, parentData/4.0};
-    return childrenData;
-}
+const double REFINE_FACTOR = 0.25;
+const double COARSEN_FACTOR = 1.0;
 
-double coarsenFunction(double& c0, double& c1, double& c2, double& c3) {
-    return c0 + c1 + c2 + c3;
-}
+class DoubleNodeFactory : public MPI::MPIObject, public AbstractNodeFactory<double> {
 
-TEST(Quadtree, refine_coarsen) {
+public:
 
-    // Create variables for level arrays to test
-    Quadtree<double>::LevelArray gID;
-    Quadtree<double>::LevelArray pID;
-    Quadtree<double>::LevelArray cID;
-    Quadtree<double>::LevelArray lID;
-    std::vector<double> data;
+    DoubleNodeFactory() :
+        MPIObject(MPI_COMM_WORLD)
+            {}
+    
+    DoubleNodeFactory(MPI::Communicator comm) :
+        MPIObject(comm)
+            {}
 
-    // Create quadtree with root
-    double root = 10.0;
-    Quadtree<double> quadtree;
-    quadtree.buildFromRoot(root);
-
-    gID = {{0}};
-    pID = {{-1}};
-    cID = {{-1}};
-    lID = {{0}};
-    data = {10.0};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
+    virtual Node<double>* createNode(double data, std::string path, int level, int pfirst, int plast) {
+        return new Node<double>(this->getComm(), data, path, level, pfirst, plast);
     }
 
-    // Refine node 0
-    quadtree.refineNode(0, refineFunction);
-
-    gID = {{0}, {1, 2, 3, 4}};
-    pID = {{-1}, {0, 0, 0, 0}};
-    cID = {{1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {0, 1, 2, 3}};
-    data = {10.0, 2.5, 2.5, 2.5, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
+    virtual Node<double>* createChildNode(Node<double>* parent_node, int sibling_id, int pfirst, int plast) {
+        double child_data = REFINE_FACTOR*parent_node->data;
+        std::string child_path = parent_node->path + std::to_string(sibling_id);
+        int child_level = parent_node->level + 1;
+        return new Node<double>(this->getComm(), child_data, child_path, child_level, pfirst, plast);
     }
 
-    // Refine node 3
-    quadtree.refineNode(3, refineFunction);
-
-    gID = {{0}, {1, 2, 3, 8}, {4, 5, 6, 7}};
-    pID = {{-1}, {0, 0, 0, 0}, {3, 3, 3, 3}};
-    cID = {{1}, {-1, -1, 4, -1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {0, 1, -1, 6}, {2, 3, 4, 5}};
-    data = {10.0, 2.5, 2.5, 2.5, 0.625, 0.625, 0.625, 0.625, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
+    virtual Node<double>* createParentNode(std::vector<Node<double>*> children_nodes, int pfirst, int plast) {
+        double parent_data = 0;
+        for (auto* child : children_nodes) { parent_data += COARSEN_FACTOR*child->data; }
+        std::string parent_path = children_nodes[0]->path.substr(0, children_nodes[0]->path.length()-1);
+        int parent_level = children_nodes[0]->level - 1;
+        return new Node<double>(this->getComm(), parent_data, parent_path, parent_level, pfirst, plast);
     }
 
-    // Refine node 1
-    quadtree.refineNode(1, refineFunction);
+};
 
-    gID = {{0}, {1, 6, 7, 12}, {2, 3, 4, 5, 8, 9, 10, 11}};
-    pID = {{-1}, {0, 0, 0, 0}, {1, 1, 1, 1, 7, 7, 7, 7}};
-    cID = {{1}, {2, -1, 8, -1}, {-1, -1, -1, -1, -1, -1, -1, -1}};
-    lID = {{-1}, {-1, 4, -1, 9}, {0, 1, 2, 3, 5, 6, 7, 8}};
-    data = {10.0, 2.5, 0.625, 0.625, 0.625, 0.625, 2.5, 2.5, 0.625, 0.625, 0.625, 0.625, 2.5};
+TEST(Quadtree, init) {
 
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
+    MPI::Communicator comm = MPI_COMM_SELF;
+    DoubleNodeFactory node_factory(comm);
+    double root_data = 1000.0;
+    Quadtree<double> quadtree(comm, root_data, node_factory);
 
-    // Refine node 10
-    quadtree.refineNode(10, refineFunction);
+    EXPECT_TRUE(quadtree.map["0"]->leaf);
+    EXPECT_EQ(quadtree.map["0"]->data, root_data);
+    EXPECT_EQ(quadtree.root(), root_data);
 
-    gID = {{0}, {1, 6, 7, 16}, {2, 3, 4, 5, 8, 9, 10, 15}, {11, 12, 13, 14}};
-    pID = {{-1}, {0, 0, 0, 0}, {1, 1, 1, 1, 7, 7, 7, 7}, {10, 10, 10, 10}};
-    cID = {{1}, {2, -1, 8, -1}, {-1, -1, -1, -1, -1, -1, 11, -1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {-1, 4, -1, 12}, {0, 1, 2, 3, 5, 6, -1, 11}, {7, 8, 9, 10}};
-    data = {10.0, 2.5, 0.625, 0.625, 0.625, 0.625, 2.5, 2.5, 0.625, 0.625, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 2.5};
+    std::vector<double> exp_data = {1000.0};
 
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-    // Refine node 2
-    quadtree.refineNode(2, refineFunction);
-
-    gID = {{0}, {1, 10, 11, 20}, {2, 7, 8, 9, 12, 13, 14, 19}, {3, 4, 5, 6, 15, 16, 17, 18}};
-    pID = {{-1}, {0, 0, 0, 0}, {1, 1, 1, 1, 11, 11, 11, 11}, {2, 2, 2, 2, 14, 14, 14, 14}};
-    cID = {{1}, {2, -1, 12, -1}, {3, -1, -1, -1, -1, -1, 15, -1}, {-1, -1, -1, -1, -1, -1, -1, -1}};
-    lID = {{-1}, {-1, 7, -1, 15}, {-1, 4, 5, 6, 8, 9, -1, 14}, {0, 1, 2, 3, 10, 11, 12, 13}};
-    data = {10.0, 2.5, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 0.625, 0.625, 2.5, 2.5, 0.625, 0.625, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-    // Coarsen node 14
-    quadtree.coarsenNode(14, coarsenFunction);
-
-    gID = {{0}, {1, 10, 11, 16}, {2, 7, 8, 9, 12, 13, 14, 15}, {3, 4, 5, 6}};
-    pID = {{-1}, {0, 0, 0, 0}, {1, 1, 1, 1, 11, 11, 11, 11}, {2, 2, 2, 2}};
-    cID = {{1}, {2, -1, 12, -1}, {3, -1, -1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {-1, 7, -1, 12}, {-1, 4, 5, 6, 8, 9, 10, 11}, {0, 1, 2, 3}};
-    data = {10.0, 2.5, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 0.625, 0.625, 2.5, 2.5, 0.625, 0.625, 0.625, 0.625, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-    // Coarsen node 11
-    quadtree.coarsenNode(11, coarsenFunction);
-
-    gID = {{0}, {1, 10, 11, 12}, {2, 7, 8, 9}, {3, 4, 5, 6}};
-    pID = {{-1}, {0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}};
-    cID = {{1}, {2, -1, -1, -1}, {3, -1, -1, -1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {-1, 7, 8, 9}, {-1, 4, 5, 6,}, {0, 1, 2, 3}};
-    data = {10.0, 2.5, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 0.625, 0.625, 2.5, 2.5, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-    // Coarsen node 2
-    quadtree.coarsenNode(2, coarsenFunction);
-
-    gID = {{0}, {1, 6, 7, 8}, {2, 3, 4, 5}};
-    pID = {{-1}, {0, 0, 0, 0}, {1, 1, 1, 1}};
-    cID = {{1}, {2, -1, -1, -1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {-1, 4, 5, 6}, {0, 1, 2, 3}};
-    data = {10.0, 2.5, 0.625, 0.625, 0.625, 0.625, 2.5, 2.5, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-    // Coarsen node 1
-    quadtree.coarsenNode(1, coarsenFunction);
-
-    gID = {{0}, {1, 2, 3, 4}};
-    pID = {{-1}, {0, 0, 0, 0}};
-    cID = {{1}, {-1, -1, -1, -1}};
-    lID = {{-1}, {0, 1, 2, 3}};
-    data = {10.0, 2.5, 2.5, 2.5, 2.5};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-    // Coarsen node 0
-    quadtree.coarsenNode(0, coarsenFunction);
-
-    gID = {{0}};
-    pID = {{-1}};
-    cID = {{-1}};
-    lID = {{0}};
-    data = {10.0};
-
-    for (int l = 0; l < gID.size(); l++) {
-        for (int i = 0; i < gID[l].size(); i++) {
-            EXPECT_EQ(quadtree.globalIndices()[l][i], gID[l][i]);
-            EXPECT_EQ(quadtree.parentIndices()[l][i], pID[l][i]);
-            EXPECT_EQ(quadtree.childIndices()[l][i], cID[l][i]);
-            EXPECT_EQ(quadtree.leafIndices()[l][i], lID[l][i]);
-        }
-    }
-    for (int i = 0; i < data.size(); i++) {
-        EXPECT_FLOAT_EQ(quadtree.data()[i], data[i]);
-    }
-
-}
-
-TEST(Quadtree, traverse_preorder) {
-
-    // Create quadtree with root
-    double root = 10.0;
-    Quadtree<double> quadtree;
-    quadtree.buildFromRoot(root);
-
-    // Refine to test case
-    quadtree.refineNode(0, refineFunction);
-    quadtree.refineNode(3, refineFunction);
-    quadtree.refineNode(1, refineFunction);
-    quadtree.refineNode(10, refineFunction);
-    quadtree.refineNode(2, refineFunction);
-
-    // Perform traversal and check for correct order
-    int globalIDCounter = 0;
-    std::vector<double> data = {10.0, 2.5, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 0.625, 0.625, 2.5, 2.5, 0.625, 0.625, 0.625, 0.15625, 0.15625, 0.15625, 0.15625, 0.625, 2.5};
-    quadtree.traversePreOrder([&](Quadtree<double>::QuadtreeNode node){
-        EXPECT_EQ(node.globalID, globalIDCounter);
-        EXPECT_FLOAT_EQ(*node.data, data[globalIDCounter]);
-        globalIDCounter++;
-        return true;
+    int counter = 0;
+    quadtree.traversePreOrder([&](Node<double>* node){
+        EXPECT_EQ(exp_data[counter++], node->data);
+        return 1;
     });
 
 }
-#endif
+
+TEST(Quadtree, refine_coarsen_p4est_backend_recursive) {
+
+    MPI::Communicator comm = MPI_COMM_SELF;
+    DoubleNodeFactory node_factory(comm);
+    double root_data = 1000.0;
+    Quadtree<double> quadtree(comm, root_data, node_factory);
+
+    int min_level, max_level, counter;
+
+    max_level = 2;
+    std::vector<double> exp_data = {
+        root_data,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+    };
+
+    quadtree.refine(true,
+        [&](Node<double>* node){
+            return (int) node->level < max_level;
+        }
+    );
+
+    counter = 0;
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            EXPECT_EQ(exp_data[counter++], node->data);
+            return 1;
+        }
+    );
+
+    min_level = 0;
+    quadtree.coarsen(true,
+        [&](std::vector<Node<double>*> nodes){
+            for (auto* node : nodes)
+                return (int) node->level > min_level;
+        }
+    );
+
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            EXPECT_EQ(root_data, node->data);
+            return 1;
+        }
+    );
+
+}
+
+TEST(Quadtree, refine_coarsen_p4est_backend_individual) {
+
+    MPI::Communicator comm = MPI_COMM_SELF;
+    DoubleNodeFactory node_factory(comm);
+    double root_data = 1000.0;
+    Quadtree<double> quadtree(comm, root_data, node_factory);
+
+    int counter;
+
+    std::vector<double> exp_data = {
+        root_data,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+    };
+
+    quadtree.refineNode("0", true);
+    quadtree.refineNode("00", true);
+    quadtree.refineNode("01", true);
+    quadtree.refineNode("02", true);
+    quadtree.refineNode("03", true);
+
+    counter = 0;
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            EXPECT_EQ(exp_data[counter++], node->data);
+            return 1;
+        }
+    );
+
+    quadtree.coarsenNode("02", true);
+    quadtree.coarsenNode("01", true);
+    quadtree.coarsenNode("03", true);
+    quadtree.coarsenNode("00", true);
+    quadtree.coarsenNode("0", true);
+
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            EXPECT_EQ(root_data, node->data);
+            return 1;
+        }
+    );
+
+}
+
+TEST(Quadtree, refine_coarsen_external_backend) {
+
+    MPI::Communicator comm = MPI_COMM_SELF;
+    DoubleNodeFactory node_factory(comm);
+    double root_data = 1000.0;
+    Quadtree<double> quadtree(comm, root_data, node_factory);
+
+    int counter;
+
+    std::vector<double> exp_data = {
+        root_data,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+        root_data*REFINE_FACTOR*REFINE_FACTOR,
+    };
+
+    p4est_refine(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+            return (int) (EllipticForest::p4est::p4est_quadrant_path(quadrant) == "0");
+        },
+        nullptr
+    );
+    quadtree.refineNode("0", false);
+
+    p4est_refine(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+            return (int) (EllipticForest::p4est::p4est_quadrant_path(quadrant) == "00");
+        },
+        nullptr
+    );
+    quadtree.refineNode("00", false);
+    
+    p4est_refine(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+            return (int) (EllipticForest::p4est::p4est_quadrant_path(quadrant) == "01");
+        },
+        nullptr
+    );
+    quadtree.refineNode("01", false);
+
+    p4est_refine(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+            return (int) (EllipticForest::p4est::p4est_quadrant_path(quadrant) == "02");
+        },
+        nullptr
+    );
+    quadtree.refineNode("02", false);
+
+    p4est_refine(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+            return (int) (EllipticForest::p4est::p4est_quadrant_path(quadrant) == "03");
+        },
+        nullptr
+    );
+    quadtree.refineNode("03", false);
+
+    counter = 0;
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            EXPECT_EQ(exp_data[counter++], node->data);
+            return 1;
+        }
+    );
+
+    p4est_coarsen(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrants[]){
+            std::string first_child_path = EllipticForest::p4est::p4est_quadrant_path(quadrants[0]);
+            std::string parent_path = first_child_path.substr(0, first_child_path.length() - 1);
+            return (int) (parent_path == "02");
+        },
+        nullptr
+    );
+    quadtree.coarsenNode("02");
+
+    p4est_coarsen(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrants[]){
+            std::string first_child_path = EllipticForest::p4est::p4est_quadrant_path(quadrants[0]);
+            std::string parent_path = first_child_path.substr(0, first_child_path.length() - 1);
+            return (int) (parent_path == "03");
+        },
+        nullptr
+    );
+    quadtree.coarsenNode("03");
+
+    p4est_coarsen(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrants[]){
+            std::string first_child_path = EllipticForest::p4est::p4est_quadrant_path(quadrants[0]);
+            std::string parent_path = first_child_path.substr(0, first_child_path.length() - 1);
+            return (int) (parent_path == "01");
+        },
+        nullptr
+    );
+    quadtree.coarsenNode("01");
+
+    p4est_coarsen(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrants[]){
+            std::string first_child_path = EllipticForest::p4est::p4est_quadrant_path(quadrants[0]);
+            std::string parent_path = first_child_path.substr(0, first_child_path.length() - 1);
+            return (int) (parent_path == "00");
+        },
+        nullptr
+    );
+    quadtree.coarsenNode("00");
+
+    p4est_coarsen(
+        quadtree.p4est,
+        0,
+        [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrants[]){
+            std::string first_child_path = EllipticForest::p4est::p4est_quadrant_path(quadrants[0]);
+            std::string parent_path = first_child_path.substr(0, first_child_path.length() - 1);
+            return (int) (parent_path == "0");
+        },
+        nullptr
+    );
+    quadtree.coarsenNode("0");
+
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            EXPECT_EQ(root_data, node->data);
+            return 1;
+        }
+    );
+
+}

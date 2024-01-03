@@ -80,6 +80,12 @@ public:
 	std::function<int(Node<T>*)> visit_node_fn;
 
 	/**
+	 * @brief Sibling (group of 4) nodes callback function for use in p4est routines
+	 * 
+	 */
+	std::function<int(std::vector<Node<T>*>)> visit_siblings_fn;
+
+	/**
 	 * @brief Node data callback function for use in p4est routines
 	 * 
 	 */
@@ -106,6 +112,23 @@ public:
 		root_data_ptr_(nullptr),
 		node_factory(nullptr)
 			{}
+
+	Quadtree(MPI::Communicator comm, T& root_data, AbstractNodeFactory<T>& node_factory) :
+		MPIObject(comm),
+		root_data_ptr_(&root_data),
+		node_factory(&node_factory) {
+
+		// Create p4est instance
+		p4est_connectivity_t* conn = p4est::p4est_connectivity_new_square_domain(0, 1, 0, 1);
+		p4est = p4est_new_ext(this->getComm(), conn, 0, 0, true, 0, nullptr, nullptr);
+		p4est->user_pointer = this;
+
+		// Store root data in map
+		std::string root_path = "0";
+		map[root_path] = this->node_factory->createNode(root_data, root_path, 0, 0, this->getSize());
+		map[root_path]->leaf = true;
+
+	}
 	
 	/**
 	 * @brief Construct a new Quadtree object from a p4est, prototype root data, and a node factory
@@ -166,8 +189,8 @@ public:
 						// Quadrant is not root; init from parent and sibling index
 						std::string parent_path = path.substr(0, path.length() - 1);
 						Node<T>* parent_node = map[parent_path];
-						int siblingID = p4est_quadrant_child_id(quadrant);
-						node = quadtree.node_factory->createChildNode(parent_node, siblingID, pfirst, plast);
+						int sibling_id = p4est_quadrant_child_id(quadrant);
+						node = quadtree.node_factory->createChildNode(parent_node, sibling_id, pfirst, plast);
 					}
 
 					// Additional info for node
@@ -200,11 +223,11 @@ public:
 	 */
 	~Quadtree() {
 		// Iterate through map and delete any owned nodes
-		// for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
-		// 	if (iter->second != nullptr) {
-		// 		delete iter->second;
-		// 	}
-		// }
+		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
+			if (iter->second != nullptr) {
+				delete iter->second;
+			}
+		}
 	}
 
 	/**
@@ -359,6 +382,247 @@ public:
 	}
 
 	/**
+	 * @brief Refine the quadtree according to a refinement criteria
+	 * 
+	 * This is the preferred interface for quadtree refining/coarsening as this just wraps p4est
+	 * routines. If p4est is handled by an external library, use the `refineNode` function.
+	 * 
+	 * Note that all initialization of new nodes is handled by the node factory.
+	 * 
+	 * @sa coarsen
+	 * @sa refineNode
+	 * @sa coarsenNode
+	 * 
+	 * @param refine_recursive Flag to specify a recursive refinement
+	 * @param refine_function Function that returns if the provided leaf node should be refined
+	 */
+	void refine(bool refine_recursive, std::function<int(Node<T>*)> refine_function) {
+
+		visit_node_fn = refine_function;
+		p4est_refine(
+			p4est,
+			(int) refine_recursive,
+			p4est_refine_callback,
+			p4est_init_refined_callback
+		);
+
+	}
+
+	/**
+	 * @brief Refine a specific node in the quadtree
+	 * 
+	 * This interface for refining/coarsening is for refining specific nodes or for when p4est is
+	 * handled by an external library. When the manipulation of the p4est quadtree (leaf-indexed 
+	 * quadtree) is managed by another library, then this function should be called with
+	 * `change_p4est=false` at each callback stage in the refining/coarsening.
+	 * 
+	 * Only leaf nodes may be refined this way.
+	 * 
+	 * Note that all initialization of new nodes is handled by the node factory.
+	 * 
+	 * @sa refine
+	 * @sa coarsen
+	 * @sa coarsenNode
+	 * 
+	 * @param path Path to node to refine
+	 * @param change_p4est Flag to change p4est as well; if true, wraps `refine`
+	 */
+	void refineNode(std::string path, bool change_p4est=false) {
+
+		auto* node = map[path];
+		if (node != nullptr) {
+			if (!node->leaf) {
+				throw std::invalid_argument("Node with path = " + path + " is not a leaf node");
+			}
+		}
+
+		if (change_p4est) {
+			// Need to change p4est; use refine function which wraps p4est_refine
+			refine(
+				false,
+				[&](Node<T>* node_){
+					return (int) (node_->path == path);
+				}
+			);
+		}
+		else {
+			// p4est already changed or handled externally, just need to change quadtree
+			if (node != nullptr) {
+				for (int i = 0; i < 4; i++) {
+					int pfirst = node->pfirst;
+					int plast = node->plast;
+					std::string child_path = path + std::to_string(i);
+					map[child_path] = node_factory->createChildNode(node, i, pfirst, plast);
+					map[child_path]->leaf = true;
+				}
+
+			}
+			else {
+				// What to do when node is nullptr
+			}
+
+		}
+
+	}
+
+	/**
+	 * @brief Coarsen the quadtree according to a coarsening criteria
+	 * 
+	 * This is the preferred interface for quadtree refining/coarsening as this just wraps p4est
+	 * routines. If p4est is handled by an external library, use the `coarsenNode` function.
+	 * 
+	 * Note that all initialization of new nodes is handled by the node factory.
+	 * 
+	 * @sa refine
+	 * @sa refineNode
+	 * @sa coarsenNode
+	 * 
+	 * @param coarsen_recursive Flag to specify a recursive coarsening
+	 * @param coarsen_function Function that returns if the sibling nodes should be coarsened
+	 */
+	void coarsen(bool coarsen_recursive, std::function<int(std::vector<Node<T>*>)> coarsen_function) {
+
+		visit_siblings_fn = coarsen_function;
+		p4est_coarsen(
+			p4est,
+			(int) coarsen_recursive,
+			p4est_coarsen_callback,
+			p4est_init_coarsened_callback
+		);
+
+	}
+
+	/**
+	 * @brief Coarsen a specific node in the quadtree
+	 * 
+	 * This interface for refining/coarsening is for coarsening specific nodes or for when p4est is
+	 * handled by an external library. When the manipulation of the p4est quadtree (leaf-indexed 
+	 * quadtree) is managed by another library, then this function should be called with
+	 * `change_p4est=false` at each callback stage in the refining/coarsening.
+	 * 
+	 * Only first-generation parents (node with all leaf children) may be coarsened this way.
+	 * 
+	 * Note that all initialization of new nodes is handled by the node factory.
+	 * 
+	 * @sa refine
+	 * @sa coarsen
+	 * @sa refineNode
+	 * 
+	 * @param path Path to node to coarsen
+	 * @param change_p4est Flag to change p4est as well; if true, wraps `coarsen`
+	 */
+	void coarsenNode(std::string path, bool change_p4est=false) {
+
+		auto* node = map[path];
+		if (node != nullptr) {
+			bool node_is_first_gen_parent = true;
+			for (int i = 0; i < 4; i++) {
+				std::string child_path = path + std::to_string(i);
+				auto child_iter = map.find(child_path);
+				bool child_exists = child_iter != map.end();
+				if (!child_exists) {
+					throw std::invalid_argument("Node with path = " + path + " does not have children.");
+				}
+				node_is_first_gen_parent = map[child_path]->leaf;
+			}
+			if (!node_is_first_gen_parent) {
+				throw std::invalid_argument("Node with path = " + path + " is not a first-generation parent (all children nodes are leaves).");
+			}
+		}
+
+		if (change_p4est) {
+			coarsen(
+				false,
+				[&](std::vector<Node<T>*> nodes){
+					std::string first_child_path = nodes[0]->path;
+					std::string parent_path = first_child_path.substr(0, first_child_path.length() - 1);
+					return (int) (parent_path == path);
+				}
+			);
+		}
+		else {
+			if (node != nullptr) {
+				std::vector<std::string> children_paths(4);
+				std::vector<Node<T>*> children_nodes(4);
+				for (int i = 0; i < 4; i++) {
+					children_paths[i] = path + std::to_string(i);
+					children_nodes[i] = map[children_paths[i]];
+				}
+				int pfirst = children_nodes[0]->pfirst;
+				int plast = children_nodes[3]->plast;
+				map[path] = node_factory->createParentNode(children_nodes, pfirst, plast);
+				map[path]->leaf = true;
+
+				for (auto child_path : children_paths) {
+					if (map[child_path] != nullptr) {
+						delete map[child_path];
+						map[child_path] = nullptr;
+					}
+				}
+			}
+		}
+
+	}
+
+	/**
+	 * @brief WIP
+	 * 
+	 */
+	void partition() {
+
+		if (this->getSize() != 1) {
+			throw std::runtime_error("Parallel partitioning not implemented!");
+		}
+
+		// p4est_partition(
+		// 	p4est,
+		// 	false,
+		// 	nullptr
+		// );
+
+		// // Can I use p4est_search_all to iterate over the partitioned leaf-quadtree and then send/receive nodes?
+		// p4est_search_all(
+		// 	p4est,
+		// 	0,
+		// 	[](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point) {
+				
+		// 		int rank;
+		// 		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+		// 		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		// 		auto& map = quadtree.map;
+		// 		auto path = p4est::p4est_quadrant_path(quadrant);
+		// 		auto* node = map[path];
+
+		// 		bool owned = pfirst <= rank && rank <= plast;
+		// 		bool has_data = node != nullptr;
+		// 		auto& app = EllipticForestApp::getInstance();
+		// 		app.log("path = " + path + ", owned = " + std::to_string(owned) + ", has_data = " + std::to_string(has_data) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]");
+
+		// 		if (owned) {
+		// 			if (node == nullptr) {
+		// 				// Node is owned but had no data; need to receive
+		// 				// Receive from where...?
+		// 				MPI::Status status;
+		// 				int src = quadtree->getSize() - 1; // Is the source rank always the last one...?
+		// 				MPI::receive(node->data, src, 0, quadtree->getComm(), &status);
+		// 			}
+		// 			else {
+		// 				// Node is owned and has data; need to send
+		// 				// Who to send to...?
+
+		// 			}
+		// 		}
+
+		// 		return 1;
+		// 	},
+		// 	nullptr,
+		// 	nullptr
+		// );
+
+	}
+
+	/**
 	 * @brief Returns the root data of the quadtree
 	 * 
 	 * @return T&
@@ -507,6 +771,99 @@ public:
 		}
 		return cont;
 
+	}
+
+	/**
+	 * @brief Callback provided to `p4est_refine` for initializing newly refined nodes
+	 * 
+	 * @param p4est The forest
+	 * @param which_tree The tree containing quadrant
+	 * @param quadrant The quadrant to be initialized
+	 */
+	static void p4est_init_refined_callback(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant) {
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		auto& map = quadtree.map;
+		auto path = p4est::p4est_quadrant_path(quadrant);
+		
+		std::string parent_path = path.substr(0, path.length() - 1);
+		Node<T>* parent_node = map[parent_path];
+		int sibling_id = p4est_quadrant_child_id(quadrant);
+		int pfirst = parent_node->pfirst;
+		int plast = parent_node->plast;
+		map[path] = quadtree.node_factory->createChildNode(parent_node, sibling_id, pfirst, plast);
+		map[path]->leaf = true;
+	}
+
+	/**
+	 * @brief Callback provided to `p4est_coarsen` for initializing newly coarsened nodes
+	 * 
+	 * @param p4est The forest
+	 * @param which_tree The tree containing quadrant
+	 * @param quadrant The quadrant to be initialized
+	 */
+	static void p4est_init_coarsened_callback(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant) {
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		auto& map = quadtree.map;
+		auto path = p4est::p4est_quadrant_path(quadrant);
+
+		std::vector<std::string> children_paths(4);
+		std::vector<Node<T>*> children_nodes(4);
+		for (int i = 0; i < 4; i++) {
+			children_paths[i] = path + std::to_string(i);
+			children_nodes[i] = map[children_paths[i]];
+		}
+		int pfirst = children_nodes[0]->pfirst;
+		int plast = children_nodes[3]->plast;
+		map[path] = quadtree.node_factory->createParentNode(children_nodes, pfirst, plast);
+		map[path]->leaf = true;
+
+		for (auto child_path : children_paths) {
+			if (map[child_path] != nullptr) {
+				delete map[child_path];
+				map[child_path] = nullptr;
+			}
+		}
+	}
+
+	/**
+	 * @brief Callback function provided to `p4est_refine` for flagging nodes to be refined
+	 * 
+	 * This callback basically wraps the user provided callback for `refine`.
+	 * 
+	 * @param p4est The forest
+	 * @param which_tree The tree containing quadrant
+	 * @param quadrant The quadrant that may be refined
+	 * @return int Nonzero if the quadrant shall be refined
+	 */
+	static int p4est_refine_callback(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant) {
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		auto& map = quadtree.map;
+		auto path = p4est::p4est_quadrant_path(quadrant);
+		auto* node = map[path];
+		return quadtree.visit_node_fn(node);
+	}
+
+	/**
+	 * @brief Callback function provided to `p4est_coarsen` for flagging nodes to be coarsened
+	 * 
+	 * This callback basically wraps the user provided callback for `coarsen`.
+	 * 
+	 * @param p4est The forest
+	 * @param which_tree The tree containing quadrant
+	 * @param quadrants The quadrant that may be coarsened
+	 * @return int Nonzero if the quadrants shall be coarsened
+	 */
+	static int p4est_coarsen_callback(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrants[]) {
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		auto& map = quadtree.map;
+		std::vector<std::string> paths(4);
+		std::vector<Node<T>*> nodes(4);
+		for (int i = 0; i < 4; i++) {
+			auto* quadrant = quadrants[i];
+			paths[i] = p4est::p4est_quadrant_path(quadrant);
+			nodes[i] = map[paths[i]];
+		}
+		return quadtree.visit_siblings_fn(nodes);
 	}
 
 };
