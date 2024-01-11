@@ -3,9 +3,6 @@
 
 #include <string>
 
-#include <petsc.h>
-#include <petscdmda.h>
-
 #include "../../EllipticForestApp.hpp"
 #include "../../MPI.hpp"
 #include "../../PatchGrid.hpp"
@@ -20,11 +17,6 @@ enum DimensionIndex {
     X = 0,
     Y = 1
 };
-
-namespace Petsc {
-    using DataManagement = DM;
-    using ErrorCode = PetscErrorCode;
-} // NAMESPACE : Petsc
 
 class FiniteVolumeGrid : public MPI::MPIObject, public PatchGridBase<double> {
 
@@ -81,12 +73,6 @@ protected:
 public:
 
     /**
-     * @brief The PETSc data management handle
-     * 
-     */
-    Petsc::DataManagement dm = PETSC_NULLPTR;
-
-    /**
      * @brief Construct a new FiniteVolumeGrid object (default)
      * 
      */
@@ -110,27 +96,6 @@ public:
      * 
      */
     ~FiniteVolumeGrid();
-
-    /**
-     * @brief Creates the PETSc components of the grid
-     * 
-     * @return Petsc::ErrorCode 
-     */
-    Petsc::ErrorCode create();
-
-    /**
-     * @brief Sets the PETSc components from options of the grid
-     * 
-     * @return Petsc::ErrorCode 
-     */
-    Petsc::ErrorCode setFromOptions();
-
-    /**
-     * @brief Sets the grid up
-     * 
-     * @return Petsc::ErrorCode 
-     */
-    Petsc::ErrorCode setup();
 
     /**
      * @brief Returns the coordinate of the cell center at `index` for dimension `dim`

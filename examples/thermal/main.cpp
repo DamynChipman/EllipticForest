@@ -53,7 +53,6 @@
 #include <cmath>
 #include <iostream>
 #include <string>
-#include <format>
 
 #include <EllipticForest.hpp>
 #include <Patches/FiniteVolume/FiniteVolume.hpp>

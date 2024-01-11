@@ -2,6 +2,7 @@
 #define P4EST_HPP_
 
 #include <string>
+#include <algorithm>
 #include <mpi.h>
 #include <p4est.h>
 #include <p4est_extended.h>

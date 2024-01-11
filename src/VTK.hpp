@@ -2,7 +2,6 @@
 #define VTK_HPP_
 
 #include <string>
-#include <format>
 #include <vector>
 
 #include "XMLTree.hpp"
