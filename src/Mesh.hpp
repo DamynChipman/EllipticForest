@@ -381,6 +381,20 @@ public:
 
     }
 
+    void clear() {
+        clearMesh();
+        clearMeshFunctions();
+    }
+
+    void clearMesh() {
+        npoints = 0;
+        ncells = 0;
+        points = Vector<double>{};
+        connectivity = Vector<int>{};
+        offsets = Vector<int>{};
+        types = Vector<int>{};
+    }
+
     /**
      * @brief Clears the mesh functions from the mesh
      * 
@@ -392,32 +406,32 @@ public:
     /**
      * @brief Writes the mesh to a VTK file as an unstructured VTK file
      * 
-     * @param baseFilename Base filename
+     * @param base_filename Base filename
      * @param number Flag for multiple VTK files (time stepping for example)
      */
-    void toVTK(std::string baseFilename, int number=-1) {
+    void toVTK(std::string base_filename, int number=-1) {
         // Output mesh
-        std::string meshFilename = baseFilename + "-mesh";
+        std::string mesh_filename = base_filename + "-mesh";
         if (number != -1) {
             char buffer[32];
             snprintf(buffer, 32, "%04i", number);
-            meshFilename += "-" + std::string(buffer);
+            mesh_filename += "-" + std::string(buffer);
         }
         PUnstructuredGridVTK pvtu{};
         pvtu.buildMesh(*this);
         for (auto& meshFunction : mesh_functions) {
             pvtu.addCellData(*meshFunction);
         }
-        pvtu.toVTK(meshFilename);
+        pvtu.toVTK(mesh_filename);
 
         // Output quadtree (p4est)
-        std::string quadtreeFilename = baseFilename + "-quadtree";
+        std::string quadtree_filename = base_filename + "-quadtree";
         if (number != -1) {
             char buffer[32];
             snprintf(buffer, 32, "%04i", number);
-            quadtreeFilename += "-" + std::string(buffer);
+            quadtree_filename += "-" + std::string(buffer);
         }
-        p4est_vtk_context_t* vtk_context = p4est_vtk_context_new(quadtree.p4est, quadtreeFilename.c_str());
+        p4est_vtk_context_t* vtk_context = p4est_vtk_context_new(quadtree.p4est, quadtree_filename.c_str());
         p4est_vtk_context_set_scale(vtk_context, 1.0);
         vtk_context = p4est_vtk_write_header(vtk_context);
         p4est_vtk_write_footer(vtk_context);

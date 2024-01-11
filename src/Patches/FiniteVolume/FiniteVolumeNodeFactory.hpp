@@ -7,22 +7,32 @@
 
 namespace EllipticForest {
 
+using FiniteVolumeHPS = HPSAlgorithm<FiniteVolumeGrid, FiniteVolumeSolver, FiniteVolumePatch, double>;
+
 class FiniteVolumeNodeFactory : public MPI::MPIObject, public AbstractNodeFactory<FiniteVolumePatch> {
 
 public:
 
     /**
+     * @brief Reference to finite volume solver
+     * 
+     */
+    FiniteVolumeSolver& solver;
+
+    std::vector<FiniteVolumePatch*> siblings{4};
+
+    /**
      * @brief Construct a new FiniteVolumeNodeFactory object (default)
      * 
      */
-    FiniteVolumeNodeFactory();
+    FiniteVolumeNodeFactory(FiniteVolumeSolver& solver);
 
     /**
      * @brief Construct a new FiniteVolumeNodeFactory object on a communicator
      * 
      * @param comm MPI communicator
      */
-    FiniteVolumeNodeFactory(MPI::Communicator comm);
+    FiniteVolumeNodeFactory(MPI::Communicator comm, FiniteVolumeSolver& solver);
 
     /**
      * @brief Create a node from provided data

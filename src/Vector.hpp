@@ -144,11 +144,11 @@ public:
      */
     NumericalType getEntry(std::size_t index) {
         if (index > size_ || index < 0) {
-            std::string errorMessage = "[EllipticForest::Vector::getEntry] `index` is out of range:\n";
-            errorMessage += "\tindex = " + std::to_string(index) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::getEntry] `index` is out of range:\n";
+            error_message += "\tindex = " + std::to_string(index) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
         return data_[index];
     }
@@ -164,11 +164,11 @@ public:
      */
     NumericalType& operator[](std::size_t index) {
         if (index > size_ || index < 0) {
-            std::string errorMessage = "[EllipticForest::Vector::operator[]] `index` is out of range:\n";
-            errorMessage += "\tindex = " + std::to_string(index) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator[]] `index` is out of range:\n";
+            error_message += "\tindex = " + std::to_string(index) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
         return data_[index];
     }
@@ -184,11 +184,11 @@ public:
      */
     const NumericalType& operator[](std::size_t index) const {
         if (index > size_ || index < 0) {
-            std::string errorMessage = "[EllipticForest::Vector::operator[]] `index` is out of range:\n";
-            errorMessage += "\tindex = " + std::to_string(index) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator[]] `index` is out of range:\n";
+            error_message += "\tindex = " + std::to_string(index) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
         return data_[index];
     }
@@ -204,11 +204,11 @@ public:
      */
     NumericalType& operator()(std::size_t index) {
         if (index > size_ || index < 0) {
-            std::string errorMessage = "[EllipticForest::Vector::operator()] `index` is out of range:\n";
-            errorMessage += "\tindex = " + std::to_string(index) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator()] `index` is out of range:\n";
+            error_message += "\tindex = " + std::to_string(index) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
         return data_[index];
     }
@@ -259,12 +259,12 @@ public:
      */
     Vector<NumericalType> getRange(std::size_t a, std::size_t b) {
         if (a > size_ || b > size_ || a < 0 || b < 0) {
-            std::string errorMessage = "[EllipticForest::Vector::getRange] `a` or `b` is outside of range of vector:\n";
-            errorMessage += "\ta = " + std::to_string(a) + "\n";
-            errorMessage += "\tb = " + std::to_string(b) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::getRange] `a` or `b` is outside of range of vector:\n";
+            error_message += "\ta = " + std::to_string(a) + "\n";
+            error_message += "\tb = " + std::to_string(b) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
 
         Vector<NumericalType> v((b - a) + 1);
@@ -285,12 +285,12 @@ public:
      */
     Vector<NumericalType> operator()(std::size_t a, std::size_t b) {
         if (a > size_ || b > size_ || a < 0 || b < 0) {
-            std::string errorMessage = "[EllipticForest::Vector::operator()] `a` or `b` is outside of range of vector:\n";
-            errorMessage += "\ta = " + std::to_string(a) + "\n";
-            errorMessage += "\tb = " + std::to_string(b) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator()] `a` or `b` is outside of range of vector:\n";
+            error_message += "\ta = " + std::to_string(a) + "\n";
+            error_message += "\tb = " + std::to_string(b) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
 
         Vector<NumericalType> v((b - a) + 1);
@@ -309,12 +309,12 @@ public:
      */
     Vector<NumericalType> getSegment(std::size_t startIndex, std::size_t length) {
         if (startIndex + length > size_) {
-            std::string errorMessage = "[EllipticForest::Vector::getSegment] Index mismatch. `startIndex` + `length` is greater than size of vector:\n";
-            errorMessage += "\tstartIndex = " + std::to_string(startIndex) + "\n";
-            errorMessage += "\tlength = " + std::to_string(length) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::getSegment] Index mismatch. `startIndex` + `length` is greater than size of vector:\n";
+            error_message += "\tstartIndex = " + std::to_string(startIndex) + "\n";
+            error_message += "\tlength = " + std::to_string(length) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
 
         Vector<NumericalType> res(length);
@@ -334,12 +334,12 @@ public:
      */
     void setSegment(std::size_t startIndex, const Vector<NumericalType>& vec) {
         if (startIndex + vec.size() > size_) {
-            std::string errorMessage = "[EllipticForest::Vector::setSegment] Index mismatch. `startIndex` + `vec.size()` is greater than size of host vector:\n";
-            errorMessage += "\tstartIndex = " + std::to_string(startIndex) + "\n";
-            errorMessage += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::setSegment] Index mismatch. `startIndex` + `vec.size()` is greater than size of host vector:\n";
+            error_message += "\tstartIndex = " + std::to_string(startIndex) + "\n";
+            error_message += "\tvec.size() = " + std::to_string(vec.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
 
         for (auto i = startIndex; i < startIndex + vec.size(); i++) {
@@ -367,22 +367,22 @@ public:
      */
     Vector<NumericalType> getFromIndexSet(Vector<int> I) {
         if (I.size() > size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator()] `Size of index set `I` is greater than size of vector:\n";
-            errorMessage += "\tI.size() = " + std::to_string(I.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator()] `Size of index set `I` is greater than size of vector:\n";
+            error_message += "\tI.size() = " + std::to_string(I.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
 
         Vector<NumericalType> res(I.size());
         for (auto i = 0; i < I.size(); i++) {
             if (I[i] > size_ || I[i] < 0) {
-                std::string errorMessage = "[EllipticForest::Vector::operator()] Index in `I` is out of range:\n";
-                errorMessage += "\ti = " + std::to_string(i) + "\n";
-                errorMessage += "\tI[i] = " + std::to_string(I[i]) + "\n";
-                errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-                std::cerr << errorMessage << std::endl;
-                throw std::out_of_range(errorMessage);
+                std::string error_message = "[EllipticForest::Vector::operator()] Index in `I` is out of range:\n";
+                error_message += "\ti = " + std::to_string(i) + "\n";
+                error_message += "\tI[i] = " + std::to_string(I[i]) + "\n";
+                error_message += "\tsize = " + std::to_string(size_) + "\n";
+                std::cerr << error_message << std::endl;
+                throw std::out_of_range(error_message);
             }
             res(i) = operator()(I(i));
         }
@@ -399,22 +399,22 @@ public:
      */
     Vector<NumericalType> operator()(Vector<int> I) {
         if (I.size() > size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator()] `Size of index set `I` is greater than size of vector:\n";
-            errorMessage += "\tI.size() = " + std::to_string(I.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::out_of_range(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator()] `Size of index set `I` is greater than size of vector:\n";
+            error_message += "\tI.size() = " + std::to_string(I.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::out_of_range(error_message);
         }
 
         Vector<NumericalType> res(I.size());
         for (auto i = 0; i < I.size(); i++) {
             if (I[i] > size_ || I[i] < 0) {
-                std::string errorMessage = "[EllipticForest::Vector::operator()] Index in `I` is out of range:\n";
-                errorMessage += "\ti = " + std::to_string(i) + "\n";
-                errorMessage += "\tI[i] = " + std::to_string(I[i]) + "\n";
-                errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-                std::cerr << errorMessage << std::endl;
-                throw std::out_of_range(errorMessage);
+                std::string error_message = "[EllipticForest::Vector::operator()] Index in `I` is out of range:\n";
+                error_message += "\ti = " + std::to_string(i) + "\n";
+                error_message += "\tI[i] = " + std::to_string(I[i]) + "\n";
+                error_message += "\tsize = " + std::to_string(size_) + "\n";
+                std::cerr << error_message << std::endl;
+                throw std::out_of_range(error_message);
             }
             res(i) = operator()(I(i));
         }
@@ -432,11 +432,11 @@ public:
         std::size_t sizeCheck = 0;
         for (auto i = 0; i < S.size(); i++) sizeCheck += S[i];
         if (sizeCheck != size_) {
-            std::string errorMessage = "[EllipticForest::Vector::blockPermute] Sizes in `S` do not add upt to the size of `this`:\n";
-            errorMessage += "\tSum of `S` = " + std::to_string(sizeCheck) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::blockPermute] Sizes in `S` do not add upt to the size of `this`:\n";
+            error_message += "\tSum of `S` = " + std::to_string(sizeCheck) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::invalid_argument(error_message);
         }
 
         Vector<int> SGlobal(size_);
@@ -500,11 +500,11 @@ public:
      */
     Vector<NumericalType>& operator+=(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator+=] Size of `rhs` is not the same of `this`:\n";
-            errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator+=] Size of `rhs` is not the same of `this`:\n";
+            error_message += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::invalid_argument(error_message);
         }
 
         for (auto i = 0; i < size_; i++) {
@@ -534,11 +534,11 @@ public:
      */
     Vector<NumericalType> operator+(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator+] Size of `rhs` is not the same of `this`:\n";
-            errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator+] Size of `rhs` is not the same of `this`:\n";
+            error_message += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::invalid_argument(error_message);
         }
 
         return Vector<NumericalType>(*this) += rhs;
@@ -563,11 +563,11 @@ public:
      */
     Vector<NumericalType>& operator-=(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator-=] Size of `rhs` is not the same of `this`:\n";
-            errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator-=] Size of `rhs` is not the same of `this`:\n";
+            error_message += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::invalid_argument(error_message);
         }
 
         for (auto i = 0; i < size_; i++) {
@@ -597,11 +597,11 @@ public:
      */
     Vector<NumericalType> operator-(const Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator-] Size of `rhs` is not the same of `this`:\n";
-            errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator-] Size of `rhs` is not the same of `this`:\n";
+            error_message += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::invalid_argument(error_message);
         }
 
         return Vector<NumericalType>(*this) -= rhs;
@@ -639,11 +639,11 @@ public:
      */
     NumericalType operator*(Vector<NumericalType>& rhs) {
         if (rhs.size() != size_) {
-            std::string errorMessage = "[EllipticForest::Vector::operator*] Size of `rhs` is not the same of `this`:\n";
-            errorMessage += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
-            errorMessage += "\tsize = " + std::to_string(size_) + "\n";
-            std::cerr << errorMessage << std::endl;
-            throw std::invalid_argument(errorMessage);
+            std::string error_message = "[EllipticForest::Vector::operator*] Size of `rhs` is not the same of `this`:\n";
+            error_message += "\trhs.size() = " + std::to_string(rhs.size()) + "\n";
+            error_message += "\tsize = " + std::to_string(size_) + "\n";
+            std::cerr << error_message << std::endl;
+            throw std::invalid_argument(error_message);
         }
 
         NumericalType res = 0;
@@ -797,11 +797,11 @@ Vector<NumericalType> operator*(NumericalType lhs, Vector<NumericalType> rhs) {
 template<typename NumericalType>
 Vector<NumericalType> operator*(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
     if (lhs.size() != rhs.size()) {
-        std::string errorMessage = "[EllipticForest::Vector::operator*] Sizes of `lhs` and `rhs` are not the same:\n";
-        errorMessage += "\tlhs.size = " + std::to_string(lhs.size()) + "\n";
-        errorMessage += "\trhs.size = " + std::to_string(rhs.size()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+        std::string error_message = "[EllipticForest::Vector::operator*] Sizes of `lhs` and `rhs` are not the same:\n";
+        error_message += "\tlhs.size = " + std::to_string(lhs.size()) + "\n";
+        error_message += "\trhs.size = " + std::to_string(rhs.size()) + "\n";
+        std::cerr << error_message << std::endl;
+        throw std::invalid_argument(error_message);
     }
     Vector<NumericalType> res(lhs.size());
     for (auto i = 0; i < res.size(); i++) {
@@ -821,11 +821,11 @@ Vector<NumericalType> operator*(Vector<NumericalType> lhs, Vector<NumericalType>
 template<typename NumericalType>
 Vector<NumericalType> operator/(Vector<NumericalType> lhs, Vector<NumericalType> rhs) {
     if (lhs.size() != rhs.size()) {
-        std::string errorMessage = "[EllipticForest::Vector::operator/] Sizes of `lhs` and `rhs` are not the same:\n";
-        errorMessage += "\tlhs.size = " + std::to_string(lhs.size()) + "\n";
-        errorMessage += "\trhs.size = " + std::to_string(rhs.size()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+        std::string error_message = "[EllipticForest::Vector::operator/] Sizes of `lhs` and `rhs` are not the same:\n";
+        error_message += "\tlhs.size = " + std::to_string(lhs.size()) + "\n";
+        error_message += "\trhs.size = " + std::to_string(rhs.size()) + "\n";
+        std::cerr << error_message << std::endl;
+        throw std::invalid_argument(error_message);
     }
     Vector<NumericalType> res(lhs.size());
     for (auto i = 0; i < res.size(); i++) {
@@ -879,11 +879,11 @@ Vector<NumericalType> concatenate(std::initializer_list<Vector<NumericalType>> v
 template<typename NumericalType>
 double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
     if (a.size() != b.size()) {
-        std::string errorMessage = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
-        errorMessage += "\ta.size = " + std::to_string(a.size()) + "\n";
-        errorMessage += "\tb.size = " + std::to_string(b.size()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+        std::string error_message = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
+        error_message += "\ta.size = " + std::to_string(a.size()) + "\n";
+        error_message += "\tb.size = " + std::to_string(b.size()) + "\n";
+        std::cerr << error_message << std::endl;
+        throw std::invalid_argument(error_message);
     }
 
     double maxDiff = 0;
@@ -905,11 +905,11 @@ double vectorInfNorm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
 template<typename NumericalType>
 double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
     if (a.size() != b.size()) {
-        std::string errorMessage = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
-        errorMessage += "\ta.size = " + std::to_string(a.size()) + "\n";
-        errorMessage += "\tb.size = " + std::to_string(b.size()) + "\n";
-        std::cerr << errorMessage << std::endl;
-        throw std::invalid_argument(errorMessage);
+        std::string error_message = "[EllipticForest::Vector::vectorInfNorm] Sizes of `a` and `b` are not the same:\n";
+        error_message += "\ta.size = " + std::to_string(a.size()) + "\n";
+        error_message += "\tb.size = " + std::to_string(b.size()) + "\n";
+        std::cerr << error_message << std::endl;
+        throw std::invalid_argument(error_message);
     }
 
     double norm = 0.;
@@ -918,6 +918,24 @@ double vectorL2Norm(Vector<NumericalType>& a, Vector<NumericalType>& b) {
     }
     return sqrt(norm);
 
+}
+
+template<typename NumericalType>
+Vector<NumericalType> linspace(NumericalType a, NumericalType b, int N) {
+    if (a >= b) {
+        std::string error_message = "[EllipticForest::Vector::linspace] Lower limit `a` is greater than or equal to upper limit `b`:\n";
+        error_message += "\ta = " + std::to_string(a) + "\n";
+        error_message += "\tb = " + std::to_string(b) + "\n";
+        std::cerr << error_message << std::endl;
+        throw std::invalid_argument(error_message);
+    }
+
+    Vector<NumericalType> out(N);
+    double dx = (b - a) / (N - 1);
+    for (int i = 0; i < N; i++) {
+        out[i] = i*dx + a;
+    }
+    return out;
 }
 
 namespace MPI {

@@ -56,3 +56,16 @@ TEST(Vector, init) {
     
 
 }
+
+TEST(Vector, linspace) {
+    double a = 0;
+    double b = 1;
+    int N = 10;
+    Vector<double> v1_act = linspace(a, b, N);
+
+    Vector<double> v1_exp = {0., 0.1111, 0.2222, 0.3333, 0.4444, 0.5556, 0.6667, 0.7778, 0.8889, 1.0};
+
+    for (int i = 0; i < N; i++) {
+        EXPECT_NEAR(v1_act[i], v1_exp[i], 1e-4);
+    }
+}

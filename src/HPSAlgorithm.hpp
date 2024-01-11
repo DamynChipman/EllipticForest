@@ -517,6 +517,27 @@ public:
         return;
     }
 
+    static void merge4to1ExternalInterface(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+        
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        // app.logHead("Merging:");
+        // app.logHead("  alpha = %i", alpha.globalID);
+        // app.logHead("  beta = %i", beta.globalID);
+        // app.logHead("  gamma = %i", gamma.globalID);
+        // app.logHead("  omega = %i", omega.globalID);
+        // app.logHead("  tau = %i", tau.globalID);
+
+        // Steps for the merge (private member functions)
+        coarsen(tau, alpha, beta, gamma, omega);
+        mergeX(tau, alpha, beta, gamma, omega);
+        mergeS(tau, alpha, beta, gamma, omega);
+        mergeT(tau, alpha, beta, gamma, omega);
+        reorderOperators(tau, alpha, beta, gamma, omega);
+        mergePatch(tau, alpha, beta, gamma, omega);
+
+        return;
+    }
+
     /**
      * @brief Recursive upwards function
      * 
@@ -545,6 +566,14 @@ public:
             mergeW_(tau, alpha, beta, gamma, omega);
             mergeH_(tau, alpha, beta, gamma, omega);
             reorderOperatorsUpwards_(tau, alpha, beta, gamma, omega);
+
+            // coarsenUpwards(tau, alpha, beta, gamma, omega);
+            // createIndexSets(tau, alpha, beta, gamma, omega);
+            // createMatrixBlocks(tau, alpha, beta, gamma, omega);
+            // mergeX(tau, alpha, beta, gamma, omega);
+            // mergeW(tau, alpha, beta, gamma, omega);
+            // mergeH(tau, alpha, beta, gamma, omega);
+            // reorderOperatorsUpwards(tau, alpha, beta, gamma, omega);
         }
 
         return;
@@ -572,6 +601,8 @@ public:
         // Steps for the split (private member functions)
         uncoarsen_(tau, alpha, beta, gamma, omega);
         applyS_(tau, alpha, beta, gamma, omega);
+        // uncoarsen(tau, alpha, beta, gamma, omega);
+        // applyS(tau, alpha, beta, gamma, omega);
 
         return;
     }
@@ -695,6 +726,32 @@ private:
         return {tags};
     }
 
+public:
+
+    static Vector<int> tagPatchesForCoarsening(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+        
+        // Get data
+        std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
+        std::vector<PatchGridType*> grids = {&alpha.grid(), &beta.grid(), &gamma.grid(), &omega.grid()};
+        std::vector<int> sides(4);
+        std::vector<int> tags(4);
+        
+        // Get vector of side lengths
+        for (auto i = 0; i < 4; i++) 
+            sides[i] = patches[i]->size();
+
+        // Get minimum side length
+        int min_side = *std::min_element(sides.begin(), sides.end());
+
+        // Get tags based on side lengths
+        for (auto i = 0; i < 4; i++) 
+            tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(min_side));
+
+        return {tags};
+    }
+
+private:
+
     /**
      * @brief Coarsens the requisite data for the merge algorithm (DtN matrix)
      * 
@@ -739,6 +796,46 @@ private:
 
         return;
     }
+
+public:
+
+    static void coarsen(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Check for adaptivity
+        std::vector<PatchType*> patch_pointers = {&alpha, &beta, &gamma, &omega};
+        Vector<int> tags = tagPatchesForCoarsening(tau, alpha, beta, gamma, omega);
+
+        // Iterate over patches
+        for (auto i = 0; i < 4; i++) {
+            auto& patch = *patch_pointers[i];
+
+            // Iterate over number of tagged
+            for (auto n = 0; n < tags[i]; n++) {
+                auto& grid = patch.grid();
+                int ngrid = grid.nx();
+                int coarsen_factor = tags[i] - (tags[i] - n);
+                int nfine = ngrid / pow(2, coarsen_factor);
+                int ncoarse = nfine / 2;
+
+                InterpolationMatrixFine2Coarse<double> L21_side(ncoarse);
+                std::vector<Matrix<double>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<double> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+                InterpolationMatrixCoarse2Fine<double> L12_side(nfine);
+                std::vector<Matrix<double>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                Matrix<double> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                patch.matrixT() = L21_patch * patch.matrixT();
+                patch.matrixT() = patch.matrixT() * L12_patch;
+
+                patch.n_coarsens++;
+            }
+        }
+
+        return;
+    }
+
+private:
 
     /**
      * @brief Creates the index sets for the HPS method
@@ -894,6 +991,113 @@ private:
         return;
     }
 
+public:
+
+    static void mergeX(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Create index sets
+        int nside = alpha.matrixT().nRows() / 4;
+
+        Vector<int> I_W = vectorRange(0, nside-1);
+        Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+        Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+        Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
+
+        Vector<int> IS_alpha_beta_ = I_E;
+        Vector<int> IS_alpha_gamma_ = I_N;
+        Vector<int> IS_alpha_tau_ = concatenate({I_W, I_S});
+        
+        Vector<int> IS_beta_alpha_ = I_W;
+        Vector<int> IS_beta_omega_ = I_N;
+        Vector<int> IS_beta_tau_ = concatenate({I_E, I_S});
+        
+        Vector<int> IS_gamma_alpha_ = I_S;
+        Vector<int> IS_gamma_omega_ = I_E;
+        Vector<int> IS_gamma_tau_ = concatenate({I_W, I_N});
+
+        Vector<int> IS_omega_beta_ = I_S;
+        Vector<int> IS_omega_gamma_ = I_W;
+        Vector<int> IS_omega_tau_ = concatenate({I_E, I_N});
+
+        // Create sub-matrices
+        // Blocks for X_tau
+        Matrix<NumericalType> T_ag_ag = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_ga_ga = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_ag_ab = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_beta_);
+        Matrix<NumericalType> T_ga_go = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_omega_);
+        Matrix<NumericalType> T_bo_bo = beta.matrixT()(IS_beta_omega_, IS_beta_omega_);
+        Matrix<NumericalType> T_ob_ob = omega.matrixT()(IS_omega_beta_, IS_omega_beta_);
+        Matrix<NumericalType> T_bo_ba = beta.matrixT()(IS_beta_omega_, IS_beta_alpha_);
+        Matrix<NumericalType> T_ob_og = omega.matrixT()(IS_omega_beta_, IS_omega_gamma_);
+        Matrix<NumericalType> T_ab_ag = alpha.matrixT()(IS_alpha_beta_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_ba_bo = beta.matrixT()(IS_beta_alpha_, IS_beta_omega_);
+        Matrix<NumericalType> T_ab_ab = alpha.matrixT()(IS_alpha_beta_, IS_alpha_beta_);
+        Matrix<NumericalType> T_ba_ba = beta.matrixT()(IS_beta_alpha_, IS_beta_alpha_);
+        Matrix<NumericalType> T_go_ga = gamma.matrixT()(IS_gamma_omega_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_og_ob = omega.matrixT()(IS_omega_gamma_, IS_omega_beta_);
+        Matrix<NumericalType> T_go_go = gamma.matrixT()(IS_gamma_omega_, IS_gamma_omega_);
+        Matrix<NumericalType> T_og_og = omega.matrixT()(IS_omega_gamma_, IS_omega_gamma_);
+
+        // Blocks for S_tau
+        Matrix<NumericalType> T_ag_at = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_tau_);
+        Matrix<NumericalType> T_ga_gt = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_tau_);
+        Matrix<NumericalType> T_bo_bt = beta.matrixT()(IS_beta_omega_, IS_beta_tau_);
+        Matrix<NumericalType> T_ob_ot = omega.matrixT()(IS_omega_beta_, IS_omega_tau_);
+        Matrix<NumericalType> T_ab_at = alpha.matrixT()(IS_alpha_beta_, IS_alpha_tau_);
+        Matrix<NumericalType> T_ba_bt = beta.matrixT()(IS_beta_alpha_, IS_beta_tau_);
+        Matrix<NumericalType> T_go_gt = gamma.matrixT()(IS_gamma_omega_, IS_gamma_tau_);
+        Matrix<NumericalType> T_og_ot = omega.matrixT()(IS_omega_gamma_, IS_omega_tau_);
+
+        // Blocks for T_tau
+        Matrix<NumericalType> T_at_at = alpha.matrixT()(IS_alpha_tau_, IS_alpha_tau_);
+        Matrix<NumericalType> T_bt_bt = beta.matrixT()(IS_beta_tau_, IS_beta_tau_);
+        Matrix<NumericalType> T_gt_gt = gamma.matrixT()(IS_gamma_tau_, IS_gamma_tau_);
+        Matrix<NumericalType> T_ot_ot = omega.matrixT()(IS_omega_tau_, IS_omega_tau_);
+        Matrix<NumericalType> T_at_ag = alpha.matrixT()(IS_alpha_tau_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_at_ab = alpha.matrixT()(IS_alpha_tau_, IS_alpha_beta_);
+        Matrix<NumericalType> T_bt_bo = beta.matrixT()(IS_beta_tau_, IS_beta_omega_);
+        Matrix<NumericalType> T_bt_ba = beta.matrixT()(IS_beta_tau_, IS_beta_alpha_);
+        Matrix<NumericalType> T_gt_ga = gamma.matrixT()(IS_gamma_tau_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_gt_go = gamma.matrixT()(IS_gamma_tau_, IS_gamma_omega_);
+        Matrix<NumericalType> T_ot_ob = omega.matrixT()(IS_omega_tau_, IS_omega_beta_);
+        Matrix<NumericalType> T_ot_og = omega.matrixT()(IS_omega_tau_, IS_omega_gamma_);
+
+        // Negate blocks that need it
+        T_ga_go = -T_ga_go;
+        T_ob_og = -T_ob_og;
+        T_ba_bo = -T_ba_bo;
+        T_og_ob = -T_og_ob;
+        T_ag_at = -T_ag_at;
+        T_bo_bt = -T_bo_bt;
+        T_ab_at = -T_ab_at;
+        T_go_gt = -T_go_gt;
+
+        // Create diagonals
+        Matrix<double> T_diag1 = T_ag_ag - T_ga_ga;
+        Matrix<double> T_diag2 = T_bo_bo - T_ob_ob;
+        Matrix<double> T_diag3 = T_ab_ab - T_ba_ba;
+        Matrix<double> T_diag4 = T_go_go - T_og_og;
+        std::vector<Matrix<double>> diag = {T_diag1, T_diag2, T_diag3, T_diag4};
+
+        // Create row and column block index starts
+        std::vector<std::size_t> row_starts = { 0, T_diag1.nRows(), T_diag1.nRows() + T_diag2.nRows(), T_diag1.nRows() + T_diag2.nRows() + T_diag3.nRows() };
+        std::vector<std::size_t> col_starts = { 0, T_diag1.nCols(), T_diag1.nCols() + T_diag2.nCols(), T_diag1.nCols() + T_diag2.nCols() + T_diag3.nCols() };
+        
+        // Create matrix and set blocks
+        tau.matrixX() = blockDiagonalMatrix(diag);
+        tau.matrixX().setBlock(row_starts[0], col_starts[2], T_ag_ab);
+        tau.matrixX().setBlock(row_starts[0], col_starts[3], T_ga_go);
+        tau.matrixX().setBlock(row_starts[1], col_starts[2], T_bo_ba);
+        tau.matrixX().setBlock(row_starts[1], col_starts[3], T_ob_og);
+        tau.matrixX().setBlock(row_starts[2], col_starts[0], T_ab_ag);
+        tau.matrixX().setBlock(row_starts[2], col_starts[1], T_ba_bo);
+        tau.matrixX().setBlock(row_starts[3], col_starts[0], T_go_ga);
+        tau.matrixX().setBlock(row_starts[3], col_starts[1], T_og_ob);
+
+    }
+
+private:
+
     /**
      * @brief Computes the merged matrix S
      * 
@@ -927,6 +1131,112 @@ private:
 
         return;
     }
+
+public:
+
+    static void mergeS(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Create index sets
+        int nside = alpha.matrixT().nRows() / 4;
+
+        Vector<int> I_W = vectorRange(0, nside-1);
+        Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+        Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+        Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
+
+        Vector<int> IS_alpha_beta_ = I_E;
+        Vector<int> IS_alpha_gamma_ = I_N;
+        Vector<int> IS_alpha_tau_ = concatenate({I_W, I_S});
+        
+        Vector<int> IS_beta_alpha_ = I_W;
+        Vector<int> IS_beta_omega_ = I_N;
+        Vector<int> IS_beta_tau_ = concatenate({I_E, I_S});
+        
+        Vector<int> IS_gamma_alpha_ = I_S;
+        Vector<int> IS_gamma_omega_ = I_E;
+        Vector<int> IS_gamma_tau_ = concatenate({I_W, I_N});
+
+        Vector<int> IS_omega_beta_ = I_S;
+        Vector<int> IS_omega_gamma_ = I_W;
+        Vector<int> IS_omega_tau_ = concatenate({I_E, I_N});
+
+        // Create sub-matrices
+        // Blocks for X_tau
+        Matrix<NumericalType> T_ag_ag = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_ga_ga = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_ag_ab = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_beta_);
+        Matrix<NumericalType> T_ga_go = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_omega_);
+        Matrix<NumericalType> T_bo_bo = beta.matrixT()(IS_beta_omega_, IS_beta_omega_);
+        Matrix<NumericalType> T_ob_ob = omega.matrixT()(IS_omega_beta_, IS_omega_beta_);
+        Matrix<NumericalType> T_bo_ba = beta.matrixT()(IS_beta_omega_, IS_beta_alpha_);
+        Matrix<NumericalType> T_ob_og = omega.matrixT()(IS_omega_beta_, IS_omega_gamma_);
+        Matrix<NumericalType> T_ab_ag = alpha.matrixT()(IS_alpha_beta_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_ba_bo = beta.matrixT()(IS_beta_alpha_, IS_beta_omega_);
+        Matrix<NumericalType> T_ab_ab = alpha.matrixT()(IS_alpha_beta_, IS_alpha_beta_);
+        Matrix<NumericalType> T_ba_ba = beta.matrixT()(IS_beta_alpha_, IS_beta_alpha_);
+        Matrix<NumericalType> T_go_ga = gamma.matrixT()(IS_gamma_omega_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_og_ob = omega.matrixT()(IS_omega_gamma_, IS_omega_beta_);
+        Matrix<NumericalType> T_go_go = gamma.matrixT()(IS_gamma_omega_, IS_gamma_omega_);
+        Matrix<NumericalType> T_og_og = omega.matrixT()(IS_omega_gamma_, IS_omega_gamma_);
+
+        // Blocks for S_tau
+        Matrix<NumericalType> T_ag_at = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_tau_);
+        Matrix<NumericalType> T_ga_gt = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_tau_);
+        Matrix<NumericalType> T_bo_bt = beta.matrixT()(IS_beta_omega_, IS_beta_tau_);
+        Matrix<NumericalType> T_ob_ot = omega.matrixT()(IS_omega_beta_, IS_omega_tau_);
+        Matrix<NumericalType> T_ab_at = alpha.matrixT()(IS_alpha_beta_, IS_alpha_tau_);
+        Matrix<NumericalType> T_ba_bt = beta.matrixT()(IS_beta_alpha_, IS_beta_tau_);
+        Matrix<NumericalType> T_go_gt = gamma.matrixT()(IS_gamma_omega_, IS_gamma_tau_);
+        Matrix<NumericalType> T_og_ot = omega.matrixT()(IS_omega_gamma_, IS_omega_tau_);
+
+        // Blocks for T_tau
+        Matrix<NumericalType> T_at_at = alpha.matrixT()(IS_alpha_tau_, IS_alpha_tau_);
+        Matrix<NumericalType> T_bt_bt = beta.matrixT()(IS_beta_tau_, IS_beta_tau_);
+        Matrix<NumericalType> T_gt_gt = gamma.matrixT()(IS_gamma_tau_, IS_gamma_tau_);
+        Matrix<NumericalType> T_ot_ot = omega.matrixT()(IS_omega_tau_, IS_omega_tau_);
+        Matrix<NumericalType> T_at_ag = alpha.matrixT()(IS_alpha_tau_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_at_ab = alpha.matrixT()(IS_alpha_tau_, IS_alpha_beta_);
+        Matrix<NumericalType> T_bt_bo = beta.matrixT()(IS_beta_tau_, IS_beta_omega_);
+        Matrix<NumericalType> T_bt_ba = beta.matrixT()(IS_beta_tau_, IS_beta_alpha_);
+        Matrix<NumericalType> T_gt_ga = gamma.matrixT()(IS_gamma_tau_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_gt_go = gamma.matrixT()(IS_gamma_tau_, IS_gamma_omega_);
+        Matrix<NumericalType> T_ot_ob = omega.matrixT()(IS_omega_tau_, IS_omega_beta_);
+        Matrix<NumericalType> T_ot_og = omega.matrixT()(IS_omega_tau_, IS_omega_gamma_);
+
+        // Negate blocks that need it
+        T_ga_go = -T_ga_go;
+        T_ob_og = -T_ob_og;
+        T_ba_bo = -T_ba_bo;
+        T_og_ob = -T_og_ob;
+        T_ag_at = -T_ag_at;
+        T_bo_bt = -T_bo_bt;
+        T_ab_at = -T_ab_at;
+        T_go_gt = -T_go_gt;
+
+        // Create right hand side
+        std::size_t nrows = T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() + T_go_gt.nRows();
+        std::size_t ncols = T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() + T_ob_ot.nCols();
+        Matrix<double> S_RHS(nrows, ncols, 0);
+
+        std::vector<std::size_t> row_starts = { 0, T_ag_at.nRows(), T_ag_at.nRows() + T_bo_bt.nRows(), T_ag_at.nRows() + T_bo_bt.nRows() + T_ab_at.nRows() };
+        std::vector<std::size_t> col_starts = { 0, T_ag_at.nCols(), T_ag_at.nCols() + T_bo_bt.nCols(), T_ag_at.nCols() + T_bo_bt.nCols() + T_ga_gt.nCols() };
+
+        S_RHS.setBlock(row_starts[0], col_starts[0], T_ag_at);
+        S_RHS.setBlock(row_starts[0], col_starts[2], T_ga_gt);
+        S_RHS.setBlock(row_starts[1], col_starts[1], T_bo_bt);
+        S_RHS.setBlock(row_starts[1], col_starts[3], T_ob_ot);
+        S_RHS.setBlock(row_starts[2], col_starts[0], T_ab_at);
+        S_RHS.setBlock(row_starts[2], col_starts[1], T_ba_bt);
+        S_RHS.setBlock(row_starts[3], col_starts[2], T_go_gt);
+        S_RHS.setBlock(row_starts[3], col_starts[3], T_og_ot);
+        
+        // Solve to set S_tau
+        tau.matrixS() = solve(tau.matrixX(), S_RHS);
+
+        return;
+    }
+
+private:
 
     /**
      * @brief Computes the merged matrix T
@@ -967,6 +1277,117 @@ private:
         return;
     }
 
+public:
+
+    static void mergeT(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Create index sets
+        int nside = alpha.matrixT().nRows() / 4;
+
+        Vector<int> I_W = vectorRange(0, nside-1);
+        Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+        Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+        Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
+
+        Vector<int> IS_alpha_beta_ = I_E;
+        Vector<int> IS_alpha_gamma_ = I_N;
+        Vector<int> IS_alpha_tau_ = concatenate({I_W, I_S});
+        
+        Vector<int> IS_beta_alpha_ = I_W;
+        Vector<int> IS_beta_omega_ = I_N;
+        Vector<int> IS_beta_tau_ = concatenate({I_E, I_S});
+        
+        Vector<int> IS_gamma_alpha_ = I_S;
+        Vector<int> IS_gamma_omega_ = I_E;
+        Vector<int> IS_gamma_tau_ = concatenate({I_W, I_N});
+
+        Vector<int> IS_omega_beta_ = I_S;
+        Vector<int> IS_omega_gamma_ = I_W;
+        Vector<int> IS_omega_tau_ = concatenate({I_E, I_N});
+
+        // Create sub-matrices
+        // Blocks for X_tau
+        Matrix<NumericalType> T_ag_ag = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_ga_ga = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_ag_ab = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_beta_);
+        Matrix<NumericalType> T_ga_go = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_omega_);
+        Matrix<NumericalType> T_bo_bo = beta.matrixT()(IS_beta_omega_, IS_beta_omega_);
+        Matrix<NumericalType> T_ob_ob = omega.matrixT()(IS_omega_beta_, IS_omega_beta_);
+        Matrix<NumericalType> T_bo_ba = beta.matrixT()(IS_beta_omega_, IS_beta_alpha_);
+        Matrix<NumericalType> T_ob_og = omega.matrixT()(IS_omega_beta_, IS_omega_gamma_);
+        Matrix<NumericalType> T_ab_ag = alpha.matrixT()(IS_alpha_beta_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_ba_bo = beta.matrixT()(IS_beta_alpha_, IS_beta_omega_);
+        Matrix<NumericalType> T_ab_ab = alpha.matrixT()(IS_alpha_beta_, IS_alpha_beta_);
+        Matrix<NumericalType> T_ba_ba = beta.matrixT()(IS_beta_alpha_, IS_beta_alpha_);
+        Matrix<NumericalType> T_go_ga = gamma.matrixT()(IS_gamma_omega_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_og_ob = omega.matrixT()(IS_omega_gamma_, IS_omega_beta_);
+        Matrix<NumericalType> T_go_go = gamma.matrixT()(IS_gamma_omega_, IS_gamma_omega_);
+        Matrix<NumericalType> T_og_og = omega.matrixT()(IS_omega_gamma_, IS_omega_gamma_);
+
+        // Blocks for S_tau
+        Matrix<NumericalType> T_ag_at = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_tau_);
+        Matrix<NumericalType> T_ga_gt = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_tau_);
+        Matrix<NumericalType> T_bo_bt = beta.matrixT()(IS_beta_omega_, IS_beta_tau_);
+        Matrix<NumericalType> T_ob_ot = omega.matrixT()(IS_omega_beta_, IS_omega_tau_);
+        Matrix<NumericalType> T_ab_at = alpha.matrixT()(IS_alpha_beta_, IS_alpha_tau_);
+        Matrix<NumericalType> T_ba_bt = beta.matrixT()(IS_beta_alpha_, IS_beta_tau_);
+        Matrix<NumericalType> T_go_gt = gamma.matrixT()(IS_gamma_omega_, IS_gamma_tau_);
+        Matrix<NumericalType> T_og_ot = omega.matrixT()(IS_omega_gamma_, IS_omega_tau_);
+
+        // Blocks for T_tau
+        Matrix<NumericalType> T_at_at = alpha.matrixT()(IS_alpha_tau_, IS_alpha_tau_);
+        Matrix<NumericalType> T_bt_bt = beta.matrixT()(IS_beta_tau_, IS_beta_tau_);
+        Matrix<NumericalType> T_gt_gt = gamma.matrixT()(IS_gamma_tau_, IS_gamma_tau_);
+        Matrix<NumericalType> T_ot_ot = omega.matrixT()(IS_omega_tau_, IS_omega_tau_);
+        Matrix<NumericalType> T_at_ag = alpha.matrixT()(IS_alpha_tau_, IS_alpha_gamma_);
+        Matrix<NumericalType> T_at_ab = alpha.matrixT()(IS_alpha_tau_, IS_alpha_beta_);
+        Matrix<NumericalType> T_bt_bo = beta.matrixT()(IS_beta_tau_, IS_beta_omega_);
+        Matrix<NumericalType> T_bt_ba = beta.matrixT()(IS_beta_tau_, IS_beta_alpha_);
+        Matrix<NumericalType> T_gt_ga = gamma.matrixT()(IS_gamma_tau_, IS_gamma_alpha_);
+        Matrix<NumericalType> T_gt_go = gamma.matrixT()(IS_gamma_tau_, IS_gamma_omega_);
+        Matrix<NumericalType> T_ot_ob = omega.matrixT()(IS_omega_tau_, IS_omega_beta_);
+        Matrix<NumericalType> T_ot_og = omega.matrixT()(IS_omega_tau_, IS_omega_gamma_);
+
+        // Negate blocks that need it
+        T_ga_go = -T_ga_go;
+        T_ob_og = -T_ob_og;
+        T_ba_bo = -T_ba_bo;
+        T_og_ob = -T_og_ob;
+        T_ag_at = -T_ag_at;
+        T_bo_bt = -T_bo_bt;
+        T_ab_at = -T_ab_at;
+        T_go_gt = -T_go_gt;
+
+        // Create left hand side
+        std::vector<Matrix<double>> diag = {T_at_at, T_bt_bt, T_gt_gt, T_ot_ot};
+        Matrix<double> T_LHS = blockDiagonalMatrix(diag);
+
+        // Create right hand side
+        std::size_t nrows = T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() + T_ot_ob.nRows();
+        std::size_t ncols = T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() + T_gt_go.nCols();
+        tau.matrixH() = Matrix<double>(nrows, ncols, 0);
+
+        std::vector<std::size_t> row_starts = { 0, T_at_ag.nRows(), T_at_ag.nRows() + T_bt_bo.nRows(), T_at_ag.nRows() + T_bt_bo.nRows() + T_gt_ga.nRows() };
+        std::vector<std::size_t> col_starts = { 0, T_at_ag.nCols(), T_at_ag.nCols() + T_bt_bo.nCols(), T_at_ag.nCols() + T_bt_bo.nCols() + T_at_ab.nCols() };
+
+        tau.matrixH().setBlock(row_starts[0], col_starts[0], T_at_ag);
+        tau.matrixH().setBlock(row_starts[0], col_starts[2], T_at_ab);
+        tau.matrixH().setBlock(row_starts[1], col_starts[1], T_bt_bo);
+        tau.matrixH().setBlock(row_starts[1], col_starts[2], T_bt_ba);
+        tau.matrixH().setBlock(row_starts[2], col_starts[0], T_gt_ga);
+        tau.matrixH().setBlock(row_starts[2], col_starts[3], T_gt_go);
+        tau.matrixH().setBlock(row_starts[3], col_starts[1], T_ot_ob);
+        tau.matrixH().setBlock(row_starts[3], col_starts[3], T_ot_og);
+
+        // Compute and set T_tau
+        Matrix<double> T_RHS = tau.matrixH() * tau.matrixS();
+        tau.matrixT() = T_LHS + T_RHS;
+
+        return;
+    }
+
+private:
+
     /**
      * @brief Performs a permutation on the matrices S and T to stay in WESN ordering
      * 
@@ -992,6 +1413,26 @@ private:
         return;
     }
 
+public:
+
+    static void reorderOperators(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Form permutation vector and block sizes
+        int nside = alpha.matrixT().nRows() / 4;
+        Vector<int> pi_noChange = {0, 1, 2, 3};
+        Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
+        Vector<int> blockSizes1(4, nside);
+        Vector<int> blockSizes2(8, nside);
+
+        // Permute S and T
+        tau.matrixS() = tau.matrixS().blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
+        tau.matrixT() = tau.matrixT().blockPermute(pi_WESN, pi_WESN, blockSizes2, blockSizes2);
+
+        return;
+    }
+
+private:
+
     /**
      * @brief Merges the remaining data for the parent
      * 
@@ -1007,6 +1448,17 @@ private:
         tau.grid() = merged_grid;
 
     }
+
+public:
+
+    static void mergePatch(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        PatchGridType merged_grid(MPI_COMM_SELF, alpha.size() + beta.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.size() + gamma.size(), alpha.grid().yLower(), gamma.grid().yUpper());
+        tau.grid() = merged_grid;
+
+    }
+
+private:
 
     // ====================================================================================================
     // Steps for the upwards stage
@@ -1047,6 +1499,45 @@ private:
         return;
     }
 
+public:
+
+    /**
+     * @brief Coarsens the requisite data for the merge algorithm (h vector)
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
+    static void coarsenUpwards(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Check for adaptivity
+        std::vector<PatchType*> patch_pointers = {&alpha, &beta, &gamma, &omega};
+
+        // Iterate over patches
+        for (auto i = 0; i < 4; i++) {
+            auto& patch = *patch_pointers[i];
+
+            // Iterate over tagged patches
+            for (auto n = 0; n < patch.n_coarsens; n++) {
+                auto& grid = patch.grid();
+                int ngrid = grid.nx();
+                int nfine = ngrid / pow(2, n);
+                int ncoarse = nfine / 2;
+
+                InterpolationMatrixFine2Coarse<double> L21_side(ncoarse);
+                std::vector<Matrix<double>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<double> L21_patch = blockDiagonalMatrix(L21_diagonals);
+                patch_pointers[i]->vectorH() = L21_patch * patch_pointers[i]->vectorH();
+            }
+        }
+
+        return;
+    }
+
+private:
+
     /**
      * @brief Computes the merged vector w
      * 
@@ -1086,6 +1577,73 @@ private:
         return;
     }
 
+public:
+
+    /**
+     * @brief Computes the merged vector w
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
+    static void mergeW(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Create index sets
+        int nside = alpha.matrixT().nRows() / 4;
+
+        Vector<int> I_W = vectorRange(0, nside-1);
+        Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+        Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+        Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
+
+        Vector<int> IS_alpha_beta_ = I_E;
+        Vector<int> IS_alpha_gamma_ = I_N;
+        Vector<int> IS_alpha_tau_ = concatenate({I_W, I_S});
+        
+        Vector<int> IS_beta_alpha_ = I_W;
+        Vector<int> IS_beta_omega_ = I_N;
+        Vector<int> IS_beta_tau_ = concatenate({I_E, I_S});
+        
+        Vector<int> IS_gamma_alpha_ = I_S;
+        Vector<int> IS_gamma_omega_ = I_E;
+        Vector<int> IS_gamma_tau_ = concatenate({I_W, I_N});
+
+        Vector<int> IS_omega_beta_ = I_S;
+        Vector<int> IS_omega_gamma_ = I_W;
+        Vector<int> IS_omega_tau_ = concatenate({I_E, I_N});
+
+        // Form hDiff
+        Vector<double> h_ga = gamma.vectorH()(IS_gamma_alpha_);
+        Vector<double> h_ag = alpha.vectorH()(IS_alpha_gamma_);
+        Vector<double> h_ob = omega.vectorH()(IS_omega_beta_);
+        Vector<double> h_bo = beta.vectorH()(IS_beta_omega_);
+        Vector<double> h_ba = beta.vectorH()(IS_beta_alpha_);
+        Vector<double> h_ab = alpha.vectorH()(IS_alpha_beta_);
+        Vector<double> h_og = omega.vectorH()(IS_omega_gamma_);
+        Vector<double> h_go = gamma.vectorH()(IS_gamma_omega_);
+
+        Vector<double> h_diff_gamma_alpha = h_ga - h_ag;
+        Vector<double> h_diff_omega_beta = h_ob - h_bo;
+        Vector<double> h_diff_beta_alpha = h_ba - h_ab;
+        Vector<double> h_diff_omega_gamma = h_og - h_go;
+
+        Vector<double> hDiff = concatenate({
+            h_diff_gamma_alpha,
+            h_diff_omega_beta,
+            h_diff_beta_alpha,
+            h_diff_omega_gamma
+        });
+
+        // Compute and set w_tau
+        tau.vectorW() = solve(tau.matrixX(), hDiff);
+
+        return;
+    }
+
+private:
+
     /**
      * @brief Computes the merged vector h
      * 
@@ -1115,6 +1673,64 @@ private:
 
         return;
     }
+
+public:
+
+    /**
+     * @brief Computes the merged vector h
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
+    static void mergeH(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Create index sets
+        int nside = alpha.matrixT().nRows() / 4;
+
+        Vector<int> I_W = vectorRange(0, nside-1);
+        Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+        Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+        Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
+
+        Vector<int> IS_alpha_beta_ = I_E;
+        Vector<int> IS_alpha_gamma_ = I_N;
+        Vector<int> IS_alpha_tau_ = concatenate({I_W, I_S});
+        
+        Vector<int> IS_beta_alpha_ = I_W;
+        Vector<int> IS_beta_omega_ = I_N;
+        Vector<int> IS_beta_tau_ = concatenate({I_E, I_S});
+        
+        Vector<int> IS_gamma_alpha_ = I_S;
+        Vector<int> IS_gamma_omega_ = I_E;
+        Vector<int> IS_gamma_tau_ = concatenate({I_W, I_N});
+
+        Vector<int> IS_omega_beta_ = I_S;
+        Vector<int> IS_omega_gamma_ = I_W;
+        Vector<int> IS_omega_tau_ = concatenate({I_E, I_N});
+
+        // Compute and set h_tau
+        tau.vectorH() = tau.matrixH() * tau.vectorW();
+
+        // Update with boundary h
+        Vector<double> h_alpha_tau = alpha.vectorH()(IS_alpha_tau_);
+        Vector<double> h_beta_tau = beta.vectorH()(IS_beta_tau_);
+        Vector<double> h_gamma_tau = gamma.vectorH()(IS_gamma_tau_);
+        Vector<double> h_omega_tau = omega.vectorH()(IS_omega_tau_);
+        Vector<double> h_update = concatenate({
+            h_alpha_tau,
+            h_beta_tau,
+            h_gamma_tau,
+            h_omega_tau
+        });
+        tau.vectorH() += h_update;
+
+        return;
+    }
+
+private:
 
     /**
      * @brief Performs a permutation on the vector h to stay in WESN ordering
@@ -1149,6 +1765,43 @@ private:
         tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
     }
 
+public:
+
+    /**
+     * @brief Performs a permutation on the vector h to stay in WESN ordering
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
+    static void reorderOperatorsUpwards(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // int nalpha = alpha.grid().nx();
+        // int nbeta = beta.grid().nx();
+        // int ngamma = gamma.grid().nx();
+        // int nomega = omega.grid().nx();
+        int nalpha = alpha.size();
+        int nbeta = beta.size();
+        int ngamma = gamma.size();
+        int nomega = omega.size();
+        Vector<int> n = {nalpha, nbeta, ngamma, nomega};
+        if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
+            throw std::invalid_argument("[EllipticForest::HPSAlgorithm::reorderOperatorsUpwards_] Size of children patches are not the same; something probably went wrong with the coarsening...");
+        }
+
+        // Form permutation vector and block sizes
+        int nside = alpha.matrixT().nRows() / 4;
+        Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
+        Vector<int> blockSizes(8, nside);
+
+        // Reorder
+        tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
+    }
+
+private:
+
     // ====================================================================================================
     // Steps for the solve stage
     // ====================================================================================================
@@ -1182,6 +1835,39 @@ private:
         return;
     }
 
+public:
+
+    /**
+     * @brief Uncoarsens a patch that was tagged for coarsening in the build stage by averaging data to finer data
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
+    static void uncoarsen(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+
+        for (auto n = 0; n < tau.n_coarsens; n++) {
+            auto& grid = tau.grid();
+            int ngrid = grid.nx();
+            int coarsen_factor = tau.n_coarsens - (n + 1);
+            int nfine = ngrid / pow(2, coarsen_factor);
+            int ncoarse = nfine / 2;
+
+            InterpolationMatrixCoarse2Fine<double> L12_side(nfine);
+            std::vector<Matrix<double>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            Matrix<double> L12_patch = blockDiagonalMatrix(L12_diagonals);
+            tau.vectorG() = L12_patch * tau.vectorG();
+        }
+     
+        return;
+    }
+
+private:
+
     /**
      * @brief Applies the S operator to map the exterior solution data to interior solution data
      * 
@@ -1196,6 +1882,54 @@ private:
         // Apply solution operator to get interior of tau
         Vector<double> u_tau_interior = tau.matrixS() * tau.vectorG();
         Vector<double> u_tau_interior_intermediate = u_tau_interior;
+
+        // Apply non-homogeneous contribution
+        EllipticForestApp& app = EllipticForestApp::getInstance();
+        if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+            u_tau_interior = u_tau_interior + tau.vectorW();
+        }
+
+        // Extract components of interior of tau
+        int nside = alpha.size();
+        Vector<double> g_alpha_gamma = u_tau_interior.getSegment(0*nside, nside);
+        Vector<double> g_beta_omega = u_tau_interior.getSegment(1*nside, nside);
+        Vector<double> g_alpha_beta = u_tau_interior.getSegment(2*nside, nside);
+        Vector<double> g_gamma_omega = u_tau_interior.getSegment(3*nside, nside);
+
+        // Extract components of exterior of tau
+        Vector<double> g_alpha_W = tau.vectorG().getSegment(0*nside, nside);
+        Vector<double> g_gamma_W = tau.vectorG().getSegment(1*nside, nside);
+        Vector<double> g_beta_E = tau.vectorG().getSegment(2*nside, nside);
+        Vector<double> g_omega_E = tau.vectorG().getSegment(3*nside, nside);
+        Vector<double> g_alpha_S = tau.vectorG().getSegment(4*nside, nside);
+        Vector<double> g_beta_S = tau.vectorG().getSegment(5*nside, nside);
+        Vector<double> g_gamma_N = tau.vectorG().getSegment(6*nside, nside);
+        Vector<double> g_omega_N = tau.vectorG().getSegment(7*nside, nside);
+
+        // Set child patch Dirichlet data
+        alpha.vectorG() = concatenate({g_alpha_W, g_alpha_beta, g_alpha_S, g_alpha_gamma});
+        beta.vectorG() = concatenate({g_alpha_beta, g_beta_E, g_beta_S, g_beta_omega});
+        gamma.vectorG() = concatenate({g_gamma_W, g_gamma_omega, g_alpha_gamma, g_gamma_N});
+        omega.vectorG() = concatenate({g_gamma_omega, g_omega_E, g_beta_omega, g_omega_N});
+
+        return;
+    }
+
+public:
+
+    /**
+     * @brief Applies the S operator to map the exterior solution data to interior solution data
+     * 
+     * @param tau Parent patch
+     * @param alpha Lower-left patch
+     * @param beta Lower-right patch
+     * @param gamma Upper-left patch
+     * @param omega Upper-right patch
+     */
+    static void applyS(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+
+        // Apply solution operator to get interior of tau
+        Vector<double> u_tau_interior = tau.matrixS() * tau.vectorG();
 
         // Apply non-homogeneous contribution
         EllipticForestApp& app = EllipticForestApp::getInstance();

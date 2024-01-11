@@ -90,7 +90,7 @@ public:
         plast(plast) {
 
 		// Create node communicator that is a subset of the tree communicator
-		// MPI::communicatorSubsetRange(comm, pfirst, plast, 20+level, &node_comm);
+		MPI::communicatorSubsetRange(comm, pfirst, plast, 20+level, &node_comm);
 
 	}
 

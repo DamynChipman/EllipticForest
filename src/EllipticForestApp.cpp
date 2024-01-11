@@ -20,6 +20,10 @@ EllipticForestApp::EllipticForestApp(int* argc, char*** argv) :
     PetscGetArgs(argc_, argv_);
 #endif
 
+    // Default options
+    options["cache-operators"] = false;
+    options["homogeneous-rhs"] = false;
+
     // Create options
     InputParser inputParser(*argc_, *argv_);
     inputParser.parse(options);

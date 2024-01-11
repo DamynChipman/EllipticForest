@@ -6,6 +6,9 @@
 
 namespace EllipticForest {
 
+// Forward declaration
+class BilinearInterpolant;
+
 /**
  * @brief Base interpolant class used for interpolating sets of data
  * 
@@ -112,6 +115,8 @@ private:
      */
     int hunt_(const double x);
 
+    friend class BilinearInterpolant;
+
 };
 
 class LinearInterpolant : public InterpolantBase {
@@ -136,6 +141,30 @@ protected:
      * @return double 
      */
     virtual double rawInterp(int j, double x);
+
+};
+
+class BilinearInterpolant {
+
+protected:
+
+    int m;
+
+    int n;
+
+    const Vector<double>& y;
+
+    LinearInterpolant x1_interpolant;
+
+    LinearInterpolant x2_interpolant;
+
+public:
+
+    BilinearInterpolant(Vector<double>& x1, Vector<double>& x2, Vector<double>& y);
+
+    double operator()(double x1, double x2);
+
+    Vector<double> operator()(Vector<double>& x1, Vector<double>& x2);
 
 };
 

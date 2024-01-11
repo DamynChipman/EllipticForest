@@ -38,6 +38,13 @@ enum NodeCommunicationPolicy {
 	STRIPE
 };
 
+enum BalancePolicy {
+	SELF,
+	FACE,
+	CORNER,
+	FULL
+};
+
 template<typename T>
 class Quadtree : public MPI::MPIObject {
 
@@ -125,7 +132,7 @@ public:
 
 		// Store root data in map
 		std::string root_path = "0";
-		map[root_path] = this->node_factory->createNode(root_data, root_path, 0, 0, this->getSize());
+		map[root_path] = this->node_factory->createNode(root_data, root_path, 0, 0, this->getSize()-1);
 		map[root_path]->leaf = true;
 
 	}
@@ -217,11 +224,26 @@ public:
 
 	}
 
+	Quadtree(Quadtree& other) :
+		MPIObject(other.getComm()),
+		p4est(other.p4est),
+		root_data_ptr_(&(other.root())),
+		node_factory(other.node_factory) {
+
+		//
+		map = other.map;
+		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
+			iter->second = new Node<T>(*other.map[iter->first]);
+		}
+
+	}
+
 	/**
 	 * @brief Destroy the Quadtree object; deletes allocated map data
 	 * 
 	 */
 	~Quadtree() {
+		std::cout << "Quadtree DESTRUCTOR called" << std::endl;
 		// Iterate through map and delete any owned nodes
 		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
 			if (iter->second != nullptr) {
@@ -564,6 +586,37 @@ public:
 
 	}
 
+	void balance(BalancePolicy balance_policy) {
+		
+		p4est_connect_type_t btype;
+		switch (balance_policy) {
+			case BalancePolicy::SELF:
+				btype = P4EST_CONNECT_SELF;
+				break;
+
+			case BalancePolicy::FACE:
+				btype = P4EST_CONNECT_FACE;
+				break;
+
+			case BalancePolicy::CORNER:
+				btype = P4EST_CONNECT_CORNER;
+				break;
+
+			case BalancePolicy::FULL:
+				btype = P4EST_CONNECT_FULL;
+				break;
+			
+			default:
+				break;
+		}
+		p4est_balance(
+			p4est,
+			btype,
+			p4est_init_balance
+		);
+
+	}
+
 	/**
 	 * @brief WIP
 	 * 
@@ -619,6 +672,22 @@ public:
 		// 	nullptr,
 		// 	nullptr
 		// );
+
+	}
+
+	void adapt(int min_level, int max_level, std::function<int(std::vector<Node<T>*>)> coarsen_function, std::function<int(Node<T>*)> refine_function) {
+
+		for (int l = max_level; l > min_level; l--) {
+			coarsen(false, coarsen_function);
+			balance(BalancePolicy::FACE);
+			// partition();
+		}
+		for (int l = min_level; l < max_level; l++) {
+			refine(false, refine_function);
+			balance(BalancePolicy::FACE);
+			// partition();
+		}
+		return;
 
 	}
 
@@ -792,6 +861,7 @@ public:
 		int plast = parent_node->plast;
 		map[path] = quadtree.node_factory->createChildNode(parent_node, sibling_id, pfirst, plast);
 		map[path]->leaf = true;
+		parent_node->leaf = false;
 	}
 
 	/**
@@ -820,7 +890,9 @@ public:
 		for (auto child_path : children_paths) {
 			if (map[child_path] != nullptr) {
 				delete map[child_path];
-				map[child_path] = nullptr;
+				auto it = map.find(child_path);
+				map.erase(it);
+				// map[child_path] = nullptr;
 			}
 		}
 	}
@@ -864,6 +936,30 @@ public:
 			nodes[i] = map[paths[i]];
 		}
 		return quadtree.visit_siblings_fn(nodes);
+	}
+
+	/**
+	 * @brief Callback provided to `p4est_balance` for initializing newly balanced nodes
+	 * 
+	 * @param p4est The forest
+	 * @param which_tree The tree containing quadrant
+	 * @param quadrant The quadrant to be initialized
+	 */
+	static void p4est_init_balance(p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant) {
+		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
+		auto& map = quadtree.map;
+		auto path = p4est::p4est_quadrant_path(quadrant);
+
+		// TODO: Figure out how to determine if a quadrant is being refined or coarsened
+		// NOTE: Not working because p4est wants to create grandchild instead of children
+		bool quad_refined = map.find(path) == map.end();
+
+		if (quad_refined) {
+			p4est_init_refined_callback(p4est, which_tree, quadrant);
+		}
+		else {
+			p4est_init_coarsened_callback(p4est, which_tree, quadrant);
+		}
 	}
 
 };

@@ -120,4 +120,45 @@ double LinearInterpolant::rawInterp(int j, double x) {
     }
 }
 
+BilinearInterpolant::BilinearInterpolant(Vector<double>& x1, Vector<double>& x2, Vector<double>& y) :
+    m(x1.size()),
+    n(x2.size()),
+    y(y),
+    x1_interpolant(x1, x1),
+    x2_interpolant(x2, x2)
+        {}
+
+double BilinearInterpolant::operator()(double x1, double x2) {
+
+    int i,j;
+    double yy, t, u;
+    i = x1_interpolant.cor ? x1_interpolant.hunt_(x1) : x1_interpolant.locate_(x1);
+    j = x2_interpolant.cor ? x2_interpolant.hunt_(x2) : x2_interpolant.locate_(x2);
+
+    int ii0 = j + i*n;
+    int ii1 = j + (i+1)*n;
+    int ii2 = (j+1) + (i+1)*n;
+    int ii3 = (j+1) + i*n;
+    t = (x1 - x1_interpolant.xx[i])/(x1_interpolant.xx[i+1] - x1_interpolant.xx[i]);
+    u = (x2 - x2_interpolant.xx[j])/(x2_interpolant.xx[j+1] - x2_interpolant.xx[j]);
+    yy = (1. - t)*(1. - u)*y[ii0] + t*(1. - u)*y[ii1] + t*u*y[ii2] + (1. - t)*u*y[ii3];
+    return yy;
+
+}
+
+Vector<double> BilinearInterpolant::operator()(Vector<double>& x1, Vector<double>& x2) {
+
+    Vector<double> yy(x1.size()*x2.size());
+    for (int i = 0; i < x1.size(); i++) {
+        double xx1 = x1[i];
+        for (int j = 0; j < x2.size(); j++) {
+            double xx2 = x2[j];
+            int ii = j + i*x2.size();
+            yy[ii] = operator()(xx1, xx2);
+        }
+    }
+    return yy;
+
+}
+
 };

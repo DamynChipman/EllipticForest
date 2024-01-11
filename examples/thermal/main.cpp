@@ -58,6 +58,9 @@
 #include <EllipticForest.hpp>
 #include <Patches/FiniteVolume/FiniteVolume.hpp>
 
+const double TIME_START = 0;
+const double TIME_FINAL = 100;
+
 /**
  * @brief Function for west boundary
  * 
@@ -69,7 +72,7 @@
 double uWest(double x, double y, double t) {
     EllipticForest::EllipticForestApp& app = EllipticForest::EllipticForestApp::getInstance();
     double T_L = std::get<double>(app.options["T-left"]);
-    return T_L*sin(y);
+    return T_L;
 }
 
 /**
@@ -119,7 +122,15 @@ double dudnNorth(double x, double y, double t) {
  * @return double 
  */
 double sources(double x, double y, double t) {
-    return 0.0;
+    double period = 2.0*M_PI / TIME_FINAL;
+    double x0 = 5.0*sin(period*t);
+    double y0 = 5.0*cos(period*t);
+    double amplitude = 100.0;
+    double sigma_x = 0.2;
+    double sigma_y = 0.2;
+    double k = 1;
+    double Q = amplitude*exp(-(pow(x - x0, 2)/(2.0*pow(sigma_x,2)) + pow(y - y0, 2)/(2.0*pow(sigma_y, 2))));
+    return Q / k;
 }
 
 /**
@@ -189,10 +200,10 @@ int main(int argc, char** argv) {
     double threshold = 1.0;
     app.options.setOption("refinement-threshold", threshold);
     
-    int min_level = 1;
+    int min_level = 2;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 6;
+    int max_level = 5;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
@@ -213,10 +224,10 @@ int main(int argc, char** argv) {
     int ny = 16;
     app.options.setOption("ny", ny);
 
-    double t_start = 0.0;
+    double t_start = TIME_START;
     app.options.setOption("t-start", t_start);
 
-    double t_end = 100.0;
+    double t_end = TIME_FINAL;
     app.options.setOption("t-end", t_end);
 
     double nt = 100;
@@ -228,34 +239,23 @@ int main(int argc, char** argv) {
     int n_vtk = 2;
     app.options.setOption("n-vtk", n_vtk);
 
-    double T_L = 40;
+    double T_L = 20;
     app.options.setOption("T-left", T_L);
 
     double T_R = 20;
     app.options.setOption("T-right", T_R);
+
+    double refine_threshold = 2.0;
+    app.options.setOption("refine-threshold", refine_threshold);
+
+    double coarsen_threshold = 1.0;
+    app.options.setOption("coarsen-threshold", coarsen_threshold);
 
     // ====================================================
     // Create grid and patch prototypes
     // ====================================================
     EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
     EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
-
-    // ====================================================
-    // Create node factory and mesh
-    // ====================================================
-    EllipticForest::FiniteVolumeNodeFactory nodeFactory{};
-    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
-    mesh.refineByFunction(
-        [&](double x, double y){
-            double eps = 1.0;
-            return (x_lower + eps > x || x > x_upper - eps);
-        },
-        threshold,
-        min_level,
-        max_level,
-        root_patch,
-        nodeFactory
-    );
 
     // ====================================================
     // Create patch solver
@@ -265,6 +265,18 @@ int main(int argc, char** argv) {
     solver.alpha_function = alphaFunction;
     solver.beta_function = betaFunction;
     solver.lambda_function = lambdaFunction;
+
+    // ====================================================
+    // Create node factory and mesh
+    // ====================================================
+    EllipticForest::FiniteVolumeNodeFactory node_factory(mpi.getComm(), solver);
+    EllipticForest::Quadtree<EllipticForest::FiniteVolumePatch> quadtree(mpi.getComm(), root_patch, node_factory);
+    quadtree.refine(true,
+        [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+            return (int) node->level < min_level;
+        }
+    );
+    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh(quadtree);
 
     // ====================================================
     // Create and run HPS solver
@@ -326,15 +338,21 @@ int main(int argc, char** argv) {
             switch (side) {
                 case 0:
                     // West : Dirichlet
-                    *a = 1.0;
-                    *b = 0.0;
-                    return uWest(x, y, time);
+                    // *a = 1.0;
+                    // *b = 0.0;
+                    // return uWest(x, y, time);
+                    *a = 0.0;
+                    *b = 1.0;
+                    return (double) 0;
 
                 case 1:
                     // East : Dirichlet
-                    *a = 1.0;
-                    *b = 0.0;
-                    return uEast(x, y, time);
+                    // *a = 1.0;
+                    // *b = 0.0;
+                    // return uEast(x, y, time);
+                    *a = 0.0;
+                    *b = 1.0;
+                    return (double) 0;
 
                 case 2:
                     // South : Neumann
@@ -355,14 +373,13 @@ int main(int argc, char** argv) {
             return 0.0;
         });
 
-
         // ====================================================
         // Write solution and functions to file
         // ====================================================
         if (vtk_flag && n % n_vtk == 0) {
+            mesh.clear();
+            mesh.setMeshFromQuadtree();
             app.logHead("Output mesh: %04i", n_output);
-
-            mesh.clearMeshFunctions();
             
             // Extract out solution and right-hand side data stored on leaves
             EllipticForest::Vector<double> uMesh{};
@@ -403,6 +420,12 @@ int main(int argc, char** argv) {
                 },
                 "lambda_fn"
             );
+            mesh.addMeshFunction(
+                [&](double x, double y){
+                    return sources(x, y, time);
+                },
+                "sources"
+            );
 
             // Write VTK files:
             //      "thermal-mesh-{n}.pvtu"            : Parallel header file for mesh and data
@@ -411,7 +434,195 @@ int main(int argc, char** argv) {
             n_output++;
         }
 
-        app.logHead("============================");
+        // ====================================================
+        // Refine and coarsen the mesh
+        // ====================================================
+        mesh.quadtree.adapt(
+            min_level,
+            max_level,
+            // Coarsen function
+            [&](std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> nodes){
+                bool coarsen_nodes = false;
+                for (auto* child_node : nodes) {
+                    if (child_node->leaf) {
+                        auto& patch = child_node->data;
+                        auto& grid = patch.grid();
+                        auto& u = patch.vectorU();
+                        auto nx = grid.nx();
+                        auto ny = grid.ny();
+
+                        if (child_node->level <= min_level) {
+                            return 0;
+                        }
+
+                        for (int i = 0; i < nx; i++) {
+                            for (int j = 0; j < ny; j++) {
+                                double x = grid(0, i);
+                                double y = grid(1, j);
+                                // app.log("COARSEN: source = " + std::to_string(sources(x, y, time)));
+                                coarsen_nodes = (sources(x, y, time) < coarsen_threshold);
+
+                                if (coarsen_nodes) {
+                                    break;
+                                }
+                            }
+                            if (coarsen_nodes) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                return (int) coarsen_nodes;
+            },
+            // Refine function
+            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+                bool refine_node = false;
+                if (node->leaf) {
+                    auto& patch = node->data;
+                    auto& grid = patch.grid();
+                    auto& u = patch.vectorU();
+                    auto nx = grid.nx();
+                    auto ny = grid.ny();
+
+                    if (node->level >= max_level) {
+                        return 0;
+                    }
+
+                    for (int i = 0; i < nx; i++) {
+                        for (int j = 0; j < ny; j++) {
+                            double x = grid(0, i);
+                            double y = grid(1, j);
+                            refine_node = (sources(x, y, time) > refine_threshold);
+
+                            // int I_ij = j + i*ny;
+                            // int I_ip1j = j + (i+1)*ny;
+                            // int I_im1j = j + (i-1)*ny;
+                            // int I_ijp1 = (j+1) + i*ny;
+                            // int I_ijm1 = (j-1) + i*ny;
+
+                            // double u_ij = u(I_ij);
+                            // double u_ip1j = u(I_ip1j);
+                            // double u_im1j = u(I_im1j);
+                            // double u_ijp1 = u(I_ijp1);
+                            // double u_ijm1 = u(I_ijm1);
+
+                            // double dudx = (u_ip1j - u_im1j) / (2.0*grid.dx());
+                            // double dudy = (u_ijp1 - u_ijm1) / (2.0*grid.dy());
+                            // double mag_grad_u = sqrt(pow(dudx, 2) + pow(dudy, 2));
+                            // refine_node = mag_grad_u > refine_threshold;
+
+                            if (refine_node) {
+                                break;
+                            }
+                        }
+                        if (refine_node) {
+                            break;
+                        }
+                    }
+                }
+                return (int) refine_node;
+            }
+        );
+
+        // for (int l = max_level; l > min_level; l--) {
+        //     mesh.quadtree.coarsen(false,
+        //         [&](std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> nodes){
+        //             bool coarsen_nodes = false;
+        //             for (auto* child_node : nodes) {
+        //                 if (child_node->leaf) {
+        //                     auto& patch = child_node->data;
+        //                     auto& grid = patch.grid();
+        //                     auto& u = patch.vectorU();
+        //                     auto nx = grid.nx();
+        //                     auto ny = grid.ny();
+
+        //                     if (child_node->level <= min_level) {
+        //                         return 0;
+        //                     }
+
+        //                     for (int i = 0; i < nx; i++) {
+        //                         for (int j = 0; j < ny; j++) {
+        //                             double x = grid(0, i);
+        //                             double y = grid(1, j);
+        //                             // app.log("COARSEN: source = " + std::to_string(sources(x, y, time)));
+        //                             coarsen_nodes = (sources(x, y, time) < coarsen_threshold);
+
+        //                             if (coarsen_nodes) {
+        //                                 break;
+        //                             }
+        //                         }
+        //                         if (coarsen_nodes) {
+        //                             break;
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //             return (int) coarsen_nodes;
+        //         }
+        //     );
+        //     mesh.quadtree.balance(EllipticForest::BalancePolicy::FACE);
+        // }
+        // for (int l = min_level; l < max_level; l++) {
+        //     mesh.quadtree.refine(false,
+        //         [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //             bool refine_node = false;
+        //             if (node->leaf) {
+        //                 auto& patch = node->data;
+        //                 auto& grid = patch.grid();
+        //                 auto& u = patch.vectorU();
+        //                 auto nx = grid.nx();
+        //                 auto ny = grid.ny();
+
+        //                 if (node->level >= max_level) {
+        //                     return 0;
+        //                 }
+
+        //                 for (int i = 0; i < nx; i++) {
+        //                     for (int j = 0; j < ny; j++) {
+        //                         double x = grid(0, i);
+        //                         double y = grid(1, j);
+        //                         refine_node = (sources(x, y, time) > refine_threshold);
+
+        //                         // int I_ij = j + i*ny;
+        //                         // int I_ip1j = j + (i+1)*ny;
+        //                         // int I_im1j = j + (i-1)*ny;
+        //                         // int I_ijp1 = (j+1) + i*ny;
+        //                         // int I_ijm1 = (j-1) + i*ny;
+
+        //                         // double u_ij = u(I_ij);
+        //                         // double u_ip1j = u(I_ip1j);
+        //                         // double u_im1j = u(I_im1j);
+        //                         // double u_ijp1 = u(I_ijp1);
+        //                         // double u_ijm1 = u(I_ijm1);
+
+        //                         // double dudx = (u_ip1j - u_im1j) / (2.0*grid.dx());
+        //                         // double dudy = (u_ijp1 - u_ijm1) / (2.0*grid.dy());
+        //                         // double mag_grad_u = sqrt(pow(dudx, 2) + pow(dudy, 2));
+        //                         // refine_node = mag_grad_u > refine_threshold;
+
+        //                         if (refine_node) {
+        //                             break;
+        //                         }
+        //                     }
+        //                     if (refine_node) {
+        //                         break;
+        //                     }
+        //                 }
+        //             }
+        //             return (int) refine_node;
+        //         }
+        //     );
+        //     mesh.quadtree.balance(EllipticForest::BalancePolicy::FACE);
+        // }
+        mesh.quadtree.merge(
+            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* patch){
+                return 1;
+            },
+            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> children_nodes){
+                EllipticForest::FiniteVolumeHPS::coarsen(parent_node->data, children_nodes[0]->data, children_nodes[1]->data, children_nodes[2]->data, children_nodes[3]->data);
+                return 1;
+            }
+        );
     }
 
     // All clean up is done in destructors

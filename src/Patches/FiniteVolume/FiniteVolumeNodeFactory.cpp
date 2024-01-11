@@ -2,10 +2,13 @@
 
 namespace EllipticForest {
 
-FiniteVolumeNodeFactory::FiniteVolumeNodeFactory() {}
+FiniteVolumeNodeFactory::FiniteVolumeNodeFactory(FiniteVolumeSolver& solver) :
+    solver(solver)
+        {}
 
-FiniteVolumeNodeFactory::FiniteVolumeNodeFactory(MPI_Comm comm) :
-    MPIObject(comm)
+FiniteVolumeNodeFactory::FiniteVolumeNodeFactory(MPI::Communicator comm, FiniteVolumeSolver& solver) :
+    MPIObject(comm),
+    solver(solver)
         {}
 
 Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createNode(FiniteVolumePatch data, std::string path, int level, int pfirst, int plast) {
@@ -17,6 +20,7 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     // auto& app = EllipticForest::EllipticForestApp::getInstance();
     // app.log("In creatChildNode: parent_node = %s", parent_node->path.c_str());
     // Get parent grid info
+    auto& parent_patch = parent_node->data;
     auto& parent_grid = parent_node->data.grid();
     int nx = parent_grid.nx();
     int ny = parent_grid.ny();
@@ -30,7 +34,8 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     // Create grid communicator
     // app.log("Creating sub-communicator...");
     // MPI::Communicator child_comm;
-    // MPI::communicatorSubsetRange(parent_node->getComm(), pfirst, plast, 0, child_comm);
+    // MPI::communicatorSubsetRange(parent_node->getComm(), pfirst, plast, 0, &child_comm);
+    // child_node
     // app.log("Done.");
 
     // Create child grid
@@ -59,14 +64,110 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     // Create child patch
     FiniteVolumePatch child_patch(parent_node->data.getComm(), child_grid);
 
+    // Set child path data
+    bool tagged_for_refinement = false;
+    if (parent_patch.matrixT().nrows() != 0 && parent_patch.matrixT().ncols() != 0) {
+        child_patch.matrixT() = solver.buildD2N(child_patch.grid());
+        tagged_for_refinement = true;
+    }
+
+    if (parent_patch.vectorG().size() != 0) {
+        auto parent_x_W = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        auto parent_x_E = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        auto parent_x_S = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+        auto parent_x_N = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+
+        auto parent_I_W = vectorRange(0, parent_grid.ny() - 1);
+        auto parent_I_E = vectorRange(parent_grid.ny(), 2*parent_grid.ny() - 1);
+        auto parent_I_S = vectorRange(2*parent_grid.ny(), (2*parent_grid.ny() + parent_grid.nx()) - 1);
+        auto parent_I_N = vectorRange(2*parent_grid.ny() + parent_grid.nx(), (2*parent_grid.ny() + 2*parent_grid.nx()) - 1);
+
+        auto parent_g_W = parent_patch.vectorG()(parent_I_W);
+        auto parent_g_E = parent_patch.vectorG()(parent_I_E);
+        auto parent_g_S = parent_patch.vectorG()(parent_I_S);
+        auto parent_g_N = parent_patch.vectorG()(parent_I_N);
+
+        LinearInterpolant interpolant_W(parent_x_W, parent_g_W);
+        LinearInterpolant interpolant_E(parent_x_E, parent_g_E);
+        LinearInterpolant interpolant_S(parent_x_S, parent_g_S);
+        LinearInterpolant interpolant_N(parent_x_N, parent_g_N);
+
+        auto child_x_W = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        auto child_x_E = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        auto child_x_S = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+        auto child_x_N = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+
+        auto child_g_W = interpolant_W(child_x_W);
+        auto child_g_E = interpolant_E(child_x_E);
+        auto child_g_S = interpolant_S(child_x_S);
+        auto child_g_N = interpolant_N(child_x_N);
+
+        child_patch.vectorG() = concatenate({child_g_W, child_g_E, child_g_S, child_g_N});
+        tagged_for_refinement = true;
+    }
+
+    if (parent_patch.vectorU().size() != 0) {
+        auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+        auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        auto& u_parent = parent_patch.vectorU();
+
+        BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
+
+        auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+        auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        child_patch.vectorU() = interpolant(x1_child, x2_child);
+        tagged_for_refinement = true;
+    }
+
+    if (parent_patch.vectorF().size() != 0) {
+        // TODO: Add try-catch for if the RHS function is set in the solver
+        auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+        auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        auto& f_parent = parent_patch.vectorF();
+
+        BilinearInterpolant interpolant(x1_parent, x2_parent, f_parent);
+
+        auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+        auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        child_patch.vectorF() = interpolant(x1_child, x2_child);
+        tagged_for_refinement = true;
+    }
+
+    if (parent_patch.vectorH().size() != 0) {
+        child_patch.vectorH() = solver.particularNeumannData(child_patch.grid(), child_patch.vectorF());
+        tagged_for_refinement = true;
+    }
+
     // Create child node
     std::string path = parent_node->path + std::to_string(sibling_id);
     int level = parent_node->level + 1;
-    return new Node<FiniteVolumePatch>(this->getComm(), child_patch, path, level, pfirst, plast);
+    Node<FiniteVolumePatch>* child_node = new Node<FiniteVolumePatch>(this->getComm(), child_patch, path, level, pfirst, plast);
+
+    // Store siblings in order to update parent data
+    siblings[sibling_id] = &child_node->data;
+
+    // Update parent patch data
+    if (tagged_for_refinement && sibling_id == 3) {
+        auto& tau = parent_patch;
+        auto& alpha = *siblings[0];
+        auto& beta = *siblings[1];
+        auto& gamma = *siblings[2];
+        auto& omega = *siblings[3];
+        FiniteVolumeHPS::merge4to1ExternalInterface(tau, alpha, beta, gamma, omega);
+        // FiniteVolumeHPS::mergeX(tau, alpha, beta, gamma, omega);
+        // FiniteVolumeHPS::mergeS(tau, alpha, beta, gamma, omega);
+        // FiniteVolumeHPS::mergeT(tau, alpha, beta, gamma, omega);
+        // FiniteVolumeHPS::reorderOperators(tau, alpha, beta, gamma, omega);
+        // FiniteVolumeHPS::coarsen(tau, alpha, beta, gamma, omega);
+    }
+
+    return child_node;
     
 }
 
 Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<Node<FiniteVolumePatch>*> child_nodes, int pfirst, int plast) {
+
+    // std::cout << child_nodes[0]->data.str() << std::endl;
 
     // Create parent grid
     int nx = child_nodes[0]->data.grid().nx();
@@ -77,18 +178,139 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<N
     double y_upper = child_nodes[2]->data.grid().yUpper();
     FiniteVolumeGrid parent_grid(this->getComm(), nx, x_lower, x_upper, ny, y_lower, y_upper);
 
-    // Create communicator for parent patch
-    // MPI::Group alpha_beta_group;
-    // MPI::Group gamma_omega_group;
-    
-
     // Create parent patch
-    FiniteVolumePatch parentPatch(this->getComm(), parent_grid); // TODO: Switch MPI_COMM_WORLD to patch communicator
+    FiniteVolumePatch parent_patch(this->getComm(), parent_grid); // TODO: Switch MPI_COMM_WORLD to patch communicator
 
+    // Create parent patch data
+    bool needs_data = false;
+    bool needs_rhs_data = false;
+    bool needs_T_data = (child_nodes[0]->data.matrixT().nrows() != 0 && child_nodes[0]->data.matrixT().ncols() != 0) ||
+                        (child_nodes[1]->data.matrixT().nrows() != 0 && child_nodes[1]->data.matrixT().ncols() != 0) ||
+                        (child_nodes[2]->data.matrixT().nrows() != 0 && child_nodes[2]->data.matrixT().ncols() != 0) ||
+                        (child_nodes[3]->data.matrixT().nrows() != 0 && child_nodes[3]->data.matrixT().ncols() != 0);
+    bool needs_g_data = child_nodes[0]->data.vectorG().size() ||
+                        child_nodes[1]->data.vectorG().size() ||
+                        child_nodes[2]->data.vectorG().size() ||
+                        child_nodes[3]->data.vectorG().size();
+    bool needs_u_data = child_nodes[0]->data.vectorU().size() ||
+                        child_nodes[1]->data.vectorU().size() ||
+                        child_nodes[2]->data.vectorU().size() ||
+                        child_nodes[3]->data.vectorU().size();
+    bool needs_f_data = child_nodes[0]->data.vectorF().size() ||
+                        child_nodes[1]->data.vectorF().size() ||
+                        child_nodes[2]->data.vectorF().size() ||
+                        child_nodes[3]->data.vectorF().size();
+    bool needs_h_data = child_nodes[0]->data.vectorH().size() ||
+                        child_nodes[1]->data.vectorH().size() ||
+                        child_nodes[2]->data.vectorH().size() ||
+                        child_nodes[3]->data.vectorH().size();
+
+    if (needs_T_data) {
+        parent_patch.matrixT() = solver.buildD2N(parent_patch.grid());
+    }
+    if (needs_g_data) {
+        auto& alpha = child_nodes[0]->data;
+        auto& beta = child_nodes[1]->data;
+        auto& gamma = child_nodes[2]->data;
+        auto& omega = child_nodes[3]->data;
+        auto& tau = parent_patch;
+
+        auto child_x_W = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
+        auto child_x_E = linspace(beta.grid()(1, 0), omega.grid()(1, omega.grid().ny()-1), beta.grid().ny() + omega.grid().ny());
+        auto child_x_S = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
+        auto child_x_N = linspace(gamma.grid()(0, 0), omega.grid()(0, omega.grid().nx()-1), gamma.grid().nx() + omega.grid().nx());
+        
+        auto I_W = vectorRange(0, alpha.grid().ny()-1);
+        auto I_E = vectorRange(alpha.grid().ny(), 2*alpha.grid().ny()-1);
+        auto I_S = vectorRange(2*alpha.grid().ny(), (2*alpha.grid().ny() + alpha.grid().nx())-1);
+        auto I_N = vectorRange((2*alpha.grid().ny() + alpha.grid().nx()), (2*alpha.grid().ny() + 2*alpha.grid().nx())-1);
+
+        auto child_g_W = concatenate({alpha.vectorG()(I_W), gamma.vectorG()(I_W)});
+        auto child_g_E = concatenate({beta.vectorG()(I_E), omega.vectorG()(I_E)});
+        auto child_g_S = concatenate({alpha.vectorG()(I_S), beta.vectorG()(I_S)});
+        auto child_g_N = concatenate({gamma.vectorG()(I_N), omega.vectorG()(I_N)});
+        
+        LinearInterpolant interpolant_W(child_x_W, child_g_W);
+        LinearInterpolant interpolant_E(child_x_E, child_g_E);
+        LinearInterpolant interpolant_S(child_x_S, child_g_S);
+        LinearInterpolant interpolant_N(child_x_N, child_g_N);
+
+        auto parent_x_W = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+        auto parent_x_E = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+        auto parent_x_S = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+        auto parent_x_N = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+
+        auto parent_g_W = interpolant_W(parent_x_W);
+        auto parent_g_E = interpolant_E(parent_x_E);
+        auto parent_g_S = interpolant_S(parent_x_S);
+        auto parent_g_N = interpolant_N(parent_x_N);
+
+        parent_patch.vectorG() = concatenate({parent_g_W, parent_g_E, parent_g_S, parent_g_N});
+    }
+    if (needs_u_data) {
+        auto& alpha = child_nodes[0]->data;
+        auto& beta = child_nodes[1]->data;
+        auto& gamma = child_nodes[2]->data;
+        auto& omega = child_nodes[3]->data;
+        auto& tau = parent_patch;
+
+        auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
+        auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
+        
+        Vector<int> block_sizes(4*alpha.grid().ny(), alpha.grid().nx());
+        Vector<int> pi_patch_order(4*alpha.grid().ny());
+        for (int j = 0; j < alpha.grid().ny(); j++) {
+            pi_patch_order[2*j] = j;
+            pi_patch_order[2*j+1] = alpha.grid().ny() + j;
+            pi_patch_order[2*j + 2*alpha.grid().ny()] = j + 2*alpha.grid().ny();
+            pi_patch_order[2*j + 2*alpha.grid().ny() + 1] = alpha.grid().ny() + j + 2*alpha.grid().ny();
+        }
+        
+        Vector<double> u_child = concatenate({alpha.vectorU(), beta.vectorU(), gamma.vectorU(), omega.vectorU()});
+        Vector<double> u_child_patch_order = u_child.blockPermute(pi_patch_order, block_sizes);
+
+        BilinearInterpolant interpolant(x1_child, x2_child, u_child_patch_order);
+
+        auto x1_parent = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+        auto x2_parent = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+        parent_patch.vectorU() = interpolant(x1_parent, x2_parent);
+    }
+    if (needs_f_data) {
+        auto& alpha = child_nodes[0]->data;
+        auto& beta = child_nodes[1]->data;
+        auto& gamma = child_nodes[2]->data;
+        auto& omega = child_nodes[3]->data;
+        auto& tau = parent_patch;
+
+        auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
+        auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
+        
+        Vector<int> block_sizes(4*alpha.grid().ny(), alpha.grid().nx());
+        Vector<int> pi_patch_order(4*alpha.grid().ny());
+        for (int j = 0; j < alpha.grid().ny(); j++) {
+            pi_patch_order[2*j] = j;
+            pi_patch_order[2*j+1] = alpha.grid().ny() + j;
+            pi_patch_order[2*j + 2*alpha.grid().ny()] = j + 2*alpha.grid().ny();
+            pi_patch_order[2*j + 2*alpha.grid().ny() + 1] = alpha.grid().ny() + j + 2*alpha.grid().ny();
+        }
+        
+        Vector<double> u_child = concatenate({alpha.vectorF(), beta.vectorF(), gamma.vectorF(), omega.vectorF()});
+        Vector<double> u_child_patch_order = u_child.blockPermute(pi_patch_order, block_sizes);
+
+        BilinearInterpolant interpolant(x1_child, x2_child, u_child_patch_order);
+
+        auto x1_parent = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+        auto x2_parent = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+        parent_patch.vectorF() = interpolant(x1_parent, x2_parent);
+    }
+    if (needs_h_data) {
+        parent_patch.vectorH() = solver.particularNeumannData(parent_patch.grid(), parent_patch.vectorF());
+    }
+    
     // Create parent node
     std::string path = child_nodes[0]->path.substr(0, child_nodes[0]->path.length()-1);
     int level = child_nodes[0]->level - 1;
-    return new Node<FiniteVolumePatch>(this->getComm(), parentPatch, path, level, pfirst, plast);
+    return new Node<FiniteVolumePatch>(this->getComm(), parent_patch, path, level, pfirst, plast);
 
 }
 
