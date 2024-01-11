@@ -43,6 +43,7 @@ jobs:
       id: mpif
       shell: bash
       run: |
+        which mpicc
         echo "MPI_FORTRAN_PATH=$(which mpif90)" >> "$GITHUB_OUTPUT"
         echo ${MPI_FORTRAN_PATH}
 
