@@ -39,6 +39,13 @@ jobs:
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+    - name: Get location of MPI Fortran compiler
+      id: mpif
+      shell: bash
+      run: |
+        echo "MPI_FORTRAN_PATH=$(which mpif90)" >> "$GITHUB_OUTPUT"
+        echo ${MPI_FORTRAN_PATH}
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -46,7 +53,7 @@ jobs:
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_Fortran_COMPILER=/opt/homebrew/bin/mpif90
+        -DCMAKE_Fortran_COMPILER=${{ steps.mpif.MPI_FORTRAN_PATH }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DMPI_PATH=/opt/homebrew
         -S ${{ github.workspace }}
