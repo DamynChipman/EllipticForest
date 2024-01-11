@@ -27,11 +27,12 @@ jobs:
         build_type: [Debug]
         c_compiler: [mpicc]
         cpp_compiler: [mpic++]
-        fortran_compiler: [mpif90]
+        fortran_compiler: [gfortran]
 
     steps:
     - uses: actions/checkout@v3
     - uses: mpi4py/setup-mpi@v1
+    - uses: modflowpy/install-gfortran-action@v1
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
