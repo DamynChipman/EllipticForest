@@ -45,7 +45,6 @@ jobs:
       id: mpi_path
       shell: base
       run: |
-        which mpicc
         echo "MPI_PATH=${$(which mpicc)%/bin/mpicc}" >> "$GITHUB_OUTPUT"
 
     - name: Configure CMake
