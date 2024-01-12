@@ -30,9 +30,9 @@ jobs:
         fortran_compiler: [gfortran]
         include:
           - os: macos-latest
-            mpi_path: [/usr/local]
+            mpi_path: /usr/local
           - os: ubuntu-latest
-            mpi_path: [/usr]
+            mpi_path: /usr
 
     steps:
     - uses: actions/checkout@v3
