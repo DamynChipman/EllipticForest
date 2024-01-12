@@ -43,8 +43,8 @@ jobs:
 
     - name: Find MPI path
       run: |
-        export MPI_PATH=${$(which mpicc)%/bin/mpicc}
         which mpicc
+        export MPI_PATH=${$(which mpicc)%/bin/mpicc}
         echo ${MPI_PATH}
 
     - name: Configure CMake
