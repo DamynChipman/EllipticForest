@@ -33,6 +33,7 @@ jobs:
             mpi_path: /usr/local
           - os: ubuntu-latest
             mpi_path: /usr
+            flags: -fno-lto
 
     steps:
     - uses: actions/checkout@v3
@@ -52,7 +53,9 @@ jobs:
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -DCMAKE_CXX_FLAGS=${{ matrix.flags }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_C_FLAGS=${{ matrix.flags }}
         -DCMAKE_Fortran_COMPILER=${{ matrix.fortran_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DMPI_PATH=${{ matrix.mpi_path }}
