@@ -72,9 +72,8 @@ jobs:
       run: ctest --build-config ${{ matrix.build_type }}
 
     - name: Run
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}/examples/elliptic-single
       run: |
-        cd examples/elliptic-single
         mpiexec -n 2 elliptic-single
     
     - uses: actions/upload-artifact@v4
