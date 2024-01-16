@@ -10,9 +10,6 @@ authors:
     orcid: 0000-0001-6600-3720
     affiliation: 1
     corresponding: true
-  - name: Donna Calhoun
-    orcid: 0000-0002-6005-4575
-    affiliation: 1
 affiliations:
  - name: Boise State University, USA
    index: 1
@@ -46,7 +43,9 @@ In addition, another advantage of the quadtree-adaptive HPS method as implemente
 
 # Statement of Need
 
-The novelty of EllipticForest as software is the implementation of the HPS method for coupling with other scientific software as well as user extension. Currently, all other implementations of the HPS method are MATLAB or Python codes designed by research groups and used in-house for solving specific problems [@ultraSEM; @HPS_Demos; @Streamer_HPS]. EllipticForest is implemented on top of the `p4est` mesh library [@burstedde2011p4est], wrapping and extending many routines therein. This paper highlights the software details including the user-friendly interface to the HPS method and the ability for users to extend the solver interface using modern object-oriented programming (OOP) paradigms.
+The novelty of EllipticForest as software is the implementation of the HPS method for coupling with other scientific software as well as user extension. Currently, other implementations of the HPS method are MATLAB or Python codes designed by research groups and used in-house for solving specific problems [@ultraSEM; @HPS_Demos; @Streamer_HPS]. EllipticForest is designed to be extended and coupled with external libraries. This paper highlights the software details including the user-friendly interface to the HPS method and the ability for users to extend the solver interface using modern object-oriented programming (OOP) paradigms.
+
+In addition, EllipticForest builds upon the `p4est` mesh library [@burstedde2011p4est]. The quadtree-adaptive HPS method is uniquely suited for quadtree meshes. `p4est`, as a parallel and highly efficient mesh library, provides routines for creating, adapting, and iterating over quadtree meshes. The routines in EllipticForest wrap or extend the capabilities in `p4est`. A primary extension is the development of a *path-indexed* quadtree. This is in contrast to the *leaf-indexed* quadtree implemented in `p4est`. A *path-indexed* quadtree is a data structure that stores data at all nodes in a quadtree, as opposed to just the leaf nodes (see \autoref{fig:parallel_quadtree}). The *path-indexed* quadtree data structure was designed to store the various data and operators required in the quadtree-adaptive HPS method.
 
 # Software Overview
 
@@ -81,5 +80,9 @@ Once the problem has been solved over the entire mesh, each leaf patch in the me
 The user may choose to output the mesh and solution in an unstructured PVTK format using the VTK functionality built-in. To output to VTK files, the user first adds mesh functions to the mesh. This includes the solution stored in `vectorU` after the HPS solve. Then, the user calls the `toVTK` member function of the `Mesh` class. This will write a `.pvtu` file for the mesh and a `.pvtu` file for the quadtree. An example of this output for a Poisson equation is shown in \autoref{fig:poisson_solution}.
 
 ![Solution of Poisson equation on a quadtree mesh using EllipticForest. The mesh and data are output in an unstructured PVTK format and visualized with VisIt [@HPV:VisIt].\label{fig:poisson_solution}](examples/elliptic-single/output_polar_star.png)
+
+# Acknowledgements
+
+The development of EllipticForest has been funded by the National Science Foundation (NSF-DMS #1819257) and the Boise State University School of Computing. I acknowledge the assistance and guidance of Dr. Donna Calhoun and Dr. Carsten Burstedde in discussions and direction.
 
 # References
