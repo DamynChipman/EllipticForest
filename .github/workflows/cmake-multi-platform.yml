@@ -25,6 +25,7 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
         build_type: [Release, Debug]
+        mpi: ['mpich', 'openmpi']
         c_compiler: [mpicc]
         cpp_compiler: [mpic++]
         fortran_compiler: [gfortran]
@@ -38,6 +39,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: mpi4py/setup-mpi@v1
+      with:
+        mpi: ${{ matrix.mpi }}
     - uses: modflowpy/install-gfortran-action@v1
 
     - name: Set reusable strings
