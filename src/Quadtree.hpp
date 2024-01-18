@@ -173,6 +173,7 @@ public:
 					// Additional info for node
 					node->leaf = local_num >= 0;
 					node->node_comm = node_comm;
+					node->node_comm_set = true;
 
 					// Put in map
 					map[path] = node;

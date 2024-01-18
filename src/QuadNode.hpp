@@ -55,6 +55,12 @@ public:
 	MPI::Communicator node_comm;
 
 	/**
+	 * @brief Flag for if the node communicator has been set
+	 * 
+	 */
+	bool node_comm_set = false;
+
+	/**
 	 * @brief Construct a new Node object (default)
 	 * 
 	 */
@@ -92,6 +98,12 @@ public:
 		// Create node communicator that is a subset of the tree communicator
 		// MPI::communicatorSubsetRange(comm, pfirst, plast, 20+level, &node_comm);
 
+	}
+
+	~Node() {
+		if (node_comm_set) {
+			MPI_Comm_free(&node_comm);
+		}
 	}
 
 	/**
