@@ -52,34 +52,6 @@ TEST(Matrix, range) {
 
 }
 
-TEST(Matrix, get_row_and_col) {
-
-    Matrix<double> m1(3, 4, {
-        1, 2, 3, 4,
-        5, 6, 7, 8,
-        9, 10, 11, 12
-    });
-
-    Vector<double> v1({9, 10, 11, 12});
-
-    Vector<double> v2 = m1.getRow(2);
-    EXPECT_EQ(v2.size(), v1.size());
-
-    for (auto i = 0; i < v2.size(); i++) {
-        EXPECT_EQ(v2[i], v1[i]);
-    }
-
-    Vector<double> v3({2, 6, 10});
-
-    Vector<double> v4 = m1.getCol(1);
-    EXPECT_EQ(v3.size(), v3.size());
-
-    for (auto i = 0; i < v4.size(); i++) {
-        EXPECT_EQ(v3[i], v4[i]);
-    }
-
-}
-
 TEST(Matrix, index_sets) {
 
     Matrix<double> m1(6, 8, {

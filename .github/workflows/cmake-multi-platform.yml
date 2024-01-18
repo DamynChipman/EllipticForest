@@ -1,0 +1,59 @@
+name: CMake on multiple platforms
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "develop" ]
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        build_type: [Release, Debug]
+        mpi: ['mpich', 'openmpi']
+        c_compiler: [mpicc]
+        cpp_compiler: [mpic++]
+        fortran_compiler: [gfortran]
+        include:
+          - os: macos-latest
+            mpi_path: /usr/local
+          - os: ubuntu-latest
+            mpi_path: /usr
+            flags: -fno-lto
+    steps:
+    - uses: actions/checkout@v3
+    - uses: mpi4py/setup-mpi@v1
+      with:
+        mpi: ${{ matrix.mpi }}
+    - uses: modflowpy/install-gfortran-action@v1
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+    - name: Configure CMake
+      run: >
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -DCMAKE_CXX_FLAGS=${{ matrix.flags }}
+        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_C_FLAGS=${{ matrix.flags }}
+        -DCMAKE_Fortran_COMPILER=${{ matrix.fortran_compiler }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DMPI_PATH=${{ matrix.mpi_path }}
+        -S ${{ github.workspace }}
+    - name: Build
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+    - name: Test
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      run: ctest --build-config ${{ matrix.build_type }} --rerun-failed --output-on-failure
+    # - name: Run
+    #   working-directory: ${{ steps.strings.outputs.build-output-dir }}/examples/elliptic-single
+    #   run: |
+    #     mpiexec -n 2 elliptic-single
+    # - uses: actions/upload-artifact@v4
+    #   with:
+    #     name: elliptic-mesh
+    #     path: ${{ steps.strings.outputs.build-output-dir }}/examples/elliptic-single/*vtu

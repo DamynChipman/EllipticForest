@@ -15,41 +15,11 @@ FiniteVolumeGrid::FiniteVolumeGrid(MPI::Communicator comm, int nx, double x_lowe
     ny_(ny),
     y_lower_(y_lower),
     y_upper_(y_upper),
-    dy_((y_upper - y_lower)/ny) {
+    dy_((y_upper - y_lower)/ny)
+        {}
 
-    //
-    // create();
-    // setFromOptions();
-    // setup();
-
-}
-
-FiniteVolumeGrid::~FiniteVolumeGrid() {
-    // if (dm == PETSC_NULLPTR) {
-    //     DMDestroy(&dm);
-    // }
-}
-
-Petsc::ErrorCode FiniteVolumeGrid::create() {
-    if (dm == PETSC_NULLPTR) {
-        int dof_vertex = 0;
-        int dof_face = 0;
-        int dof_element = 1;
-        int stencil_width = 1;
-        return DMStagCreate2d(this->getComm(), DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, nx_, ny_, PETSC_DECIDE, PETSC_DECIDE, dof_vertex, dof_face, dof_element, DMSTAG_STENCIL_STAR, stencil_width, nullptr, nullptr, &dm);
-    }
-    else {
-        return 0;
-    }
-}
-
-Petsc::ErrorCode FiniteVolumeGrid::setFromOptions() {
-    return DMSetFromOptions(dm);
-}
-
-Petsc::ErrorCode FiniteVolumeGrid::setup() {
-    return DMSetUp(dm);
-}
+FiniteVolumeGrid::~FiniteVolumeGrid()
+    {}
 
 double FiniteVolumeGrid::point(DimensionIndex dim, int index) {
     double p = 0;
