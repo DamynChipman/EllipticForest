@@ -83,6 +83,6 @@ The user may choose to output the mesh and solution in an unstructured PVTK form
 
 # Acknowledgements
 
-The development of EllipticForest has been funded by the National Science Foundation (NSF-DMS #1819257) and the Boise State University School of Computing. I acknowledge the assistance and guidance of Dr. Donna Calhoun and Dr. Carsten Burstedde through discussions and direction.
+The development of EllipticForest has been funded by the National Science Foundation (NSF-DMS #1819257) and the Boise State University School of Computing. The author acknowledges the assistance and guidance of Dr. Donna Calhoun and Dr. Carsten Burstedde through discussions and direction.
 
 # References
