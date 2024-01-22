@@ -14,9 +14,6 @@
 #include <EllipticForest.hpp>
 #include <Patches/FiniteVolume/FiniteVolume.hpp>
 
-const double TIME_START = 0;
-const double TIME_FINAL = 10;
-
 double omegaWest(double x, double y, double t) {
     return 0;
 }
@@ -132,10 +129,10 @@ int main(int argc, char** argv) {
     double threshold = 1.0;
     app.options.setOption("refinement-threshold", threshold);
     
-    int min_level = 3;
+    int min_level = 1;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 3;
+    int max_level = 2;
     app.options.setOption("max-level", max_level);
 
     double x_lower = 0.0;
@@ -150,25 +147,25 @@ int main(int argc, char** argv) {
     double y_upper = 1.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 8;
+    int nx = 4;
     app.options.setOption("nx", nx);
     
-    int ny = 8;
+    int ny = 4;
     app.options.setOption("ny", ny);
 
-    double t_start = TIME_START;
+    double t_start = 0;
     app.options.setOption("t-start", t_start);
 
-    double t_end = TIME_FINAL;
+    double t_end = 0.005;
     app.options.setOption("t-end", t_end);
 
-    double nt = 10;
+    double nt = 100;
     app.options.setOption("nt", nt);
 
     double dt = (t_end - t_start) / (nt);
     app.options.setOption("dt", dt);
 
-    int n_vtk = 2;
+    int n_vtk = 1;
     app.options.setOption("n-vtk", n_vtk);
 
     double refine_threshold = 1e-2;
@@ -177,7 +174,7 @@ int main(int argc, char** argv) {
     double coarsen_threshold = 5e-3;
     app.options.setOption("coarsen-threshold", coarsen_threshold);
 
-    double epsilon = 0.001;
+    double epsilon = .1;
     app.options.setOption("epsilon", epsilon);
 
     // ====================================================
@@ -190,7 +187,7 @@ int main(int argc, char** argv) {
     // Create patch solver
     // ====================================================
     EllipticForest::FiniteVolumeSolver solver{};
-    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FivePointStencil;
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
     solver.alpha_function = alphaFunction;
     solver.beta_function = betaFunction;
     solver.lambda_function = lambdaFunction;
@@ -213,13 +210,16 @@ int main(int argc, char** argv) {
     mesh.iteratePatches([&](EllipticForest::FiniteVolumePatch& patch){
         auto& grid = patch.grid();
         auto& u = patch.vectorU();
+        auto& f = patch.vectorF();
         u = EllipticForest::Vector<double>(grid.nx()*grid.ny());
+        f = EllipticForest::Vector<double>(grid.nx()*grid.ny());
         for (int i = 0; i < grid.nx(); i++) {
             for (int j = 0; j < grid.ny(); j++) {
                 double x = grid(0, i);
                 double y = grid(1, j);
                 int index = j + i*grid.ny();
                 u[index] = uInitial(x, y);
+                f[index] = 0;
             }
         }
     });
@@ -260,58 +260,6 @@ int main(int argc, char** argv) {
             return;
         });
         app.log("u_min = %8.4e, u_max = %8.4e", u_min, u_max);
-
-        // 4. Call the upwards stage; provide a callback to set load data on leaf patches
-        HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
-            auto& grid = patch.grid();
-            int nx = grid.nx();
-            int ny = grid.ny();
-            patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
-            auto& u = patch.vectorU();
-            auto& f = patch.vectorF();
-            for (auto i = 0; i < nx; i++) {
-                for (auto j = 0; j < ny; j++) {
-                    int index = j + i*ny;
-                    double x = grid(0, i);
-                    double y = grid(1, j);
-                    f[index] = -(1.0/dt)*u[index] + energyPotential(x, y, time, u[index]);
-                }
-            }
-        });
-
-        // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
-        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-            switch (side) {
-                case 0:
-                    // West : Neumann
-                    *a = 0.0;
-                    *b = 1.0;
-                    return omegaWest(x, y, time);
-
-                case 1:
-                    // East : Neumann
-                    *a = 0.0;
-                    *b = 1.0;
-                    return omegaEast(x, y, time);
-
-                case 2:
-                    // South : Neumann
-                    *a = 0.0;
-                    *b = 1.0;
-                    return omegaSouth(x, y, time);
-
-                case 3:
-                    // North : Neumann
-                    *a = 0.0;
-                    *b = 1.0;
-                    return omegaNorth(x, y, time);
-                
-                default:
-                    break;
-            }
-
-            return 0.0;
-        });
 
         // ====================================================
         // Write solution and functions to file
@@ -368,6 +316,58 @@ int main(int argc, char** argv) {
             n_output++;
         }
 
+        // 4. Call the upwards stage; provide a callback to set load data on leaf patches
+        HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
+            auto& grid = patch.grid();
+            int nx = grid.nx();
+            int ny = grid.ny();
+            patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
+            auto& u = patch.vectorU();
+            auto& f = patch.vectorF();
+            for (auto i = 0; i < nx; i++) {
+                for (auto j = 0; j < ny; j++) {
+                    int index = j + i*ny;
+                    double x = grid(0, i);
+                    double y = grid(1, j);
+                    f[index] = -(1.0/dt)*u[index] - energyPotential(x, y, time, u[index]);
+                }
+            }
+        });
+
+        // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
+        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
+            switch (side) {
+                case 0:
+                    // West : Neumann
+                    *a = 0.0;
+                    *b = 1.0;
+                    return omegaWest(x, y, time);
+
+                case 1:
+                    // East : Neumann
+                    *a = 0.0;
+                    *b = 1.0;
+                    return omegaEast(x, y, time);
+
+                case 2:
+                    // South : Neumann
+                    *a = 0.0;
+                    *b = 1.0;
+                    return omegaSouth(x, y, time);
+
+                case 3:
+                    // North : Neumann
+                    *a = 0.0;
+                    *b = 1.0;
+                    return omegaNorth(x, y, time);
+                
+                default:
+                    break;
+            }
+
+            return 0.0;
+        });
+
         // ====================================================
         // Refine and coarsen the mesh
         // ====================================================
@@ -422,6 +422,7 @@ int main(int argc, char** argv) {
             },
             [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> children_nodes){
                 EllipticForest::FiniteVolumeHPS::coarsen(parent_node->data, children_nodes[0]->data, children_nodes[1]->data, children_nodes[2]->data, children_nodes[3]->data);
+                // EllipticForest::FiniteVolumeHPS::coarsenUpwards(parent_node->data, children_nodes[0]->data, children_nodes[1]->data, children_nodes[2]->data, children_nodes[3]->data);
                 return 1;
             }
         );

@@ -422,6 +422,11 @@ public:
         return res;
     }
 
+    void clear() {
+        data_.clear();
+        size_ = 0;
+    }
+
     /**
      * @brief Permutes blocks of the vector according to I with block sizes S
      * 

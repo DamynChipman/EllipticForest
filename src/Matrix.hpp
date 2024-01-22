@@ -556,6 +556,12 @@ public:
         return res;
     }
 
+    void clear() {
+        data_.clear();
+        nrows_ = 0;
+        ncols_ = 0;
+    }
+
     /**
      * @brief Prints the matrix to an ostream
      * 
