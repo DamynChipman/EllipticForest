@@ -52,7 +52,7 @@ public:
      * TODO: Implement this logic
      * 
      */
-    bool isBuilt = false;
+    bool is_built = false;
 
     /**
      * @brief Construct a new HPSAlgorithm object
@@ -468,47 +468,6 @@ public:
                 
     }
 
-// I believe this is depreciated
-#if 0 
-    virtual void solveStage(std::vector<Vector<NumericalType>> boundaryData, std::vector<BoundaryConditionType> boundaryTypes) {
-        EllipticForestApp& app = EllipticForestApp::getInstance();
-        app.logHead("Begin HPS Solve Stage");
-        app.addTimer("solve-stage");
-        app.timers["solve-stage"].start();
-
-        setBoundaryData_(mesh.quadtree.root(), boundaryData, boundaryTypes);
-
-        // mesh.quadtree.split([&](PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega){
-        //     split1to4(tau, alpha, beta, gamma, omega);
-        // });
-
-        // mesh.quadtree.traversePreOrder([&](PatchType& patch){
-        //     leafSolve(patch);
-        // });
-        mesh.quadtree.split(
-            [&](Node<PatchType>* leaf_node){
-                // Leaf callback
-                leafSolve(leaf_node->data);
-                return 1;
-            },
-            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
-                // Family callback
-                PatchType& tau = parent_node->data;
-                PatchType& alpha = child_nodes[0]->data;
-                PatchType& beta = child_nodes[1]->data;
-                PatchType& gamma = child_nodes[2]->data;
-                PatchType& omega = child_nodes[3]->data;
-                split1to4(tau, alpha, beta, gamma, omega);
-                return 1;
-            }
-        );
-
-        app.timers["solve-stage"].stop();
-        app.logHead("End HPS Solve Stage");
-
-    }
-#endif
-
     /**
      * @brief Recursive merge function
      * 
@@ -545,12 +504,12 @@ public:
         // reorderOperators(tau, alpha, beta, gamma, omega);
         // mergePatch(tau, alpha, beta, gamma, omega);
 
-        app.log("Merging:");
-        app.log("  alpha = \n" + alpha.str());
-        app.log("  beta = \n" + beta.str());
-        app.log("  gamma = \n" + gamma.str());
-        app.log("  omega = \n" + omega.str());
-        app.log("  tau = \n" + tau.str());
+        // app.log("Merging:");
+        // app.log("  alpha = \n" + alpha.str());
+        // app.log("  beta = \n" + beta.str());
+        // app.log("  gamma = \n" + gamma.str());
+        // app.log("  omega = \n" + omega.str());
+        // app.log("  tau = \n" + tau.str());
 
         // Get data
         std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
@@ -603,39 +562,39 @@ public:
         Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
         Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
 
-        Vector<int> IS_alpha_beta_ = I_E;
-        Vector<int> IS_alpha_gamma_ = I_N;
-        Vector<int> IS_alpha_tau_ = concatenate({I_W, I_S});
+        Vector<int> IS_ab = I_E;
+        Vector<int> IS_ag = I_N;
+        Vector<int> IS_at = concatenate({I_W, I_S});
         
-        Vector<int> IS_beta_alpha_ = I_W;
-        Vector<int> IS_beta_omega_ = I_N;
-        Vector<int> IS_beta_tau_ = concatenate({I_E, I_S});
+        Vector<int> IS_ba = I_W;
+        Vector<int> IS_bo = I_N;
+        Vector<int> IS_bt = concatenate({I_E, I_S});
         
-        Vector<int> IS_gamma_alpha_ = I_S;
-        Vector<int> IS_gamma_omega_ = I_E;
-        Vector<int> IS_gamma_tau_ = concatenate({I_W, I_N});
+        Vector<int> IS_ga = I_S;
+        Vector<int> IS_go = I_E;
+        Vector<int> IS_gt = concatenate({I_W, I_N});
 
-        Vector<int> IS_omega_beta_ = I_S;
-        Vector<int> IS_omega_gamma_ = I_W;
-        Vector<int> IS_omega_tau_ = concatenate({I_E, I_N});
+        Vector<int> IS_ob = I_S;
+        Vector<int> IS_og = I_W;
+        Vector<int> IS_ot = concatenate({I_E, I_N});
 
         // Create sub-matrices
         // Form A
-        Matrix<NumericalType> T_a_tt = alpha.matrixT()(IS_alpha_tau_, IS_alpha_tau_);
-        Matrix<NumericalType> T_b_tt = beta.matrixT()(IS_beta_tau_, IS_beta_tau_);
-        Matrix<NumericalType> T_g_tt = gamma.matrixT()(IS_gamma_tau_, IS_gamma_tau_);
-        Matrix<NumericalType> T_o_tt = omega.matrixT()(IS_omega_tau_, IS_omega_tau_);
+        Matrix<NumericalType> T_a_tt = alpha.matrixT()(IS_at, IS_at);
+        Matrix<NumericalType> T_b_tt = beta.matrixT()(IS_bt, IS_bt);
+        Matrix<NumericalType> T_g_tt = gamma.matrixT()(IS_gt, IS_gt);
+        Matrix<NumericalType> T_o_tt = omega.matrixT()(IS_ot, IS_ot);
         Matrix<NumericalType> A = blockDiagonalMatrix<NumericalType>({T_a_tt, T_b_tt, T_g_tt, T_o_tt});
 
         // Form B
-        Matrix<NumericalType> T_a_tg = alpha.matrixT()(IS_alpha_tau_, IS_alpha_gamma_);
-        Matrix<NumericalType> T_a_tb = alpha.matrixT()(IS_alpha_tau_, IS_alpha_beta_);
-        Matrix<NumericalType> T_b_to = beta.matrixT()(IS_beta_tau_, IS_beta_omega_);
-        Matrix<NumericalType> T_b_ta = beta.matrixT()(IS_beta_tau_, IS_beta_alpha_);
-        Matrix<NumericalType> T_g_ta = gamma.matrixT()(IS_gamma_tau_, IS_gamma_alpha_);
-        Matrix<NumericalType> T_g_to = gamma.matrixT()(IS_gamma_tau_, IS_gamma_omega_);
-        Matrix<NumericalType> T_o_tb = omega.matrixT()(IS_omega_tau_, IS_omega_beta_);
-        Matrix<NumericalType> T_o_tg = omega.matrixT()(IS_omega_tau_, IS_omega_gamma_);
+        Matrix<NumericalType> T_a_tg = alpha.matrixT()(IS_at, IS_ag);
+        Matrix<NumericalType> T_a_tb = alpha.matrixT()(IS_at, IS_ab);
+        Matrix<NumericalType> T_b_to = beta.matrixT()(IS_bt, IS_bo);
+        Matrix<NumericalType> T_b_ta = beta.matrixT()(IS_bt, IS_ba);
+        Matrix<NumericalType> T_g_ta = gamma.matrixT()(IS_gt, IS_ga);
+        Matrix<NumericalType> T_g_to = gamma.matrixT()(IS_gt, IS_go);
+        Matrix<NumericalType> T_o_tb = omega.matrixT()(IS_ot, IS_ob);
+        Matrix<NumericalType> T_o_tg = omega.matrixT()(IS_ot, IS_og);
         int B_nrows = T_a_tg.nRows() + T_b_to.nRows() + T_g_ta.nRows() + T_o_tb.nRows();
         int B_ncols = T_a_tg.nCols() + T_b_to.nCols() + T_a_tb.nCols() + T_g_to.nCols();
         std::vector<std::size_t> B_row_starts = { 0, T_a_tg.nRows(), T_a_tg.nRows() + T_b_to.nRows(), T_a_tg.nRows() + T_b_to.nRows() + T_g_ta.nRows() };
@@ -651,14 +610,14 @@ public:
         B.setBlock(B_row_starts[3], B_col_starts[3], T_o_tg);
 
         // Form C
-        Matrix<NumericalType> T_a_gt = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_tau_);
-        Matrix<NumericalType> T_g_at = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_tau_);
-        Matrix<NumericalType> T_b_ot = beta.matrixT()(IS_beta_omega_, IS_beta_tau_);
-        Matrix<NumericalType> T_o_bt = omega.matrixT()(IS_omega_beta_, IS_omega_tau_);
-        Matrix<NumericalType> T_a_bt = alpha.matrixT()(IS_alpha_beta_, IS_alpha_tau_);
-        Matrix<NumericalType> T_b_at = beta.matrixT()(IS_beta_alpha_, IS_beta_tau_);
-        Matrix<NumericalType> T_g_ot = gamma.matrixT()(IS_gamma_omega_, IS_gamma_tau_);
-        Matrix<NumericalType> T_o_gt = omega.matrixT()(IS_omega_gamma_, IS_omega_tau_);
+        Matrix<NumericalType> T_a_gt = alpha.matrixT()(IS_ag, IS_at);
+        Matrix<NumericalType> T_g_at = gamma.matrixT()(IS_ga, IS_gt);
+        Matrix<NumericalType> T_b_ot = beta.matrixT()(IS_bo, IS_bt);
+        Matrix<NumericalType> T_o_bt = omega.matrixT()(IS_ob, IS_ot);
+        Matrix<NumericalType> T_a_bt = alpha.matrixT()(IS_ab, IS_at);
+        Matrix<NumericalType> T_b_at = beta.matrixT()(IS_ba, IS_bt);
+        Matrix<NumericalType> T_g_ot = gamma.matrixT()(IS_go, IS_gt);
+        Matrix<NumericalType> T_o_gt = omega.matrixT()(IS_og, IS_ot);
         T_a_gt = -T_a_gt;
         T_b_ot = -T_b_ot;
         T_a_bt = -T_a_bt;
@@ -678,22 +637,22 @@ public:
         C.setBlock(C_row_starts[3], C_col_starts[3], T_o_gt);
 
         // Form D
-        Matrix<NumericalType> T_a_gg = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_gamma_);
-        Matrix<NumericalType> T_g_aa = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_alpha_);
-        Matrix<NumericalType> T_a_gb = alpha.matrixT()(IS_alpha_gamma_, IS_alpha_beta_);
-        Matrix<NumericalType> T_g_ao = gamma.matrixT()(IS_gamma_alpha_, IS_gamma_omega_);
-        Matrix<NumericalType> T_b_oo = beta.matrixT()(IS_beta_omega_, IS_beta_omega_);
-        Matrix<NumericalType> T_o_bb = omega.matrixT()(IS_omega_beta_, IS_omega_beta_);
-        Matrix<NumericalType> T_b_oa = beta.matrixT()(IS_beta_omega_, IS_beta_alpha_);
-        Matrix<NumericalType> T_o_bg = omega.matrixT()(IS_omega_beta_, IS_omega_gamma_);
-        Matrix<NumericalType> T_a_bg = alpha.matrixT()(IS_alpha_beta_, IS_alpha_gamma_);
-        Matrix<NumericalType> T_b_ao = beta.matrixT()(IS_beta_alpha_, IS_beta_omega_);
-        Matrix<NumericalType> T_a_bb = alpha.matrixT()(IS_alpha_beta_, IS_alpha_beta_);
-        Matrix<NumericalType> T_b_aa = beta.matrixT()(IS_beta_alpha_, IS_beta_alpha_);
-        Matrix<NumericalType> T_g_oa = gamma.matrixT()(IS_gamma_omega_, IS_gamma_alpha_);
-        Matrix<NumericalType> T_o_gb = omega.matrixT()(IS_omega_gamma_, IS_omega_beta_);
-        Matrix<NumericalType> T_g_oo = gamma.matrixT()(IS_gamma_omega_, IS_gamma_omega_);
-        Matrix<NumericalType> T_o_gg = omega.matrixT()(IS_omega_gamma_, IS_omega_gamma_);
+        Matrix<NumericalType> T_a_gg = alpha.matrixT()(IS_ag, IS_ag);
+        Matrix<NumericalType> T_g_aa = gamma.matrixT()(IS_ga, IS_ga);
+        Matrix<NumericalType> T_a_gb = alpha.matrixT()(IS_ag, IS_ab);
+        Matrix<NumericalType> T_g_ao = gamma.matrixT()(IS_ga, IS_go);
+        Matrix<NumericalType> T_b_oo = beta.matrixT()(IS_bo, IS_bo);
+        Matrix<NumericalType> T_o_bb = omega.matrixT()(IS_ob, IS_ob);
+        Matrix<NumericalType> T_b_oa = beta.matrixT()(IS_bo, IS_ba);
+        Matrix<NumericalType> T_o_bg = omega.matrixT()(IS_ob, IS_og);
+        Matrix<NumericalType> T_a_bg = alpha.matrixT()(IS_ab, IS_ag);
+        Matrix<NumericalType> T_b_ao = beta.matrixT()(IS_ba, IS_bo);
+        Matrix<NumericalType> T_a_bb = alpha.matrixT()(IS_ab, IS_ab);
+        Matrix<NumericalType> T_b_aa = beta.matrixT()(IS_ba, IS_ba);
+        Matrix<NumericalType> T_g_oa = gamma.matrixT()(IS_go, IS_ga);
+        Matrix<NumericalType> T_o_gb = omega.matrixT()(IS_og, IS_ob);
+        Matrix<NumericalType> T_g_oo = gamma.matrixT()(IS_go, IS_go);
+        Matrix<NumericalType> T_o_gg = omega.matrixT()(IS_og, IS_og);
         T_g_ao = -T_g_ao;
         T_o_bg = -T_o_bg;
         T_b_ao = -T_b_ao;
@@ -716,9 +675,10 @@ public:
 
         // Set parent matrices
         // tau.matrixX() = D;
+        // tau.matrixH() = B;
         tau.matrixS() = solve(D, C);
         tau.matrixT() = B*tau.matrixS();
-        tau.matrixT() = A - tau.matrixT();
+        tau.matrixT() = A + tau.matrixT();
 
         // Reorder operators
         Vector<int> pi_noChange = {0, 1, 2, 3};
@@ -778,12 +738,26 @@ public:
             // app.logHead("  omega = %i", omega.globalID);
             // app.logHead("  tau = %i", tau.globalID);
 
-            app.log("Upwards:");
-            app.log("  alpha = \n" + alpha.str());
-            app.log("  beta = \n" + beta.str());
-            app.log("  gamma = \n" + gamma.str());
-            app.log("  omega = \n" + omega.str());
-            app.log("  tau = \n" + tau.str());
+            // app.log("Upwards:");
+            // app.log("  alpha = \n" + alpha.str());
+            // app.log("  beta = \n" + beta.str());
+            // app.log("  gamma = \n" + gamma.str());
+            // app.log("  omega = \n" + omega.str());
+            // app.log("  tau = \n" + tau.str());
+
+            // int n_alpha = alpha.size();
+            // int n_beta = beta.size();
+            // int n_gamma = alpha.size();
+            // int n_omega = omega.size();
+            // int n_tau = tau.size();
+            // if (n_alpha != n_beta || n_beta != n_gamma || n_gamma != n_omega || n_omega != n_alpha) {
+            //     std::cerr << "ERROR MISMATCH IN UPWARDS" << std::endl;
+            // }
+            // if (n_tau / 2 != n_alpha) {
+            //     // std::cout << "TAU GRID IS NOT MERGED" << std::endl;
+            //     merge4to1(tau, alpha, beta, gamma, omega);
+            //     // mergePatch(tau, alpha, beta, gamma, omega);
+            // }
 
             // Steps for the upwards stage (private member functions)
             // coarsenUpwards_(tau, alpha, beta, gamma, omega);
@@ -962,7 +936,7 @@ public:
 
             // Reorder
             tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
-            
+
         }
 
         return;
@@ -987,12 +961,12 @@ public:
         // app.logHead("  gamma = %i", gamma.globalID);
         // app.logHead("  omega = %i", omega.globalID);
 
-        app.log("Splitting:");
-        app.log("  alpha = \n" + alpha.str());
-        app.log("  beta = \n" + beta.str());
-        app.log("  gamma = \n" + gamma.str());
-        app.log("  omega = \n" + omega.str());
-        app.log("  tau = \n" + tau.str());
+        // app.log("Splitting:");
+        // app.log("  alpha = \n" + alpha.str());
+        // app.log("  beta = \n" + beta.str());
+        // app.log("  gamma = \n" + gamma.str());
+        // app.log("  omega = \n" + omega.str());
+        // app.log("  tau = \n" + tau.str());
 
         // Steps for the split (private member functions)
         // uncoarsen_(tau, alpha, beta, gamma, omega);

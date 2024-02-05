@@ -158,9 +158,18 @@ int main(int argc, char** argv) {
     EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
 
     // ====================================================
+    // Create patch solver
+    // ====================================================
+    EllipticForest::FiniteVolumeSolver solver{};
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.alpha_function = alphaFunction;
+    solver.beta_function = betaFunction;
+    solver.lambda_function = lambdaFunction;
+
+    // ====================================================
     // Create node factory and mesh
     // ====================================================
-    EllipticForest::FiniteVolumeNodeFactory node_factory(MPI_COMM_WORLD);
+    EllipticForest::FiniteVolumeNodeFactory node_factory(MPI_COMM_WORLD, solver);
     EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
     mesh.refineByFunction(
         [&](double x, double y){
@@ -173,15 +182,6 @@ int main(int argc, char** argv) {
         root_patch,
         node_factory
     );
-
-    // ====================================================
-    // Create patch solver
-    // ====================================================
-    EllipticForest::FiniteVolumeSolver solver{};
-    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
-    solver.alpha_function = alphaFunction;
-    solver.beta_function = betaFunction;
-    solver.lambda_function = lambdaFunction;
 
     // ====================================================
     // Create and run HPS solver

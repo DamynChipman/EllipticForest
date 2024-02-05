@@ -17,8 +17,8 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createNode(FiniteVolumePatch d
 
 Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVolumePatch>* parent_node, int sibling_id, int pfirst, int plast) {
     
-    // auto& app = EllipticForest::EllipticForestApp::getInstance();
-    // app.log("In creatChildNode: parent_node = %s", parent_node->path.c_str());
+    auto& app = EllipticForest::EllipticForestApp::getInstance();
+    // app.log("[createChildNode] parent_node = " + parent_node->path + ", sibling_id = " + std::to_string(sibling_id));
     // Get parent grid info
     auto& parent_patch = parent_node->data;
     auto& parent_grid = parent_node->data.grid();
@@ -67,11 +67,13 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     // Set child path data
     bool tagged_for_refinement = false;
     if (parent_patch.matrixT().nrows() != 0 && parent_patch.matrixT().ncols() != 0) {
+        // app.log("[createChildNode] creating child T");
         child_patch.matrixT() = solver.buildD2N(child_patch.grid());
         tagged_for_refinement = true;
     }
 
     if (parent_patch.vectorG().size() != 0) {
+        // app.log("[createChildNode] creating child g");
         auto parent_x_W = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
         auto parent_x_E = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
         auto parent_x_S = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
@@ -107,6 +109,7 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     }
 
     if (parent_patch.vectorU().size() != 0) {
+        // app.log("[createChildNode] creating child u");
         auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
         auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
         auto& u_parent = parent_patch.vectorU();
@@ -120,6 +123,7 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     }
 
     if (parent_patch.vectorF().size() != 0) {
+        // app.log("[createChildNode] creating child f");
         // TODO: Add try-catch for if the RHS function is set in the solver
         auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
         auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
@@ -134,6 +138,7 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     }
 
     if (parent_patch.vectorH().size() != 0) {
+        // app.log("[createChildNode] creating child h");
         child_patch.vectorH() = solver.particularNeumannData(child_patch.grid(), child_patch.vectorF());
         tagged_for_refinement = true;
     }

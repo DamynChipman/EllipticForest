@@ -120,13 +120,13 @@ public:
 		node_factory(nullptr)
 			{}
 
-	Quadtree(MPI::Communicator comm, T& root_data, AbstractNodeFactory<T>& node_factory) :
+	Quadtree(MPI::Communicator comm, T& root_data, AbstractNodeFactory<T>& node_factory, std::vector<double> extent = {0, 1, 0, 1}) :
 		MPIObject(comm),
 		root_data_ptr_(&root_data),
 		node_factory(&node_factory) {
 
 		// Create p4est instance
-		p4est_connectivity_t* conn = p4est::p4est_connectivity_new_square_domain(0, 1, 0, 1);
+		p4est_connectivity_t* conn = p4est::p4est_connectivity_new_square_domain(extent[0], extent[1], extent[2], extent[3]);
 		p4est = p4est_new_ext(this->getComm(), conn, 0, 0, true, 0, nullptr, nullptr);
 		p4est->user_pointer = this;
 

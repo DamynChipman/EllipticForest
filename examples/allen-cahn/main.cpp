@@ -129,10 +129,10 @@ int main(int argc, char** argv) {
     double threshold = 1.0;
     app.options.setOption("refinement-threshold", threshold);
     
-    int min_level = 1;
+    int min_level = 2;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 2;
+    int max_level = 3;
     app.options.setOption("max-level", max_level);
 
     double x_lower = 0.0;
@@ -147,10 +147,10 @@ int main(int argc, char** argv) {
     double y_upper = 1.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 4;
+    int nx = 8;
     app.options.setOption("nx", nx);
     
-    int ny = 4;
+    int ny = 8;
     app.options.setOption("ny", ny);
 
     double t_start = 0;
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
     int n_vtk = 1;
     app.options.setOption("n-vtk", n_vtk);
 
-    double refine_threshold = 1e-2;
+    double refine_threshold = 1e-1;
     app.options.setOption("refine-threshold", refine_threshold);
 
     double coarsen_threshold = 5e-3;
@@ -196,7 +196,7 @@ int main(int argc, char** argv) {
     // Create node factory and mesh
     // ====================================================
     EllipticForest::FiniteVolumeNodeFactory node_factory(mpi.getComm(), solver);
-    EllipticForest::Quadtree<EllipticForest::FiniteVolumePatch> quadtree(mpi.getComm(), root_patch, node_factory);
+    EllipticForest::Quadtree<EllipticForest::FiniteVolumePatch> quadtree(mpi.getComm(), root_patch, node_factory, {x_lower, x_upper, y_lower, y_upper});
     quadtree.refine(true,
         [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
             return (int) node->level < min_level;
@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
                 double y = grid(1, j);
                 int index = j + i*grid.ny();
                 u[index] = uInitial(x, y);
-                f[index] = 0;
+                f[index] = 0.;
             }
         }
     });
@@ -402,6 +402,7 @@ int main(int argc, char** argv) {
                             int index = j + i*ny;
                             umin = std::min(u[index], umin);
                             umax = std::max(u[index], umax);
+                            app.log("umin = %12.4f, umax = %12.4f, diff = %12.4f", umin, umax, umax - umin);
                             refine_node = (umax - umin > refine_threshold);
 
                             if (refine_node) {
@@ -414,16 +415,6 @@ int main(int argc, char** argv) {
                     }
                 }
                 return (int) refine_node;
-            }
-        );
-        mesh.quadtree.merge(
-            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* patch){
-                return 1;
-            },
-            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> children_nodes){
-                EllipticForest::FiniteVolumeHPS::coarsen(parent_node->data, children_nodes[0]->data, children_nodes[1]->data, children_nodes[2]->data, children_nodes[3]->data);
-                // EllipticForest::FiniteVolumeHPS::coarsenUpwards(parent_node->data, children_nodes[0]->data, children_nodes[1]->data, children_nodes[2]->data, children_nodes[3]->data);
-                return 1;
             }
         );
     }
