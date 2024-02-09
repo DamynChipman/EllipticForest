@@ -31,13 +31,6 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     double y_upper = parent_grid.yUpper();
     double y_mid = (y_lower + y_upper) / 2.0;
 
-    // Create grid communicator
-    // app.log("Creating sub-communicator...");
-    // MPI::Communicator child_comm;
-    // MPI::communicatorSubsetRange(parent_node->getComm(), pfirst, plast, 0, &child_comm);
-    // child_node
-    // app.log("Done.");
-
     // Create child grid
     FiniteVolumeGrid child_grid;
     switch (sibling_id) {
@@ -153,12 +146,13 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
 
     // Update parent patch data
     if (tagged_for_refinement && sibling_id == 3) {
+        // app.log("[createChildNode] merging parent...");
         auto& tau = parent_patch;
         auto& alpha = *siblings[0];
         auto& beta = *siblings[1];
         auto& gamma = *siblings[2];
         auto& omega = *siblings[3];
-        FiniteVolumeHPS::merge4to1ExternalInterface(tau, alpha, beta, gamma, omega);
+        FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeX(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeS(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeT(tau, alpha, beta, gamma, omega);

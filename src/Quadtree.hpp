@@ -679,12 +679,12 @@ public:
 
 		for (int l = max_level; l > min_level; l--) {
 			coarsen(false, coarsen_function);
-			balance(BalancePolicy::FACE);
+			balance(BalancePolicy::CORNER);
 			// partition();
 		}
 		for (int l = min_level; l < max_level; l++) {
 			refine(false, refine_function);
-			balance(BalancePolicy::FACE);
+			balance(BalancePolicy::CORNER);
 			// partition();
 		}
 		return;

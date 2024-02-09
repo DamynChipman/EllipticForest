@@ -477,7 +477,7 @@ public:
      * @param gamma Upper-left patch
      * @param omega Upper-right patch
      */
-    virtual void merge4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+    static void merge4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
         // app.logHead("Merging:");
@@ -504,59 +504,98 @@ public:
         // reorderOperators(tau, alpha, beta, gamma, omega);
         // mergePatch(tau, alpha, beta, gamma, omega);
 
-        // app.log("Merging:");
-        // app.log("  alpha = \n" + alpha.str());
-        // app.log("  beta = \n" + beta.str());
-        // app.log("  gamma = \n" + gamma.str());
-        // app.log("  omega = \n" + omega.str());
-        // app.log("  tau = \n" + tau.str());
+        app.log("Merging:");
+        app.log("  alpha = \n" + alpha.str());
+        app.log("  beta = \n" + beta.str());
+        app.log("  gamma = \n" + gamma.str());
+        app.log("  omega = \n" + omega.str());
+        app.log("  tau before = \n" + tau.str());
 
         // Get data
-        std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
-        std::vector<PatchGridType*> grids = {&alpha.grid(), &beta.grid(), &gamma.grid(), &omega.grid()};
-        std::vector<int> sides(4);
-        std::vector<int> tags(4);
+        // std::vector<PatchGridType*> grids = {&alpha.grid(), &beta.grid(), &gamma.grid(), &omega.grid()};
+        // std::vector<int> sides(4);
+        // std::vector<int> tags(4);
         
-        // Get vector of side lengths
-        for (auto i = 0; i < 4; i++) 
-            sides[i] = patches[i]->size();
+        // // Get vector of side lengths
+        // for (auto i = 0; i < 4; i++) 
+        //     sides[i] = patches[i]->size();
 
-        // Get minimum side length
-        int min_side = *std::min_element(sides.begin(), sides.end());
+        // // Get minimum side length
+        // int min_side = *std::min_element(sides.begin(), sides.end());
 
-        // Get tags based on side lengths
-        for (auto i = 0; i < 4; i++) 
-            tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(min_side));
+        // // Get tags based on side lengths
+        // for (auto i = 0; i < 4; i++) 
+        //     tags[i] = static_cast<int>(log2(sides[i])) - static_cast<int>(log2(min_side));
 
-        // Iterate over patches
-        for (auto i = 0; i < 4; i++) {
-            auto& patch = *patches[i];
+        // // Iterate over patches
+        // for (auto i = 0; i < 4; i++) {
+        //     auto& patch = *patches[i];
 
-            // Iterate over number of tagged
-            for (auto n = 0; n < tags[i]; n++) {
-                auto& grid = patch.grid();
-                int ngrid = grid.nx();
-                int coarsen_factor = tags[i] - (tags[i] - n);
-                int nfine = ngrid / pow(2, coarsen_factor);
-                int ncoarse = nfine / 2;
+        //     // Iterate over number of tagged
+        //     for (auto n = 0; n < tags[i]; n++) {
+        //         auto& grid = patch.grid();
+        //         int ngrid = grid.nx();
+        //         int coarsen_factor = tags[i] - (tags[i] - n);
+        //         int nfine = ngrid / pow(2, coarsen_factor);
+        //         int ncoarse = nfine / 2;
 
-                InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
-                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+        //         InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
+        //         std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+        //         Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
-                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+        //         InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
+        //         std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+        //         Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
-                patch.matrixT() = L21_patch * patch.matrixT();
-                patch.matrixT() = patch.matrixT() * L12_patch;
+        //         patch.matrixT() = L21_patch * patch.matrixT();
+        //         patch.matrixT() = patch.matrixT() * L12_patch;
 
-                patch.n_coarsens++;
+        //         patch.n_coarsens++;
+        //     }
+        // }
+
+        // Coarsen children patches to match siblings
+        std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
+        std::vector<std::size_t> sizes = {
+            alpha.grid().nx(),
+            beta.grid().nx(),
+            gamma.grid().nx(),
+            omega.grid().nx()
+        };
+        int min_size = *std::min_element(sizes.begin(), sizes.end());
+        PatchGridType merged_grid(MPI_COMM_SELF, 2*min_size, alpha.grid().xLower(), beta.grid().xUpper(), 2*min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+        tau.grid() = merged_grid;
+
+        bool need_to_coarsen = std::adjacent_find(sizes.begin(), sizes.end(), std::not_equal_to<std::size_t>()) != sizes.end(); // Coarsen if one of the sizes is different than the others
+        if (need_to_coarsen) {
+            for (int i = 0; i < 4; i++) {
+                auto& patch = *patches[i];
+                int tag = ((patch.matrixT().nrows() / 4) / min_size) - 1; // Tag is the number of times to coarsen
+                for (int n = 0; n < tag; n++) {
+                    auto& grid = patch.grid();
+                    int n_grid = grid.nx();
+                    int coarsen_factor = tag - (tag - n);
+                    int n_fine = n_grid / pow(2, coarsen_factor);
+                    int n_coarse = n_fine / 2;
+
+                    InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+                    std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                    Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+                    InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
+                    std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                    Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                    patch.matrixT() = L21_patch * patch.matrixT();
+                    patch.matrixT() = patch.matrixT() * L12_patch;
+                }
             }
         }
 
+        // NOTE: Change coarsening to be based on the size of the grid, which will be true whenever merged.
+
         // Create index sets
-        int nside = alpha.size();
+        int nside = tau.grid().nx() / 2;
         Vector<int> I_W = vectorRange(0, nside-1);
         Vector<int> I_E = vectorRange(nside, 2*nside - 1);
         Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
@@ -690,33 +729,31 @@ public:
         tau.matrixS() = tau.matrixS().blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
         tau.matrixT() = tau.matrixT().blockPermute(pi_WESN, pi_WESN, blockSizes2, blockSizes2);
 
-        // Merge grid
-        PatchGridType merged_grid(MPI_COMM_SELF, alpha.size() + beta.size(), alpha.grid().xLower(), beta.grid().xUpper(), alpha.size() + gamma.size(), alpha.grid().yLower(), gamma.grid().yUpper());
-        tau.grid() = merged_grid;
+        app.log("  tau after = \n" + tau.str());
 
         return;
     }
 
-    static void merge4to1ExternalInterface(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+    // static void merge4to1ExternalInterface(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
-        EllipticForestApp& app = EllipticForestApp::getInstance();
-        // app.logHead("Merging:");
-        // app.logHead("  alpha = %i", alpha.globalID);
-        // app.logHead("  beta = %i", beta.globalID);
-        // app.logHead("  gamma = %i", gamma.globalID);
-        // app.logHead("  omega = %i", omega.globalID);
-        // app.logHead("  tau = %i", tau.globalID);
+    //     EllipticForestApp& app = EllipticForestApp::getInstance();
+    //     // app.logHead("Merging:");
+    //     // app.logHead("  alpha = %i", alpha.globalID);
+    //     // app.logHead("  beta = %i", beta.globalID);
+    //     // app.logHead("  gamma = %i", gamma.globalID);
+    //     // app.logHead("  omega = %i", omega.globalID);
+    //     // app.logHead("  tau = %i", tau.globalID);
 
-        // Steps for the merge (private member functions)
-        coarsen(tau, alpha, beta, gamma, omega);
-        mergeX(tau, alpha, beta, gamma, omega);
-        mergeS(tau, alpha, beta, gamma, omega);
-        mergeT(tau, alpha, beta, gamma, omega);
-        reorderOperators(tau, alpha, beta, gamma, omega);
-        mergePatch(tau, alpha, beta, gamma, omega);
+    //     // Steps for the merge (private member functions)
+    //     coarsen(tau, alpha, beta, gamma, omega);
+    //     mergeX(tau, alpha, beta, gamma, omega);
+    //     mergeS(tau, alpha, beta, gamma, omega);
+    //     mergeT(tau, alpha, beta, gamma, omega);
+    //     reorderOperators(tau, alpha, beta, gamma, omega);
+    //     mergePatch(tau, alpha, beta, gamma, omega);
 
-        return;
-    }
+    //     return;
+    // }
 
     /**
      * @brief Recursive upwards function
@@ -727,7 +764,7 @@ public:
      * @param gamma Upper-left patch
      * @param omega Upper-right patch
      */
-    virtual void upwards4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+    static void upwards4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
@@ -738,26 +775,26 @@ public:
             // app.logHead("  omega = %i", omega.globalID);
             // app.logHead("  tau = %i", tau.globalID);
 
-            // app.log("Upwards:");
-            // app.log("  alpha = \n" + alpha.str());
-            // app.log("  beta = \n" + beta.str());
-            // app.log("  gamma = \n" + gamma.str());
-            // app.log("  omega = \n" + omega.str());
-            // app.log("  tau = \n" + tau.str());
+            app.log("Upwards:");
+            app.log("  alpha = \n" + alpha.str());
+            app.log("  beta = \n" + beta.str());
+            app.log("  gamma = \n" + gamma.str());
+            app.log("  omega = \n" + omega.str());
+            app.log("  tau before = \n" + tau.str());
 
-            // int n_alpha = alpha.size();
-            // int n_beta = beta.size();
-            // int n_gamma = alpha.size();
-            // int n_omega = omega.size();
-            // int n_tau = tau.size();
+            int n_alpha = alpha.grid().nx();
+            int n_beta = beta.grid().nx();
+            int n_gamma = alpha.grid().nx();
+            int n_omega = omega.grid().nx();
+            int n_tau = tau.grid().nx();
             // if (n_alpha != n_beta || n_beta != n_gamma || n_gamma != n_omega || n_omega != n_alpha) {
             //     std::cerr << "ERROR MISMATCH IN UPWARDS" << std::endl;
             // }
-            // if (n_tau / 2 != n_alpha) {
-            //     // std::cout << "TAU GRID IS NOT MERGED" << std::endl;
-            //     merge4to1(tau, alpha, beta, gamma, omega);
-            //     // mergePatch(tau, alpha, beta, gamma, omega);
-            // }
+            if (n_tau / 2 != n_alpha) {
+                std::cout << "TAU GRID IS NOT MERGED" << std::endl;
+                merge4to1(tau, alpha, beta, gamma, omega);
+                // mergePatch(tau, alpha, beta, gamma, omega);
+            }
 
             // Steps for the upwards stage (private member functions)
             // coarsenUpwards_(tau, alpha, beta, gamma, omega);
@@ -775,28 +812,57 @@ public:
             // reorderOperatorsUpwards(tau, alpha, beta, gamma, omega);
 
             // Check for adaptivity
+            // std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
+
+            // // Iterate over patches
+            // for (auto i = 0; i < 4; i++) {
+            //     auto& patch = *patches[i];
+
+            //     // Iterate over tagged patches
+            //     for (auto n = 0; n < patch.n_coarsens; n++) {
+            //         auto& grid = patch.grid();
+            //         int ngrid = grid.nx();
+            //         int nfine = ngrid / pow(2, n);
+            //         int ncoarse = nfine / 2;
+
+            //         InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
+            //         std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //         Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            //         patches[i]->vectorH() = L21_patch * patches[i]->vectorH();
+            //     }
+            // }
+
+            // Coarsen if needed
             std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
+            std::vector<std::size_t> sizes = {
+                alpha.grid().nx(),
+                beta.grid().nx(),
+                gamma.grid().nx(),
+                omega.grid().nx()
+            };
+            bool need_to_coarsen = std::adjacent_find(sizes.begin(), sizes.end(), std::not_equal_to<std::size_t>()) != sizes.end(); // Coarsen if one of the sizes is different than the others
+            int min_size = *std::min_element(sizes.begin(), sizes.end());
+            if (need_to_coarsen) {
+                for (int i = 0; i < 4; i++) {
+                    auto& patch = *patches[i];
+                    int tag = ((patch.vectorH().size() / 4) / min_size) - 1; // Tag is the number of times to coarsen
+                    for (int n = 0; n < tag; n++) {
+                        auto& grid = patch.grid();
+                        int n_grid = grid.nx();
+                        int coarsen_factor = tag - (tag - n);
+                        int n_fine = n_grid / pow(2, coarsen_factor);
+                        int n_coarse = n_fine / 2;
 
-            // Iterate over patches
-            for (auto i = 0; i < 4; i++) {
-                auto& patch = *patches[i];
-
-                // Iterate over tagged patches
-                for (auto n = 0; n < patch.n_coarsens; n++) {
-                    auto& grid = patch.grid();
-                    int ngrid = grid.nx();
-                    int nfine = ngrid / pow(2, n);
-                    int ncoarse = nfine / 2;
-
-                    InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
-                    std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                    Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
-                    patches[i]->vectorH() = L21_patch * patches[i]->vectorH();
+                        InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+                        std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                        Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+                        patch.vectorH() = L21_patch * patch.vectorH();
+                    }
                 }
             }
 
             // Create index sets
-            int nside = alpha.size();
+            int nside = min_size;
             Vector<int> I_W = vectorRange(0, nside-1);
             Vector<int> I_E = vectorRange(nside, 2*nside - 1);
             Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
@@ -920,22 +986,14 @@ public:
             });
             tau.vectorH() += h_update;
 
-            // Reorder operators
-            int nalpha = alpha.size();
-            int nbeta = beta.size();
-            int ngamma = gamma.size();
-            int nomega = omega.size();
-            Vector<int> n = {nalpha, nbeta, ngamma, nomega};
-            if (!std::equal(n.data().begin()+1, n.data().end(), n.data().begin())) {
-                throw std::invalid_argument("[EllipticForest::HPSAlgorithm::reorderOperatorsUpwards_] Size of children patches are not the same; something probably went wrong with the coarsening...");
-            }
-
             // Form permutation vector and block sizes
             Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
             Vector<int> blockSizes(8, nside);
 
             // Reorder
             tau.vectorH() = tau.vectorH().blockPermute(pi_WESN, blockSizes);
+
+            // app.log("  tau after = \n" + tau.str());
 
         }
 
@@ -951,7 +1009,7 @@ public:
      * @param gamma Upper-left patch
      * @param omega Upper-right patch
      */
-    virtual void split1to4(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+    static void split1to4(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
 
         EllipticForestApp& app = EllipticForestApp::getInstance();
         // app.logHead("Splitting:");
@@ -961,12 +1019,12 @@ public:
         // app.logHead("  gamma = %i", gamma.globalID);
         // app.logHead("  omega = %i", omega.globalID);
 
-        // app.log("Splitting:");
-        // app.log("  alpha = \n" + alpha.str());
-        // app.log("  beta = \n" + beta.str());
-        // app.log("  gamma = \n" + gamma.str());
-        // app.log("  omega = \n" + omega.str());
-        // app.log("  tau = \n" + tau.str());
+        app.log("Splitting:");
+        app.log("  alpha = \n" + alpha.str());
+        app.log("  beta = \n" + beta.str());
+        app.log("  gamma = \n" + gamma.str());
+        app.log("  omega = \n" + omega.str());
+        app.log("  tau = \n" + tau.str());
 
         // Steps for the split (private member functions)
         // uncoarsen_(tau, alpha, beta, gamma, omega);
@@ -976,10 +1034,11 @@ public:
         // applyS(tau, alpha, beta, gamma, omega);
 
         // Uncoarsen
-        for (auto n = 0; n < tau.n_coarsens; n++) {
+        int mismatch_factor = tau.matrixS().ncols() / tau.vectorG().size() - 1;
+        for (auto n = 0; n < mismatch_factor; n++) {
             auto& grid = tau.grid();
             int ngrid = grid.nx();
-            int coarsen_factor = tau.n_coarsens - (n + 1);
+            int coarsen_factor = mismatch_factor - (n + 1);
             int nfine = ngrid / pow(2, coarsen_factor);
             int ncoarse = nfine / 2;
 
@@ -987,6 +1046,19 @@ public:
             std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
             Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
             tau.vectorG() = L12_patch * tau.vectorG();
+        }
+        mismatch_factor =  tau.vectorW().size() / tau.matrixS().nrows() - 1;
+        for (auto n = 0; n < mismatch_factor; n++) {
+            auto& grid = tau.grid();
+            int ngrid = grid.nx();
+            int coarsen_factor = mismatch_factor - (n + 1);
+            int nfine = ngrid / pow(2, coarsen_factor);
+            int ncoarse = nfine / 2;
+
+            InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
+            std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            tau.vectorW() = L21_patch * tau.vectorW();
         }
 
         // Apply solution operator to get interior of tau
@@ -998,7 +1070,7 @@ public:
         }
 
         // Extract components of interior of tau
-        int nside = alpha.size();
+        int nside = tau.grid().nx() / 2;
         Vector<NumericalType> g_alpha_gamma = u_tau_interior.getSegment(0*nside, nside);
         Vector<NumericalType> g_beta_omega = u_tau_interior.getSegment(1*nside, nside);
         Vector<NumericalType> g_alpha_beta = u_tau_interior.getSegment(2*nside, nside);

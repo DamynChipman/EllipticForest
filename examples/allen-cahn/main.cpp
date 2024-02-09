@@ -70,7 +70,7 @@ double energyPotential(double x, double y, double t, double u) {
 double alphaFunction(double x, double y) {
     auto& app = EllipticForest::EllipticForestApp::getInstance();
     double epsilon = std::get<double>(app.options["epsilon"]);
-    return 1;
+    return 1.0;
 }
 
 /**
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
     double t_start = 0;
     app.options.setOption("t-start", t_start);
 
-    double t_end = 0.005;
+    double t_end = 0.001;
     app.options.setOption("t-end", t_end);
 
     double nt = 100;
@@ -243,6 +243,7 @@ int main(int argc, char** argv) {
 
     // Begin solver loop; demonstrates ability to solve multiple times once build stage is done
     int n_output = 0;
+    int n_adapt_output = 0;
     for (auto n = 0; n <= nt; n++) {
 
         double time = t_start + n*dt;
@@ -290,24 +291,6 @@ int main(int argc, char** argv) {
             // Add mesh functions to mesh
             mesh.addMeshFunction(uMesh);
             mesh.addMeshFunction(fMesh);
-            mesh.addMeshFunction(
-                [&](double x, double y){
-                    return solver.alpha_function(x, y);
-                },
-                "alpha_fn"
-            );
-            mesh.addMeshFunction(
-                [&](double x, double y){
-                    return solver.beta_function(x, y);
-                },
-                "beta_fn"
-            );
-            mesh.addMeshFunction(
-                [&](double x, double y){
-                    return solver.lambda_function(x, y);
-                },
-                "lambda_fn"
-            );
 
             // Write VTK files:
             //      "allen-cahn-mesh-{n}.pvtu"            : Parallel header file for mesh and data
@@ -371,6 +354,10 @@ int main(int argc, char** argv) {
         // ====================================================
         // Refine and coarsen the mesh
         // ====================================================
+        mesh.clear();
+        mesh.setMeshFromQuadtree();
+        app.logHead("Output pre-adapt mesh: %04i", n_adapt_output);
+        mesh.toVTK("allen-cahn-pre-adapt", n_adapt_output);
         mesh.quadtree.adapt(
             min_level,
             max_level,
@@ -402,7 +389,7 @@ int main(int argc, char** argv) {
                             int index = j + i*ny;
                             umin = std::min(u[index], umin);
                             umax = std::max(u[index], umax);
-                            app.log("umin = %12.4f, umax = %12.4f, diff = %12.4f", umin, umax, umax - umin);
+                            // app.log("umin = %12.4f, umax = %12.4f, diff = %12.4f", umin, umax, umax - umin);
                             refine_node = (umax - umin > refine_threshold);
 
                             if (refine_node) {
@@ -417,6 +404,10 @@ int main(int argc, char** argv) {
                 return (int) refine_node;
             }
         );
+        mesh.clear();
+        mesh.setMeshFromQuadtree();
+        app.logHead("Output post-adapt mesh: %04i", n_adapt_output);
+        mesh.toVTK("allen-cahn-post-adapt", n_adapt_output++);
     }
 
     // All clean up is done in destructors
