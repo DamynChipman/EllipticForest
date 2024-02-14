@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
     int min_level = 2;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 3;
+    int max_level = 6;
     app.options.setOption("max-level", max_level);
 
     double x_lower = 0.0;
@@ -156,10 +156,10 @@ int main(int argc, char** argv) {
     double t_start = 0;
     app.options.setOption("t-start", t_start);
 
-    double t_end = 0.001;
+    double t_end = 100;
     app.options.setOption("t-end", t_end);
 
-    double nt = 100;
+    double nt = 10;
     app.options.setOption("nt", nt);
 
     double dt = (t_end - t_start) / (nt);
@@ -312,7 +312,9 @@ int main(int argc, char** argv) {
                     int index = j + i*ny;
                     double x = grid(0, i);
                     double y = grid(1, j);
-                    f[index] = -(1.0/dt)*u[index] - energyPotential(x, y, time, u[index]);
+                    double energy = energyPotential(x, y, time, u[index]);
+                    double f_index = -(1.0/dt)*u[index] - energy;
+                    f[index] = f_index;
                 }
             }
         });

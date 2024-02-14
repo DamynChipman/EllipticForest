@@ -790,11 +790,11 @@ public:
             // if (n_alpha != n_beta || n_beta != n_gamma || n_gamma != n_omega || n_omega != n_alpha) {
             //     std::cerr << "ERROR MISMATCH IN UPWARDS" << std::endl;
             // }
-            if (n_tau / 2 != n_alpha) {
-                std::cout << "TAU GRID IS NOT MERGED" << std::endl;
-                merge4to1(tau, alpha, beta, gamma, omega);
-                // mergePatch(tau, alpha, beta, gamma, omega);
-            }
+            // if (n_tau / 2 != n_alpha) {
+            //     std::cout << "TAU GRID IS NOT MERGED" << std::endl;
+            //     merge4to1(tau, alpha, beta, gamma, omega);
+            //     // mergePatch(tau, alpha, beta, gamma, omega);
+            // }
 
             // Steps for the upwards stage (private member functions)
             // coarsenUpwards_(tau, alpha, beta, gamma, omega);
