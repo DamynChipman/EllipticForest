@@ -1,5 +1,5 @@
 # --=== External Packages ===--
-if (${matplotlibcpp})
+if (${matplotlibcpp_POPULATED})
     FetchContent_GetProperties(matplotlibcpp)
 endif()
 
@@ -21,11 +21,15 @@ target_include_directories(EllipticForest PUBLIC
     ${P4EST_INCLUDE}
     ${PETSC_INCLUDE}
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PYTHON_INCLUDE_DIR}
+    ${NUMPY_INCLUDE_DIR}
+    ${matplotlibcpp_SOURCE_DIR}
 )
 
 target_link_directories(EllipticForest PUBLIC
     ${P4EST_LIB}
     ${PETSC_LIB}
+    ${PYTHON_LIBRARY_DIR}
 )
 
 target_link_libraries(EllipticForest PUBLIC

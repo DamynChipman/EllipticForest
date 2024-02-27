@@ -202,6 +202,43 @@ else()
 
 endif()
 
+# --=== matplotlibcpp ===--
+include(FetchContent)
+FetchContent_Declare(
+    matplotlibcpp
+    GIT_REPOSITORY https://github.com/DamynChipman/matplotlib-cpp
+    GIT_TAG 73d633f # Release v0.1
+)
+FetchContent_GetProperties(matplotlibcpp)
+FetchContent_Populate(matplotlibcpp)
+if(PYTHON_ENV_PATH)
+
+    if(PYTHON_VERSION)
+        set(PYTHON_INCLUDE_DIR ${PYTHON_ENV_PATH}/include/${PYTHON_VERSION} CACHE INTERNAL "Python include directory with Python.h")
+        set(PYTHON_LIBRARY_DIR ${PYTHON_ENV_PATH}/lib CACHE INTERNAL "Python library directory")
+        set(NUMPY_INCLUDE_DIR ${PYTHON_ENV_PATH}/lib/${PYTHON_VERSION}/site-packages/numpy/core/include CACHE INTERNAL "Numpy header file location")
+    else()
+        message(STATUS "PYTHON_VERSION not set in configure, but PYTHON_ENV_PATH for matplotlibcpp package was set.")
+        message(STATUS "  PYTHON_VERSION = " ${PYTHON_VERSION})
+        message(STATUS "  PYTHON_ENV_PATH = " ${PYTHON_ENV_PATH})
+        message(FATAL_ERROR "PYTHON_VERSION not set in configure, but PYTHON_ENV_PATH for matplotlibcpp package was set.")
+    endif()
+
+    if(${matplotlibcpp_POPULATED})
+        message(STATUS "Found matplotlibcpp environment:")
+        message(STATUS "  MATPLOTLIBCPP_SOURCE_DIR = " ${matplotlibcpp_SOURCE_DIR})
+        list(APPEND LIST_EXTERNAL_PKGS_LIB ${PYTHON_LIBRARY_DIR})
+        list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${NUMPY_INCLUDE_DIR})
+        list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${PYTHON_INCLUDE_DIR})
+        list(APPEND LIST_EXTERNAL_PKGS_INCLUDE ${matplotlibcpp_SOURCE_DIR})
+    endif()
+
+    if(${matplotlibcpp_POPULATED})
+        add_compile_definitions(USE_MATPLOTLIBCPP)
+    endif()
+    
+endif()
+
 # Set up external package include and library directories
 set(EXTERNAL_PKGS_INCLUDE ${LIST_EXTERNAL_PKGS_INCLUDE} CACHE INTERNAL "EllipticForest external packages' include directories")
 set(EXTERNAL_PKGS_LIB ${LIST_EXTERNAL_PKGS_LIB} CACHE INTERNAL "EllipticForest external packages' library directories")
