@@ -296,7 +296,7 @@ public:
 
         Vector<NumericalType> v((b - a) + 1);
         for (auto i = 0; i < v.size(); i++) {
-            v(i) = a + i;
+            v(i) = data_[a + i];
         }
         return v;
     }

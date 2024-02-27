@@ -1,4 +1,5 @@
 #include "FiniteVolumeNodeFactory.hpp"
+#include "../../PlotUtils.hpp"
 
 namespace EllipticForest {
 
@@ -97,24 +98,26 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
         auto child_g_S = interpolant_S(child_x_S);
         auto child_g_N = interpolant_N(child_x_N);
 
+// #if USE_MATPLOTLIBCPP
+
+//         plt::named_plot("parent_x_W", parent_x_W.data(), parent_g_W.data(), "-ro");
+//         plt::named_plot("parent_x_E", parent_x_E.data(), parent_g_E.data(), "--ro");
+//         plt::named_plot("parent_x_S", parent_x_S.data(), parent_g_S.data(), "-.ro");
+//         plt::named_plot("parent_x_N", parent_x_N.data(), parent_g_N.data(), ":ro");
+//         plt::named_plot("child_x_W", child_x_W.data(), child_g_W.data(), "-bs");
+//         plt::named_plot("child_x_E", child_x_E.data(), child_g_E.data(), "--bs");
+//         plt::named_plot("child_x_S", child_x_S.data(), child_g_S.data(), "-.bs");
+//         plt::named_plot("child_x_N", child_x_N.data(), child_g_N.data(), ":bs");
+//         plt::legend({{"loc", "upper right"}});
+//         plt::grid(true);
+//         plt::show();
+
+// #endif
+
         child_patch.vectorG() = concatenate({child_g_W, child_g_E, child_g_S, child_g_N});
         tagged_for_refinement = true;
     }
-
-    if (parent_patch.vectorU().size() != 0) {
-        // app.log("[createChildNode] creating child u");
-        auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
-        auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-        auto& u_parent = parent_patch.vectorU();
-
-        BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
-
-        auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
-        auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        child_patch.vectorU() = interpolant(x1_child, x2_child);
-        tagged_for_refinement = true;
-    }
-
+    
     if (parent_patch.vectorF().size() != 0) {
         // app.log("[createChildNode] creating child f");
         // TODO: Add try-catch for if the RHS function is set in the solver
@@ -126,7 +129,34 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
 
         auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
         auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        child_patch.vectorF() = interpolant(x1_child, x2_child);
+        auto f_child = interpolant(x1_child, x2_child);
+
+#if USE_MATPLOTLIBCPP
+
+        plt::figure(1);
+        plt::scatter3(parent_grid, f_parent);
+        plt::scatter3(child_grid, f_child);
+        plt::show();
+
+#endif
+
+        child_patch.vectorF() = f_child;
+        tagged_for_refinement = true;
+    }
+
+    if (parent_patch.vectorU().size() != 0) {
+        // app.log("[createChildNode] creating child u");
+        // auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+        // auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        // auto& u_parent = parent_patch.vectorU();
+
+        // BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
+
+        // auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+        // auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        // child_patch.vectorU() = interpolant(x1_child, x2_child);
+
+        child_patch.vectorU() = solver.solve(child_patch.grid(), child_patch.vectorG(), child_patch.vectorF());
         tagged_for_refinement = true;
     }
 

@@ -504,12 +504,12 @@ public:
         // reorderOperators(tau, alpha, beta, gamma, omega);
         // mergePatch(tau, alpha, beta, gamma, omega);
 
-        app.log("Merging:");
-        app.log("  alpha = \n" + alpha.str());
-        app.log("  beta = \n" + beta.str());
-        app.log("  gamma = \n" + gamma.str());
-        app.log("  omega = \n" + omega.str());
-        app.log("  tau before = \n" + tau.str());
+        // app.log("Merging:");
+        // app.log("  alpha = \n" + alpha.str());
+        // app.log("  beta = \n" + beta.str());
+        // app.log("  gamma = \n" + gamma.str());
+        // app.log("  omega = \n" + omega.str());
+        // app.log("  tau before = \n" + tau.str());
 
         // Get data
         // std::vector<PatchGridType*> grids = {&alpha.grid(), &beta.grid(), &gamma.grid(), &omega.grid()};
@@ -729,7 +729,7 @@ public:
         tau.matrixS() = tau.matrixS().blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
         tau.matrixT() = tau.matrixT().blockPermute(pi_WESN, pi_WESN, blockSizes2, blockSizes2);
 
-        app.log("  tau after = \n" + tau.str());
+        // app.log("  tau after = \n" + tau.str());
 
         return;
     }
@@ -775,12 +775,12 @@ public:
             // app.logHead("  omega = %i", omega.globalID);
             // app.logHead("  tau = %i", tau.globalID);
 
-            app.log("Upwards:");
-            app.log("  alpha = \n" + alpha.str());
-            app.log("  beta = \n" + beta.str());
-            app.log("  gamma = \n" + gamma.str());
-            app.log("  omega = \n" + omega.str());
-            app.log("  tau before = \n" + tau.str());
+            // app.log("Upwards:");
+            // app.log("  alpha = \n" + alpha.str());
+            // app.log("  beta = \n" + beta.str());
+            // app.log("  gamma = \n" + gamma.str());
+            // app.log("  omega = \n" + omega.str());
+            // app.log("  tau before = \n" + tau.str());
 
             int n_alpha = alpha.grid().nx();
             int n_beta = beta.grid().nx();
@@ -1019,12 +1019,12 @@ public:
         // app.logHead("  gamma = %i", gamma.globalID);
         // app.logHead("  omega = %i", omega.globalID);
 
-        app.log("Splitting:");
-        app.log("  alpha = \n" + alpha.str());
-        app.log("  beta = \n" + beta.str());
-        app.log("  gamma = \n" + gamma.str());
-        app.log("  omega = \n" + omega.str());
-        app.log("  tau = \n" + tau.str());
+        // app.log("Splitting:");
+        // app.log("  alpha = \n" + alpha.str());
+        // app.log("  beta = \n" + beta.str());
+        // app.log("  gamma = \n" + gamma.str());
+        // app.log("  omega = \n" + omega.str());
+        // app.log("  tau = \n" + tau.str());
 
         // Steps for the split (private member functions)
         // uncoarsen_(tau, alpha, beta, gamma, omega);

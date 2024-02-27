@@ -2,7 +2,7 @@
 
 namespace EllipticForest {
 
-InterpolantBase::InterpolantBase(Vector<double>& x, const Vector<double>& y, int m) :
+InterpolantBase::InterpolantBase(Vector<double>& x, Vector<double>& y, int m) :
     n(x.size()),
     mm(m),
     jsav(0),
@@ -107,7 +107,7 @@ int InterpolantBase::hunt_(const double x) {
     return std::max(0, std::min(n - mm, jl - ((mm-2) >> 1)));
 }
 
-LinearInterpolant::LinearInterpolant(Vector<double>& x, const Vector<double>& y) :
+LinearInterpolant::LinearInterpolant(Vector<double>& x, Vector<double>& y) :
     InterpolantBase(x, y, 2)
         {}
 
@@ -118,6 +118,42 @@ double LinearInterpolant::rawInterp(int j, double x) {
     else {
         return yy[j] + ((x - xx[j]) / (xx[j+1] - xx[j]))*(yy[j+1] - yy[j]);
     }
+}
+
+PolynomialInterpolant::PolynomialInterpolant(Vector<double>& x, Vector<double>& y, int poly_order) :
+    InterpolantBase(x, y, poly_order+1),
+    dy(0.)
+        {}
+
+double PolynomialInterpolant::rawInterp(int j, double x) {
+    int i, m, ns=0;
+    double y, den, dif, dift, ho, hp, w;
+    const double *xa = &xx[j], *ya = &yy[j];
+    Vector<double> c(mm);
+    Vector<double> d(mm);
+    dif = abs(x - xa[0]);
+    for (i = 0; i < mm; i++) {
+        if ((dift = abs(x - xa[i])) < dif) {
+            ns = i;
+            dif = dift;
+        }
+        c[i] = ya[i];
+        d[i] = ya[i];
+    }
+    y = ya[ns--];
+    for (m=1;m<mm;m++) {
+        for (i=0;i<mm-m;i++) {
+            ho=xa[i]-x;
+            hp=xa[i+m]-x;
+            w=c[i+1]-d[i];
+            if ((den=ho-hp) == 0.0) throw("Poly_interp error");
+            den=w/den;
+            d[i]=hp*den;
+            c[i]=ho*den;
+        }
+        y += (dy=(2*(ns+1) < (mm-m) ? c[ns+1] : d[ns--]));
+    }
+    return y; 
 }
 
 BilinearInterpolant::BilinearInterpolant(Vector<double>& x1, Vector<double>& x2, Vector<double>& y) :
@@ -147,7 +183,7 @@ double BilinearInterpolant::operator()(double x1, double x2) {
 }
 
 Vector<double> BilinearInterpolant::operator()(Vector<double>& x1, Vector<double>& x2) {
-
+    
     Vector<double> yy(x1.size()*x2.size());
     for (int i = 0; i < x1.size(); i++) {
         double xx1 = x1[i];
@@ -161,4 +197,43 @@ Vector<double> BilinearInterpolant::operator()(Vector<double>& x1, Vector<double
 
 }
 
-};
+Polynomial2DInterpolant::Polynomial2DInterpolant(Vector<double>& x1, Vector<double>& x2, Vector<double>& y, int x1_poly_order, int x2_poly_order) :
+    m(x1.size()),
+    n(x2.size()),
+    mm(x1_poly_order+1),
+    nn(x2_poly_order+1),
+    y(y),
+    yv(m, 0),
+    x1_interpolant(x1, yv, mm),
+    x2_interpolant(x2, x2, nn)
+        {}
+
+double Polynomial2DInterpolant::operator()(double x1, double x2) {
+    int i, j, k;
+    i = x1_interpolant.cor ? x1_interpolant.hunt_(x1) : x1_interpolant.locate_(x1);
+    j = x2_interpolant.cor ? x2_interpolant.hunt_(x2) : x2_interpolant.locate_(x2);
+    for (k = i; k < i+mm; k++) {
+        int kk = 0 + k*n;
+        x2_interpolant.yy = y(kk, kk + n - 1);
+        yv[k] = x2_interpolant.rawInterp(j, x2);
+        // yv = x2_interpolant(x2);
+    }
+    return x1_interpolant.rawInterp(i, x1);
+}
+
+Vector<double> Polynomial2DInterpolant::operator()(Vector<double>& x1, Vector<double>& x2) {
+    
+    Vector<double> yy(x1.size()*x2.size());
+    for (int i = 0; i < x1.size(); i++) {
+        double xx1 = x1[i];
+        for (int j = 0; j < x2.size(); j++) {
+            double xx2 = x2[j];
+            int ii = j + i*x2.size();
+            yy[ii] = operator()(xx1, xx2);
+        }
+    }
+    return yy;
+
+}
+
+}

@@ -4,6 +4,7 @@
 #include <string>
 
 #include "MPI.hpp"
+#include "Vector.hpp"
 
 #if USE_MATPLOTLIBCPP
 #ifdef _GNU_SOURCE
@@ -94,6 +95,22 @@ public:
      * @return FloatingPointType 
      */
     virtual FloatingPointType operator()(std::size_t DIM, std::size_t index) = 0;
+
+    Vector<FloatingPointType> xPoints() {
+        Vector<FloatingPointType> x_points(nx());
+        for (auto i = 0; i < nx(); i++) {
+            x_points[i] = operator()(0, i);
+        }
+        return x_points;
+    }
+
+    Vector<FloatingPointType> yPoints() {
+        Vector<FloatingPointType> y_points(ny());
+        for (auto i = 0; i < ny(); i++) {
+            y_points[i] = operator()(0, i);
+        }
+        return y_points;
+    }
 
     /**
      * @brief Returns a string version of the grid

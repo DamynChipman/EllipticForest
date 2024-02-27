@@ -51,6 +51,8 @@ double uInitial(double x, double y) {
         if (rp < 0.15) u = 1.;
     }
 
+    // double u = exp(pow(x - 0.5, 2) + pow(y - 0.5, 2));
+
     return u;
 }
 
@@ -129,10 +131,10 @@ int main(int argc, char** argv) {
     double threshold = 1.0;
     app.options.setOption("refinement-threshold", threshold);
     
-    int min_level = 2;
+    int min_level = 4;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 6;
+    int max_level = 5;
     app.options.setOption("max-level", max_level);
 
     double x_lower = 0.0;
@@ -156,10 +158,10 @@ int main(int argc, char** argv) {
     double t_start = 0;
     app.options.setOption("t-start", t_start);
 
-    double t_end = 100;
+    double t_end = 0.001;
     app.options.setOption("t-end", t_end);
 
-    double nt = 10;
+    double nt = 200;
     app.options.setOption("nt", nt);
 
     double dt = (t_end - t_start) / (nt);
@@ -174,7 +176,7 @@ int main(int argc, char** argv) {
     double coarsen_threshold = 5e-3;
     app.options.setOption("coarsen-threshold", coarsen_threshold);
 
-    double epsilon = .1;
+    double epsilon = 1.;
     app.options.setOption("epsilon", epsilon);
 
     // ====================================================
@@ -191,6 +193,10 @@ int main(int argc, char** argv) {
     solver.alpha_function = alphaFunction;
     solver.beta_function = betaFunction;
     solver.lambda_function = lambdaFunction;
+    solver.rhs_function_implicit_time_step = [&](double x, double y, double u_prev){
+        double energy = energyPotential(x, y, solver.time, u_prev);
+        return -(1.0/solver.dt)*u_prev - energy;
+    };
 
     // ====================================================
     // Create node factory and mesh
@@ -247,6 +253,8 @@ int main(int argc, char** argv) {
     for (auto n = 0; n <= nt; n++) {
 
         double time = t_start + n*dt;
+        solver.time = time;
+        solver.dt = dt;
         app.logHead("============================");
         app.logHead("n = %4i, time = %f", n, time);
 
@@ -312,7 +320,10 @@ int main(int argc, char** argv) {
                     int index = j + i*ny;
                     double x = grid(0, i);
                     double y = grid(1, j);
-                    double energy = energyPotential(x, y, time, u[index]);
+                    double u_prev = u[index];
+                    double energy = energyPotential(x, y, time, u_prev);
+                    // f[index] = solver.rhs_function_implicit_time_step(x, y, u_prev);
+                    // double energy = energyPotential(x, y, time, u[index]);
                     double f_index = -(1.0/dt)*u[index] - energy;
                     f[index] = f_index;
                 }

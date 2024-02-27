@@ -87,6 +87,11 @@ public:
      */
     Analytical2DFunction rhs_function;
 
+    std::function<double(double, double, double)> rhs_function_implicit_time_step;
+
+    double time;
+    double dt;
+
     /**
      * @brief Construct a new FiniteVolumeSolver object (default)
      * 

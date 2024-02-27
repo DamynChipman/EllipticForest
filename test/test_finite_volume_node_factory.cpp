@@ -5,13 +5,15 @@ using namespace EllipticForest;
 
 TEST(FiniteVolumeNodeFactory, init) {
 
-    EXPECT_NO_THROW(FiniteVolumeNodeFactory node_factory{});
+    FiniteVolumeSolver solver;
+    EXPECT_NO_THROW(FiniteVolumeNodeFactory node_factory{solver});
 
 }
 
 TEST(FiniteVolumeNodeFactory, create_node) {
 
-    FiniteVolumeNodeFactory node_factory{};
+    FiniteVolumeSolver solver;
+    FiniteVolumeNodeFactory node_factory{solver};
 
     int nx = 4;
     double xlower = 0;

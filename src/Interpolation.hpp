@@ -8,6 +8,7 @@ namespace EllipticForest {
 
 // Forward declaration
 class BilinearInterpolant;
+class Polynomial2DInterpolant;
 
 /**
  * @brief Base interpolant class used for interpolating sets of data
@@ -26,7 +27,7 @@ public:
      * @param y Vector of y data
      * @param m Order of interpolation
      */
-    InterpolantBase(Vector<double>& x, const Vector<double>& y, int m);
+    InterpolantBase(Vector<double>& x, Vector<double>& y, int m);
 
     /**
      * @brief Interpolate the y value from the x value
@@ -86,7 +87,7 @@ protected:
      * @brief Reference to y data
      * 
      */
-    const Vector<double>& yy;
+    Vector<double>& yy;
 
     /**
      * @brief Does the actual interpolation; pure virtual function
@@ -116,6 +117,7 @@ private:
     int hunt_(const double x);
 
     friend class BilinearInterpolant;
+    friend class Polynomial2DInterpolant;
 
 };
 
@@ -129,7 +131,7 @@ public:
      * @param x Vector of x values
      * @param y Vector of y values
      */
-    LinearInterpolant(Vector<double>& x, const Vector<double>& y);
+    LinearInterpolant(Vector<double>& x, Vector<double>& y);
 
 protected:
 
@@ -141,6 +143,40 @@ protected:
      * @return double 
      */
     virtual double rawInterp(int j, double x);
+
+};
+
+class PolynomialInterpolant : public InterpolantBase {
+
+public:
+
+    /**
+     * @brief Construct a new PolynomialInterpolant object
+     * 
+     * @param x Vector of x values
+     * @param y Vector of y values
+     * @param poly_order Polynomial order
+     */
+    PolynomialInterpolant(Vector<double>& x, Vector<double>& y, int poly_order);
+
+    /**
+     * @brief Error indication for interpolation
+     * 
+     */
+    double dy;
+
+protected:
+
+    /**
+     * @brief Implementation of polynomial interpolation
+     * 
+     * @param j Index
+     * @param x X value
+     * @return double 
+     */
+    virtual double rawInterp(int j, double x);
+
+    friend class Polynomial2DInterpolant;
 
 };
 
@@ -161,6 +197,36 @@ protected:
 public:
 
     BilinearInterpolant(Vector<double>& x1, Vector<double>& x2, Vector<double>& y);
+
+    double operator()(double x1, double x2);
+
+    Vector<double> operator()(Vector<double>& x1, Vector<double>& x2);
+
+};
+
+class Polynomial2DInterpolant {
+
+protected:
+
+    int m;
+
+    int n;
+
+    int mm;
+
+    int nn;
+
+    Vector<double>& y;
+
+    Vector<double> yv;
+
+    PolynomialInterpolant x1_interpolant;
+
+    PolynomialInterpolant x2_interpolant;
+
+public:
+
+    Polynomial2DInterpolant(Vector<double>& x1, Vector<double>& x2, Vector<double>& y, int x1_poly_order, int x2_poly_order);
 
     double operator()(double x1, double x2);
 
