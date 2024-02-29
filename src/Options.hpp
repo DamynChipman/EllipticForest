@@ -26,8 +26,6 @@ public:
      */
     using OptionTypes = std::variant<std::string, bool, int, double>;
 
-    std::vector<std::string> args;
-
     /**
      * @brief Map of options
      * 
