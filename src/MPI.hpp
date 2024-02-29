@@ -386,6 +386,11 @@ int broadcast(std::vector<T>& data, int root, Communicator comm) {
     return MPI_Bcast(TypeTraits<std::vector<T>>::getAddress(data), TypeTraits<std::vector<T>>::getSize(data), TypeTraits<std::vector<T>>::getType(data), root, comm);
 }
 
+template<class T>
+int gather(T& data, std::vector<T>& root_data, int root, Communicator comm) {
+    return MPI_Gather(&data, 1, TypeTraits<T>::getType(data), TypeTraits<std::vector<T>>::getAddress(root_data), 1, TypeTraits<std::vector<T>>::getType(root_data), root, comm);
+}
+
 /**
  * @brief Function overload of @sa `allgather` for std::vector<T>
  * 

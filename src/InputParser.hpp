@@ -21,7 +21,9 @@ public:
      * @brief List of command-line arguments
      * 
      */
-    std::vector<std::string> args;
+    std::vector<std::string> args{};
+
+    InputParser();
 
     /**
      * @brief Construct a new Input Parser object

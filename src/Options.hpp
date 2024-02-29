@@ -26,6 +26,8 @@ public:
      */
     using OptionTypes = std::variant<std::string, bool, int, double>;
 
+    std::vector<std::string> args;
+
     /**
      * @brief Map of options
      * 
@@ -52,6 +54,8 @@ public:
      * @return OptionTypes& 
      */
     OptionTypes& operator[](std::string const key);
+
+    void addOption(std::string option_name, OptionTypes& value, std::string info);
 
     /**
      * @brief Set an option by key-value pair

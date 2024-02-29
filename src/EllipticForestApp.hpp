@@ -17,11 +17,13 @@
 #include <petsc.h>
 #include <p4est.h>
 
+#include "MPI.hpp"
 #include "Logger.hpp"
 #include "Options.hpp"
 #include "InputParser.hpp"
 #include "Timer.hpp"
 #include "GenericSingleton.hpp"
+#include "Helpers.hpp"
 
 namespace EllipticForest {
 
@@ -51,6 +53,8 @@ public:
      * 
      */
     Options options{};
+
+    InputParser parser{};
 
     /**
      * @brief Timer instance for managing timers
@@ -126,13 +130,13 @@ private:
      * @brief Pointer to argc from main
      * 
      */
-    int* argc_;
+    int* argc_ = nullptr;
 
     /**
      * @brief Pointer to argv from main
      * 
      */
-    char*** argv_;
+    char*** argv_ = nullptr;
 
 };
 

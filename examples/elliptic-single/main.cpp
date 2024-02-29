@@ -127,12 +127,6 @@ int main(int argc, char** argv) {
     int n_solves = 1;
     app.options.setOption("n-solves", n_solves);
     
-    int min_level = 0;
-    app.options.setOption("min-level", min_level);
-    
-    int max_level = 6;
-    app.options.setOption("max-level", max_level);
-
     double x_lower = -10.0;
     app.options.setOption("x-lower", x_lower);
 
@@ -145,10 +139,19 @@ int main(int argc, char** argv) {
     double y_upper = 10.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 8;
+    int min_level = 0;
+    int max_level = 5;
+    int nx = 16;
+    int ny = 16;
+    if (argc > 1) {
+        min_level = atoi(argv[1]);
+        max_level = atoi(argv[2]);
+        nx = atoi(argv[3]);
+        ny = atoi(argv[4]);
+    }
+    app.options.setOption("max-level", max_level);
+    app.options.setOption("min-level", min_level);
     app.options.setOption("nx", nx);
-    
-    int ny = 8;
     app.options.setOption("ny", ny);
 
     // ====================================================

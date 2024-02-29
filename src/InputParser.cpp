@@ -2,6 +2,9 @@
 
 namespace EllipticForest {
 
+InputParser::InputParser()
+    {}
+
 InputParser::InputParser(int& argc, char**& argv) :
     args{argv+1, argv + argc}
         {}

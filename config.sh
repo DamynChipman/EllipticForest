@@ -11,7 +11,8 @@ MPI_PATH=/opt/homebrew
 P4EST_PATH=${HOME}/packages/p4est/p4est/build/local
 
 # PETSC_PATH : Path to PETSc install (i.e., ${PETSC_PATH}/include, ${PETSC_PATH}/lib, ...) 
-PETSC_PATH=${HOME}/packages/petsc/petsc-build-mumps
+# PETSC_PATH=${HOME}/packages/petsc/petsc-build-mumps
+PETSC_PATH=/opt/homebrew
 
 # BUILD_DIR : Build directory
 BUILD_DIR=build-$(git branch --show-current)

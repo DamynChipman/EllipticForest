@@ -123,10 +123,13 @@ public:
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Build Stage");
         app.addTimer("build-stage");
-        app.timers["build-stage"].start();
+        app.addTimer("build-stage:leaf-callback");
+        app.addTimer("build-stage:family-callback");
 
+        app.timers["build-stage"].start();
         mesh.quadtree.merge(
             [&](Node<PatchType>* leaf_node){
+                app.timers["build-stage:leaf-callback"].start();
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 PatchType& patch = leaf_node->data;
@@ -140,9 +143,12 @@ public:
                 else {
                     patch.matrixT() = patch_solver.buildD2N(patch.grid());
                 }
+
+                app.timers["build-stage:leaf-callback"].stop();
                 return 1;
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                app.timers["build-stage:family-callback"].start();
                 // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
                 PatchType& tau = parent_node->data;
@@ -151,11 +157,13 @@ public:
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
                 merge4to1(tau, alpha, beta, gamma, omega);
+
+                app.timers["build-stage:family-callback"].stop();
                 return 1;
             }
         );
-
         app.timers["build-stage"].stop();
+
         app.logHead("End HPS Build Stage");
 
     }
@@ -181,10 +189,13 @@ public:
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
-        app.timers["upwards-stage"].start();
+        app.addTimer("upwards-stage:leaf-callback");
+        app.addTimer("upwards-stage:family-callback");
 
+        app.timers["upwards-stage"].start();
         mesh.quadtree.merge(
             [&](Node<PatchType>* leaf_node){
+                app.timers["upwards-stage:leaf-callback"].start();
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 PatchType& patch = leaf_node->data;
@@ -195,9 +206,11 @@ public:
                 // Set particular Neumann data using patch solver function
                 patch.vectorH() = patch_solver.particularNeumannData(patch.grid(), patch.vectorF());
 
+                app.timers["upwards-stage:leaf-callback"].stop();
                 return 1;
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                app.timers["upwards-stage:family-callback"].start();
                 // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
                 PatchType& tau = parent_node->data;
@@ -206,11 +219,12 @@ public:
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
                 upwards4to1(tau, alpha, beta, gamma, omega);
+                app.timers["upwards-stage:family-callback"].stop();
                 return 1;
             }
         );
-
         app.timers["upwards-stage"].stop();
+
         app.logHead("End HPS Upwards Stage");
 
     }
@@ -228,10 +242,13 @@ public:
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Upwards Stage");
         app.addTimer("upwards-stage");
-        app.timers["upwards-stage"].start();
+        app.addTimer("upwards-stage:leaf-callback");
+        app.addTimer("upwards-stage:family-callback");
 
+        app.timers["upwards-stage"].start();
         mesh.quadtree.merge(
             [&](Node<PatchType>* leaf_node){
+                app.timers["upwards-stage:leaf-callback"].start();
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 PatchType& patch = leaf_node->data;
@@ -251,9 +268,11 @@ public:
                 // Set particular Neumann data using patch solver function
                 patch.vectorH() = patch_solver.particularNeumannData(grid, patch.vectorF());
 
+                app.timers["upwards-stage:leaf-callback"].stop();
                 return 1;
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                app.timers["upwards-stage:family-callback"].start();
                 // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
                 PatchType& tau = parent_node->data;
@@ -262,11 +281,12 @@ public:
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
                 upwards4to1(tau, alpha, beta, gamma, omega);
+                app.timers["upwards-stage:family-callback"].stop();
                 return 1;
             }
         );
-
         app.timers["upwards-stage"].stop();
+
         app.logHead("End HPS Upwards Stage");
 
     }
@@ -293,19 +313,24 @@ public:
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
-        app.timers["solve-stage"].start();
+        app.addTimer("solve-stage:leaf-callback");
+        app.addTimer("solve-stage:family-callback");
 
         // Set Dirichlet data on root patch
         boundary_data_function(mesh.quadtree.root());
 
+        app.timers["solve-stage"].start();
         mesh.quadtree.split(
             [&](Node<PatchType>* leaf_node){
+                app.timers["solve-stage:leaf-callback"].start();
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 leafSolve(leaf_node->data);
+                app.timers["solve-stage:leaf-callback"].stop();
                 return 1;
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                app.timers["solve-stage:family-callback"].start();
                 // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
                 PatchType& tau = parent_node->data;
@@ -314,11 +339,12 @@ public:
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
                 split1to4(tau, alpha, beta, gamma, omega);
+                app.timers["solve-stage:family-callback"].stop();
                 return 1;
             }
         );
-
         app.timers["solve-stage"].stop();
+
         app.logHead("End HPS Solve Stage");
 
     }
@@ -346,7 +372,8 @@ public:
         EllipticForestApp& app = EllipticForestApp::getInstance();
         app.logHead("Begin HPS Solve Stage");
         app.addTimer("solve-stage");
-        app.timers["solve-stage"].start();
+        app.addTimer("solve-stage:leaf-callback");
+        app.addTimer("solve-stage:family-callback");
 
         // Set up data for Dirichlet solve
         PatchType& rootPatch = mesh.quadtree.root();
@@ -419,14 +446,18 @@ public:
             g = solve(A, rhs);
         }
 
+        app.timers["solve-stage"].start();
         mesh.quadtree.split(
             [&](Node<PatchType>* leaf_node){
+                app.timers["solve-stage:leaf-callback"].start();
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 leafSolve(leaf_node->data);
+                app.timers["solve-stage:leaf-callback"].stop();
                 return 1;
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                app.timers["solve-stage:family-callback"].start();
                 // app.log("Family callback: parent path = " + parent_node->path);
                 // Family callback
                 PatchType& tau = parent_node->data;
@@ -435,11 +466,12 @@ public:
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
                 split1to4(tau, alpha, beta, gamma, omega);
+                app.timers["solve-stage:family-callback"].stop();
                 return 1;
             }
         );
-
         app.timers["solve-stage"].stop();
+
         app.logHead("End HPS Solve Stage");
                 
     }

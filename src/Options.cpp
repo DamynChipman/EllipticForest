@@ -13,6 +13,16 @@ Options::OptionTypes& Options::operator[](std::string const key) {
     return optionsMap[key];
 }
 
+void Options::addOption(std::string option_name, OptionTypes& value, std::string info) {
+
+    // Set option in the map
+    optionsMap[option_name] = value;
+
+    // Check for command line override of option
+    
+
+}
+
 void Options::setOption(std::string const key, OptionTypes const value) {
     optionsMap[key] = value;
 }
