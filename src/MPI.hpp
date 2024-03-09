@@ -41,6 +41,12 @@ using Status = MPI_Status;
 using Datatype = MPI_Datatype;
 
 /**
+ * @brief Type alias for MPI_Op
+ * 
+ */
+using CollectiveOperation = MPI_Op;
+
+/**
  * @brief Class for any MPI based object; can also be used by itself for global MPI utility
  * 
  */
@@ -251,6 +257,11 @@ int broadcast(T& data, int root, Communicator comm) {
     return MPI_Bcast(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), root, comm);
 }
 
+template<class T>
+int reduce(T& send_data, T& recv_data, CollectiveOperation op, int root, Communicator comm) {
+    return MPI_Reduce(TypeTraits<T>::getAddress(send_data), TypeTraits<T>::getAddress(recv_data), 1, TypeTraits<T>::getType(send_data), op, root, comm);
+}
+
 /**
  * @brief Wrapper for MPI_Allreduce
  * 
@@ -262,7 +273,7 @@ int broadcast(T& data, int root, Communicator comm) {
  * @return int 
  */
 template<class T>
-int allreduce(T& send, T& recv, MPI_Op op, Communicator comm) {
+int allreduce(T& send, T& recv, CollectiveOperation op, Communicator comm) {
     assert(TypeTraits<T>::getSize(send) == TypeTraits<T>::getSize(recv));
     return MPI_Allreduce(TypeTraits<T>::getAddress(send), TypeTraits<T>::getAddress(recv), TypeTraits<T>::getSize(send), TypeTraits<T>::getType(send), op, comm);
 }

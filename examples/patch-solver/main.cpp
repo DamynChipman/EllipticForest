@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     // ====================================================
     // Set up convergence parameters
     // ====================================================
-    std::vector<int> ns = {8, 16, 32, 64, 128};
+    std::vector<int> ns = {8, 16, 32, 64, 128, 256, 512, 1024};
     std::vector<double> errors;
     EllipticForest::Vector<double> u_exact, u_petsc;
     int nx, ny;
