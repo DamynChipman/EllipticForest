@@ -14,6 +14,7 @@
 #include "Matrix.hpp"
 #include "SpecialMatrices.hpp"
 #include "Mesh.hpp"
+#include "Interpolation.hpp"
 
 namespace EllipticForest {
 
@@ -150,7 +151,7 @@ public:
                 PatchType& beta = child_nodes[1]->data;
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
-                merge4to1(tau, alpha, beta, gamma, omega);
+                merge4to1(tau, alpha, beta, gamma, omega, patch_solver);
                 return 1;
             }
         );
@@ -278,6 +279,7 @@ public:
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
                 upwards4to1(tau, alpha, beta, gamma, omega);
+                // app.log("w: [%6i]", parent_node->data.vectorW().size());
                 return 1;
             }
         );
@@ -452,6 +454,7 @@ public:
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
                 // app.log("Family callback: parent path = " + parent_node->path);
+                // app.log("w: [%6i]", parent_node->data.vectorW().size());
                 // Family callback
                 PatchType& tau = parent_node->data;
                 PatchType& alpha = child_nodes[0]->data;
@@ -477,7 +480,7 @@ public:
      * @param gamma Upper-left patch
      * @param omega Upper-right patch
      */
-    static void merge4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+    static void merge4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega, PatchSolverType& patch_solver) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
         // app.logHead("Merging:");
@@ -536,14 +539,14 @@ public:
         //         auto& grid = patch.grid();
         //         int ngrid = grid.nx();
         //         int coarsen_factor = tags[i] - (tags[i] - n);
-        //         int nfine = ngrid / pow(2, coarsen_factor);
-        //         int ncoarse = nfine / 2;
+        //         int n_fine = ngrid / pow(2, coarsen_factor);
+        //         int ncoarse = n_fine / 2;
 
         //         InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
         //         std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
         //         Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-        //         InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
+        //         InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
         //         std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
         //         Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
@@ -556,6 +559,7 @@ public:
 
         // Coarsen children patches to match siblings
         std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
+
         std::vector<std::size_t> sizes = {
             alpha.grid().nx(),
             beta.grid().nx(),
@@ -566,31 +570,46 @@ public:
         PatchGridType merged_grid(MPI_COMM_SELF, 2*min_size, alpha.grid().xLower(), beta.grid().xUpper(), 2*min_size, alpha.grid().yLower(), gamma.grid().yUpper());
         tau.grid() = merged_grid;
 
-        bool need_to_coarsen = std::adjacent_find(sizes.begin(), sizes.end(), std::not_equal_to<std::size_t>()) != sizes.end(); // Coarsen if one of the sizes is different than the others
-        if (need_to_coarsen) {
-            for (int i = 0; i < 4; i++) {
-                auto& patch = *patches[i];
-                int tag = ((patch.matrixT().nrows() / 4) / min_size) - 1; // Tag is the number of times to coarsen
-                for (int n = 0; n < tag; n++) {
-                    auto& grid = patch.grid();
-                    int n_grid = grid.nx();
-                    int coarsen_factor = tag - (tag - n);
-                    int n_fine = n_grid / pow(2, coarsen_factor);
-                    int n_coarse = n_fine / 2;
-
-                    InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
-                    std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                    Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
-
-                    InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
-                    std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                    Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
-
-                    patch.matrixT() = L21_patch * patch.matrixT();
-                    patch.matrixT() = patch.matrixT() * L12_patch;
-                }
+        for (auto& patch : patches) {
+            int n_grid = tau.grid().nx() / 2;
+            int n_T_rows_expected = n_grid*4;
+            int n_T_cols_expected = n_grid*4;
+            if (patch->matrixT().nrows() != n_T_rows_expected || patch->matrixT().ncols() != n_T_cols_expected) {
+                PatchGridType coarsened_grid(MPI_COMM_SELF, n_grid, patch->grid().xLower(), patch->grid().xUpper(), n_grid, patch->grid().yLower(), patch->grid().yUpper());
+                // TODO: Change to interpolation scheme!
+                patch->matrixT() = patch_solver.buildD2N(coarsened_grid);
             }
         }
+
+        // bool need_to_coarsen = std::adjacent_find(sizes.begin(), sizes.end(), std::not_equal_to<std::size_t>()) != sizes.end(); // Coarsen if one of the sizes is different than the others
+        // if (need_to_coarsen) {
+        //     for (int i = 0; i < 4; i++) {
+        //         auto& patch = *patches[i];
+        //         // if (patch.matrixT().nrows() / 4 != min_size) {
+        //         //     PatchGridType coarse_grid(MPI_COMM_SELF, min_size, alpha.grid().xLower(), beta.grid().xUpper(), min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+        //         //     patch.matrixT() = patch_solver.buildD2N(coarse_grid);
+        //         // }
+        //         int tag = ((patch.matrixT().nrows() / 4) / min_size) - 1; // Tag is the number of times to coarsen
+        //         for (int n = 0; n < tag; n++) {
+        //             auto& grid = patch.grid();
+        //             int n_grid = grid.nx();
+        //             int coarsen_factor = tag - (tag - n);
+        //             int n_fine = n_grid / pow(2, coarsen_factor);
+        //             int n_coarse = n_fine / 2;
+
+        //             InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+        //             std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+        //             Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+        //             InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
+        //             std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+        //             Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+        //             patch.matrixT() = L21_patch * patch.matrixT();
+        //             patch.matrixT() = patch.matrixT() * L12_patch;
+        //         }
+        //     }
+        // }
 
         // NOTE: Change coarsening to be based on the size of the grid, which will be true whenever merged.
 
@@ -782,11 +801,6 @@ public:
             // app.log("  omega = \n" + omega.str());
             // app.log("  tau before = \n" + tau.str());
 
-            int n_alpha = alpha.grid().nx();
-            int n_beta = beta.grid().nx();
-            int n_gamma = alpha.grid().nx();
-            int n_omega = omega.grid().nx();
-            int n_tau = tau.grid().nx();
             // if (n_alpha != n_beta || n_beta != n_gamma || n_gamma != n_omega || n_omega != n_alpha) {
             //     std::cerr << "ERROR MISMATCH IN UPWARDS" << std::endl;
             // }
@@ -822,8 +836,8 @@ public:
             //     for (auto n = 0; n < patch.n_coarsens; n++) {
             //         auto& grid = patch.grid();
             //         int ngrid = grid.nx();
-            //         int nfine = ngrid / pow(2, n);
-            //         int ncoarse = nfine / 2;
+            //         int n_fine = ngrid / pow(2, n);
+            //         int ncoarse = n_fine / 2;
 
             //         InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
             //         std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
@@ -834,35 +848,140 @@ public:
 
             // Coarsen if needed
             std::vector<PatchType*> patches = {&alpha, &beta, &gamma, &omega};
-            std::vector<std::size_t> sizes = {
-                alpha.grid().nx(),
-                beta.grid().nx(),
-                gamma.grid().nx(),
-                omega.grid().nx()
-            };
-            bool need_to_coarsen = std::adjacent_find(sizes.begin(), sizes.end(), std::not_equal_to<std::size_t>()) != sizes.end(); // Coarsen if one of the sizes is different than the others
-            int min_size = *std::min_element(sizes.begin(), sizes.end());
-            if (need_to_coarsen) {
-                for (int i = 0; i < 4; i++) {
-                    auto& patch = *patches[i];
-                    int tag = ((patch.vectorH().size() / 4) / min_size) - 1; // Tag is the number of times to coarsen
-                    for (int n = 0; n < tag; n++) {
-                        auto& grid = patch.grid();
-                        int n_grid = grid.nx();
-                        int coarsen_factor = tag - (tag - n);
-                        int n_fine = n_grid / pow(2, coarsen_factor);
-                        int n_coarse = n_fine / 2;
 
-                        InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+            for (auto* patch : patches) {
+                int n_grid = tau.grid().nx() / 2;
+                int n_T_rows_expected = n_grid*4;
+                int n_T_cols_expected = n_grid*4;
+                int n_h_size_expected = 4*n_grid;
+                // if (patch->matrixT().nrows() != n_T_rows_expected || patch->matrixT().ncols() != n_T_cols_expected) {
+                //     patch->matrixT() = patch_solver.buildD2N(patch->grid());
+                // }
+                if (patch->vectorH().size() != n_h_size_expected) {
+                    double r = (double) patch->vectorH().size() / (double) n_h_size_expected;
+                    int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+                    if (p > 0) {
+                        // h is larger than expected; coarsen
+                        // h_coarse = L_12 * h_fine
+                        // [4G] = [4G, 8G] [8G]
+                        InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid);
+                        std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                        Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                        // h_coarse = L_12 * h_fine
+                        patch->vectorH() = L12_patch * patch->vectorH();
+                    }
+                    else if (p < 0) {
+                        // h is smaller than expected; refine
+                        // h_fine = L_21 * h_coarse
+                        // [4G] = [4G, 2G] [2G]
+                        InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid);
                         std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
                         Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
-                        patch.vectorH() = L21_patch * patch.vectorH();
+
+                        // h_fine = L_21 * h_coarse
+                        patch->vectorH() = L21_patch * patch->vectorH();
                     }
                 }
             }
 
+            // std::vector<std::size_t> sizes = {
+            //     alpha.grid().nx(),
+            //     beta.grid().nx(),
+            //     gamma.grid().nx(),
+            //     omega.grid().nx()
+            // };
+            // bool need_to_coarsen = std::adjacent_find(sizes.begin(), sizes.end(), std::not_equal_to<std::size_t>()) != sizes.end(); // Coarsen if one of the sizes is different than the others
+            // int min_size = *std::min_element(sizes.begin(), sizes.end());
+            // if (need_to_coarsen) {
+            //     for (int i = 0; i < 4; i++) {
+            //         auto& patch = *patches[i];
+            //         // if (patch.matrixT().nrows() / 4 != min_size) {
+            //         //     PatchGridType coarse_grid(MPI_COMM_SELF, min_size, alpha.grid().xLower(), beta.grid().xUpper(), min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+            //         //     patch.matrixT() = patch_solver.buildD2N(coarse_grid);
+            //         // }
+            //         int tag = ((patch.vectorH().size() / 4) / min_size) - 1; // Tag is the number of times to coarsen
+            //         for (int n = 0; n < tag; n++) {
+            //             auto& grid = patch.grid();
+            //             int n_grid = grid.nx();
+            //             int coarsen_factor = tag - (tag - n);
+            //             int n_fine = n_grid / pow(2, coarsen_factor);
+            //             int n_coarse = n_fine / 2;
+
+            //             InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+            //             std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //             Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            //             patch.vectorH() = L21_patch * patch.vectorH();
+            //         }
+            //     }
+            // }
+            
+            // if (need_to_coarsen) {
+            //     for (int i = 0; i < 4; i++) {
+            //         auto& patch = *patches[i];
+            //         int tag = ((patch.vectorH().size() / 4) / min_size) - 1; // Tag is the number of times to coarsen
+            //         for (int n = 0; n < tag; n++) {
+            //             auto& grid = patch.grid();
+            //             int n_grid = grid.nx();
+            //             int coarsen_factor = tag - (tag - n);
+            //             int n_fine = n_grid / pow(2, coarsen_factor);
+            //             int n_coarse = n_fine / 2;
+
+            //             InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+            //             std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //             Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            //             patch.vectorH() = L21_patch * patch.vectorH();
+            //         }
+            //     }
+            //     for (int i = 0; i < 4; i++) {
+            //         auto& patch = *patches[i];
+            //         int tag = ((patch.matrixT().nrows() / 4) / min_size) - 1; // Tag is the number of times to coarsen
+            //         if (patch.matrixT().nrows() / min_size < 4) {
+            //             std::cout << "HERE" << std::endl;
+            //         }
+            //         for (int n = 0; n < tag; n++) {
+            //             auto& grid = patch.grid();
+            //             int n_grid = grid.nx();
+            //             int coarsen_factor = tag - (tag - n);
+            //             int n_fine = n_grid / pow(2, coarsen_factor);
+            //             int n_coarse = n_fine / 2;
+
+            //             InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+            //             std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //             Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+            //             InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
+            //             std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            //             Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+            //             patch.matrixT() = L21_patch * patch.matrixT();
+            //             patch.matrixT() = patch.matrixT() * L12_patch;
+            //         }
+            //     }
+            // }
+            // for (int i = 0; i < 4; i++) {
+            //     auto& patch = *patches[i];
+            //     if (patch.matrixT().nrows() / min_size < 4) {
+            //         // int n_fine = min_size;
+            //         // int n_coarse = n_fine / 2;
+
+            //         // InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_coarse);
+            //         // std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //         // Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+            //         // InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
+            //         // std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            //         // Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+            //         patch.matrixT() = patch_solver.buildD2N(patch.grid());
+
+            //         // patch.matrixT() = L12_patch * patch.matrixT();
+            //         // patch.matrixT() = patch.matrixT() * L21_patch;
+            //     }
+            // }
+
             // Create index sets
-            int nside = min_size;
+            int nside = tau.grid().nx() / 2;
             Vector<int> I_W = vectorRange(0, nside-1);
             Vector<int> I_E = vectorRange(nside, 2*nside - 1);
             Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
@@ -1033,33 +1152,186 @@ public:
         // uncoarsen(tau, alpha, beta, gamma, omega);
         // applyS(tau, alpha, beta, gamma, omega);
 
+        int n_grid = tau.grid().nx();
+        int n_S_rows_expected = 2*n_grid;
+        int n_S_cols_expected = 4*n_grid;
+        int n_g_size_expected = 4*n_grid;
+        int n_w_size_expected = 2*n_grid;
+        if (tau.matrixS().nrows() != n_S_rows_expected || tau.matrixS().ncols() != n_S_cols_expected) {
+            double r = (double) tau.matrixS().nrows() / (double) n_S_rows_expected;
+            int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+            if (p > 0) {
+                // S is larger than expected; coarsen
+                // S_coarse = L_12 * S_fine * L_21
+                // [2G, 4G] = [2G, 4G] [4G, 8G] [8G, 4G], G = N_grid
+                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_grid/2);
+                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_grid/2);
+                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+                // S_coarse = L_12 * S_fine * L_21
+                tau.matrixS() = L12_patch * tau.matrixS();
+                tau.matrixS() = tau.matrixS() * L21_patch;
+            }
+            else if (p < 0) {
+                // S is smaller than expected; refine
+                // S_fine = L_21 * S_coarse * L_12
+                // [2G, 4G] = [2G, 1G] [1G, 2G] [2G, 4G], G = N_grid
+                InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid/2);
+                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+                
+                InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid/2);
+                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                // S_fine = L_21 * S_coarse * L_12
+                tau.matrixS() = L21_patch * tau.matrixS();
+                tau.matrixS() = tau.matrixS() * L12_patch;
+            }
+        }
+        if (tau.vectorG().size() != n_g_size_expected) {
+            double r = (double) tau.vectorG().size() / (double) n_g_size_expected;
+            int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+            if (p > 0) {
+                // g is larger than expected; coarsen
+                // g_coarse = L_12 * g_fine
+                // [4G] = [4G, 8G] [8G]
+                InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid);
+                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                // g_coarse = L_12 * g_fine
+                tau.vectorG() = L12_patch * tau.vectorG();
+            }
+            else if (p < 0) {
+                for (int n = p; n < 0; n++) {
+                    // g is smaller than expected; refine
+                    // g_fine = L_21 * g_coarse
+                    // [4G] = [4G, 2G] [2G]
+                    double refine_factor = pow(2, n+1);
+                    int n_target = n_grid * refine_factor;
+                    InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_target);
+                    std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                    Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+                    // g_fine = L_21 * g_coarse
+                    tau.vectorG() = L21_patch * tau.vectorG();
+                }
+
+                // int n_fine = n_grid;
+                // int n_coarse = n_grid/2;
+                // double h_fine = tau.grid().dx();
+                // double h_coarse = h_fine / 2.;
+
+                // auto coarse_y = linspace(tau.grid().yLower() + h_coarse/2, tau.grid().yUpper() - h_coarse/2, n_coarse);
+                // auto coarse_x = linspace(tau.grid().xLower() + h_coarse/2, tau.grid().xUpper() - h_coarse/2, n_coarse);
+
+                // auto g_coarse_W = tau.vectorG().getSegment(0*n_coarse, n_coarse);
+                // auto g_coarse_E = tau.vectorG().getSegment(1*n_coarse, n_coarse);
+                // auto g_coarse_S = tau.vectorG().getSegment(2*n_coarse, n_coarse);
+                // auto g_coarse_N = tau.vectorG().getSegment(3*n_coarse, n_coarse);
+
+                // PolynomialInterpolant interpolant_W(coarse_y, g_coarse_W, 1);
+                // PolynomialInterpolant interpolant_E(coarse_y, g_coarse_E, 1);
+                // PolynomialInterpolant interpolant_S(coarse_x, g_coarse_S, 1);
+                // PolynomialInterpolant interpolant_N(coarse_x, g_coarse_N, 1);
+
+                // auto fine_y = linspace(tau.grid().yLower() + h_fine/2, tau.grid().yUpper() - h_fine/2, n_fine);
+                // auto fine_x = linspace(tau.grid().xLower() + h_fine/2, tau.grid().xUpper() - h_fine/2, n_fine);
+
+                // auto g_fine_W = interpolant_W(fine_y);
+                // auto g_fine_E = interpolant_E(fine_y);
+                // auto g_fine_S = interpolant_S(fine_x);
+                // auto g_fine_N = interpolant_N(fine_x);
+
+                // tau.vectorG() = concatenate({g_fine_W, g_fine_E, g_fine_S, g_fine_N});
+            }
+        }
+        if (tau.vectorW().size() != n_w_size_expected) {
+            double r = (double) tau.vectorW().size() / (double) n_w_size_expected;
+            int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+            if (p > 0) {
+                // w is larger than expected; coarsen
+                // w_coarse = L_12 * w_fine
+                // [2G] = [2G, 4G] [4G]
+                InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid/2);
+                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+                // w_coarse = L_12 * w_fine
+                tau.vectorW() = L12_patch * tau.vectorW();
+            }
+            else if (p < 0) {
+                // w is smaller than expected; refine
+                // w_fine = L_21 * w_coarse
+                // [2G] = [2G, 1G] [1G]
+                InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid/2);
+                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+                // w_fine = L_21 * w_coarse
+                tau.vectorW() = L21_patch * tau.vectorW();
+            }
+        }
+        // if (tau.vectorW().size() != n_w_size_expected) {
+        //     throw std::runtime_error("[split1to4] Size of w is incorrect");
+        // }
+
         // Uncoarsen
-        int mismatch_factor = tau.matrixS().ncols() / tau.vectorG().size() - 1;
-        for (auto n = 0; n < mismatch_factor; n++) {
-            auto& grid = tau.grid();
-            int ngrid = grid.nx();
-            int coarsen_factor = mismatch_factor - (n + 1);
-            int nfine = ngrid / pow(2, coarsen_factor);
-            int ncoarse = nfine / 2;
+        // int mismatch_factor = tau.matrixS().ncols() / tau.vectorG().size() - 1;
+        // for (auto n = 0; n < mismatch_factor; n++) {
+        //     auto& grid = tau.grid();
+        //     int ngrid = grid.nx();
+        //     int coarsen_factor = mismatch_factor - (n + 1);
+        //     int n_fine = ngrid / pow(2, coarsen_factor);
+        //     int ncoarse = n_fine / 2;
 
-            InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
-            std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-            Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
-            tau.vectorG() = L12_patch * tau.vectorG();
-        }
-        mismatch_factor =  tau.vectorW().size() / tau.matrixS().nrows() - 1;
-        for (auto n = 0; n < mismatch_factor; n++) {
-            auto& grid = tau.grid();
-            int ngrid = grid.nx();
-            int coarsen_factor = mismatch_factor - (n + 1);
-            int nfine = ngrid / pow(2, coarsen_factor);
-            int ncoarse = nfine / 2;
+        //     // double h_coarse = grid.dx() / 2;
+        //     // auto y_coarse = linspace(grid.yLower() + h_coarse/2, grid.yUpper() - h_coarse/2, ncoarse);
+        //     // auto x_coarse = linspace(grid.xLower() + h_coarse/2, grid.xUpper() - h_coarse/2, ncoarse);
 
-            InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
-            std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-            Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
-            tau.vectorW() = L21_patch * tau.vectorW();
-        }
+        //     // auto g_W_coarse = tau.vectorG().getSegment(0*ncoarse, ncoarse);
+        //     // auto g_E_coarse = tau.vectorG().getSegment(1*ncoarse, ncoarse);
+        //     // auto g_S_coarse = tau.vectorG().getSegment(2*ncoarse, ncoarse);
+        //     // auto g_N_coarse = tau.vectorG().getSegment(3*ncoarse, ncoarse);
+
+        //     // PolynomialInterpolant interpolant_W(y_coarse, g_W_coarse, 1);
+        //     // PolynomialInterpolant interpolant_E(y_coarse, g_E_coarse, 1);
+        //     // PolynomialInterpolant interpolant_S(x_coarse, g_S_coarse, 1);
+        //     // PolynomialInterpolant interpolant_N(x_coarse, g_N_coarse, 1);
+
+        //     // double h_fine = grid.dx();
+        //     // auto y_fine = linspace(grid.yLower() + h_fine/2, grid.yUpper() - h_fine/2, n_fine);
+        //     // auto x_fine = linspace(grid.xLower() + h_fine/2, grid.xUpper() - h_fine/2, n_fine);
+
+        //     // auto g_W_fine = interpolant_W(y_fine);
+        //     // auto g_E_fine = interpolant_E(y_fine);
+        //     // auto g_S_fine = interpolant_S(x_fine);
+        //     // auto g_N_fine = interpolant_N(x_fine);
+        //     // tau.vectorG() = concatenate({g_W_fine, g_E_fine, g_S_fine, g_N_fine});
+
+        //     InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
+        //     std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+        //     Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+        //     tau.vectorG() = L12_patch * tau.vectorG();
+        // }
+        // mismatch_factor =  tau.vectorW().size() / tau.matrixS().nrows() - 1;
+        // for (auto n = 0; n < mismatch_factor; n++) {
+        //     auto& grid = tau.grid();
+        //     int ngrid = grid.nx();
+        //     int coarsen_factor = mismatch_factor - (n + 1);
+        //     int n_fine = ngrid / pow(2, coarsen_factor + 1);
+        //     int ncoarse = n_fine / 2;
+
+        //     InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
+        //     std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+        //     Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+        //     tau.vectorW() = L21_patch * tau.vectorW();
+        // }
 
         // Apply solution operator to get interior of tau
         Vector<NumericalType> u_tau_interior = tau.matrixS() * tau.vectorG();
@@ -1264,14 +1536,14 @@ private:
                 auto& grid = patch.grid();
                 int ngrid = grid.nx();
                 int coarsen_factor = tags[i] - (tags[i] - n);
-                int nfine = ngrid / pow(2, coarsen_factor);
-                int ncoarse = nfine / 2;
+                int n_fine = ngrid / pow(2, coarsen_factor);
+                int ncoarse = n_fine / 2;
 
                 InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
                 std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
                 Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
+                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
                 std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
                 Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
@@ -1302,14 +1574,14 @@ public:
                 auto& grid = patch.grid();
                 int ngrid = grid.nx();
                 int coarsen_factor = tags[i] - (tags[i] - n);
-                int nfine = ngrid / pow(2, coarsen_factor);
-                int ncoarse = nfine / 2;
+                int n_fine = ngrid / pow(2, coarsen_factor);
+                int ncoarse = n_fine / 2;
 
                 InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
                 std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
                 Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
+                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
                 std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
                 Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
@@ -1980,8 +2252,8 @@ private:
             for (auto n = 0; n < patch.n_coarsens; n++) {
                 auto& grid = patch.grid();
                 int ngrid = grid.nx();
-                int nfine = ngrid / pow(2, n);
-                int ncoarse = nfine / 2;
+                int n_fine = ngrid / pow(2, n);
+                int ncoarse = n_fine / 2;
 
                 InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
                 std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
@@ -2017,8 +2289,8 @@ public:
             for (auto n = 0; n < patch.n_coarsens; n++) {
                 auto& grid = patch.grid();
                 int ngrid = grid.nx();
-                int nfine = ngrid / pow(2, n);
-                int ncoarse = nfine / 2;
+                int n_fine = ngrid / pow(2, n);
+                int ncoarse = n_fine / 2;
 
                 InterpolationMatrixFine2Coarse<NumericalType> L21_side(ncoarse);
                 std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
@@ -2321,10 +2593,10 @@ private:
             auto& grid = tau.grid();
             int ngrid = grid.nx();
             int coarsen_factor = tau.n_coarsens - (n + 1);
-            int nfine = ngrid / pow(2, coarsen_factor);
-            int ncoarse = nfine / 2;
+            int n_fine = ngrid / pow(2, coarsen_factor);
+            int ncoarse = n_fine / 2;
 
-            InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
+            InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
             std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
             Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
             tau.vectorG() = L12_patch * tau.vectorG();
@@ -2352,10 +2624,10 @@ public:
             auto& grid = tau.grid();
             int ngrid = grid.nx();
             int coarsen_factor = tau.n_coarsens - (n + 1);
-            int nfine = ngrid / pow(2, coarsen_factor);
-            int ncoarse = nfine / 2;
+            int n_fine = ngrid / pow(2, coarsen_factor);
+            int ncoarse = n_fine / 2;
 
-            InterpolationMatrixCoarse2Fine<NumericalType> L12_side(nfine);
+            InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_fine);
             std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
             Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
             tau.vectorG() = L12_patch * tau.vectorG();

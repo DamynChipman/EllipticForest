@@ -66,99 +66,129 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
         tagged_for_refinement = true;
     }
 
-    if (parent_patch.vectorG().size() != 0) {
-        // app.log("[createChildNode] creating child g");
-        auto parent_x_W = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-        auto parent_x_E = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-        auto parent_x_S = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
-        auto parent_x_N = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+//     if (parent_patch.vectorG().size() != 0) {
+//         // app.log("[createChildNode] creating child g");
+        
+//         int n_parent = parent_grid.nx();
+//         double h_child = child_grid.dx();
+//         int n_child = child_grid.nx();
+//         double h_parent = parent_grid.dx();
 
-        auto parent_I_W = vectorRange(0, parent_grid.ny() - 1);
-        auto parent_I_E = vectorRange(parent_grid.ny(), 2*parent_grid.ny() - 1);
-        auto parent_I_S = vectorRange(2*parent_grid.ny(), (2*parent_grid.ny() + parent_grid.nx()) - 1);
-        auto parent_I_N = vectorRange(2*parent_grid.ny() + parent_grid.nx(), (2*parent_grid.ny() + 2*parent_grid.nx()) - 1);
+//         auto parent_y = linspace(parent_grid.yLower() + h_parent/2, parent_grid.yUpper() - h_parent/2, n_parent);
+//         auto parent_x = linspace(parent_grid.xLower() + h_parent/2, parent_grid.xUpper() - h_parent/2, n_parent);
 
-        auto parent_g_W = parent_patch.vectorG()(parent_I_W);
-        auto parent_g_E = parent_patch.vectorG()(parent_I_E);
-        auto parent_g_S = parent_patch.vectorG()(parent_I_S);
-        auto parent_g_N = parent_patch.vectorG()(parent_I_N);
+//         // auto parent_x_W = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+//         // auto parent_x_E = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+//         // auto parent_x_S = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+//         // auto parent_x_N = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
 
-        LinearInterpolant interpolant_W(parent_x_W, parent_g_W);
-        LinearInterpolant interpolant_E(parent_x_E, parent_g_E);
-        LinearInterpolant interpolant_S(parent_x_S, parent_g_S);
-        LinearInterpolant interpolant_N(parent_x_N, parent_g_N);
+//         // auto parent_I_W = vectorRange(0, parent_grid.ny() - 1);
+//         // auto parent_I_E = vectorRange(parent_grid.ny(), 2*parent_grid.ny() - 1);
+//         // auto parent_I_S = vectorRange(2*parent_grid.ny(), (2*parent_grid.ny() + parent_grid.nx()) - 1);
+//         // auto parent_I_N = vectorRange(2*parent_grid.ny() + parent_grid.nx(), (2*parent_grid.ny() + 2*parent_grid.nx()) - 1);
 
-        auto child_x_W = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        auto child_x_E = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        auto child_x_S = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
-        auto child_x_N = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+//         auto parent_g_W = parent_patch.vectorG().getSegment(0*n_parent, n_parent);
+//         auto parent_g_E = parent_patch.vectorG().getSegment(1*n_parent, n_parent);
+//         auto parent_g_S = parent_patch.vectorG().getSegment(2*n_parent, n_parent);
+//         auto parent_g_N = parent_patch.vectorG().getSegment(3*n_parent, n_parent);
 
-        auto child_g_W = interpolant_W(child_x_W);
-        auto child_g_E = interpolant_E(child_x_E);
-        auto child_g_S = interpolant_S(child_x_S);
-        auto child_g_N = interpolant_N(child_x_N);
+//         // auto parent_g_W = parent_patch.vectorG()(parent_I_W);
+//         // auto parent_g_E = parent_patch.vectorG()(parent_I_E);
+//         // auto parent_g_S = parent_patch.vectorG()(parent_I_S);
+//         // auto parent_g_N = parent_patch.vectorG()(parent_I_N);
 
-// #if USE_MATPLOTLIBCPP
+//         PolynomialInterpolant interpolant_W(parent_y, parent_g_W, 4);
+//         PolynomialInterpolant interpolant_E(parent_y, parent_g_E, 4);
+//         PolynomialInterpolant interpolant_S(parent_x, parent_g_S, 4);
+//         PolynomialInterpolant interpolant_N(parent_x, parent_g_N, 4);
 
-//         plt::named_plot("parent_x_W", parent_x_W.data(), parent_g_W.data(), "-ro");
-//         plt::named_plot("parent_x_E", parent_x_E.data(), parent_g_E.data(), "--ro");
-//         plt::named_plot("parent_x_S", parent_x_S.data(), parent_g_S.data(), "-.ro");
-//         plt::named_plot("parent_x_N", parent_x_N.data(), parent_g_N.data(), ":ro");
-//         plt::named_plot("child_x_W", child_x_W.data(), child_g_W.data(), "-bs");
-//         plt::named_plot("child_x_E", child_x_E.data(), child_g_E.data(), "--bs");
-//         plt::named_plot("child_x_S", child_x_S.data(), child_g_S.data(), "-.bs");
-//         plt::named_plot("child_x_N", child_x_N.data(), child_g_N.data(), ":bs");
-//         plt::legend({{"loc", "upper right"}});
-//         plt::grid(true);
-//         plt::show();
+//         // PolynomialInterpolant interpolant_W(parent_x_W, parent_g_W, 2);
+//         // PolynomialInterpolant interpolant_E(parent_x_E, parent_g_E, 2);
+//         // PolynomialInterpolant interpolant_S(parent_x_S, parent_g_S, 2);
+//         // PolynomialInterpolant interpolant_N(parent_x_N, parent_g_N, 2);
 
-// #endif
+//         auto child_y = linspace(child_grid.yLower() + h_child/2, child_grid.yUpper() - h_child/2, n_child);
+//         auto child_x = linspace(child_grid.xLower() + h_child/2, child_grid.xUpper() - h_child/2, n_child);
 
-        child_patch.vectorG() = concatenate({child_g_W, child_g_E, child_g_S, child_g_N});
-        tagged_for_refinement = true;
-    }
+//         // auto child_x_W = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+//         // auto child_x_E = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+//         // auto child_x_S = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+//         // auto child_x_N = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+
+//         auto child_g_W = interpolant_W(child_y);
+//         auto child_g_E = interpolant_E(child_y);
+//         auto child_g_S = interpolant_S(child_x);
+//         auto child_g_N = interpolant_N(child_x);
+
+//         // auto child_g_W = interpolant_W(child_x_W);
+//         // auto child_g_E = interpolant_E(child_x_E);
+//         // auto child_g_S = interpolant_S(child_x_S);
+//         // auto child_g_N = interpolant_N(child_x_N);
+
+// // #if USE_MATPLOTLIBCPP
+
+// //         plt::named_plot("parent_x_W", parent_x_W.data(), parent_g_W.data(), "-ro");
+// //         plt::named_plot("parent_x_E", parent_x_E.data(), parent_g_E.data(), "--ro");
+// //         plt::named_plot("parent_x_S", parent_x_S.data(), parent_g_S.data(), "-.ro");
+// //         plt::named_plot("parent_x_N", parent_x_N.data(), parent_g_N.data(), ":ro");
+// //         plt::named_plot("child_x_W", child_x_W.data(), child_g_W.data(), "-bs");
+// //         plt::named_plot("child_x_E", child_x_E.data(), child_g_E.data(), "--bs");
+// //         plt::named_plot("child_x_S", child_x_S.data(), child_g_S.data(), "-.bs");
+// //         plt::named_plot("child_x_N", child_x_N.data(), child_g_N.data(), ":bs");
+// //         plt::legend({{"loc", "upper right"}});
+// //         plt::grid(true);
+// //         plt::show();
+
+// // #endif
+
+//         child_patch.vectorG() = concatenate({child_g_W, child_g_E, child_g_S, child_g_N});
+//         tagged_for_refinement = true;
+//     }
     
     if (parent_patch.vectorF().size() != 0) {
         // app.log("[createChildNode] creating child f");
         // TODO: Add try-catch for if the RHS function is set in the solver
-        auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
-        auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-        auto& f_parent = parent_patch.vectorF();
-
-        BilinearInterpolant interpolant(x1_parent, x2_parent, f_parent);
-
-        auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
-        auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        auto f_child = interpolant(x1_child, x2_child);
-
-#if USE_MATPLOTLIBCPP
-
-        plt::figure(1);
-        plt::scatter3(parent_grid, f_parent);
-        plt::scatter3(child_grid, f_child);
-        plt::show();
-
-#endif
-
-        child_patch.vectorF() = f_child;
-        tagged_for_refinement = true;
-    }
-
-    if (parent_patch.vectorU().size() != 0) {
-        // app.log("[createChildNode] creating child u");
         // auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
         // auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-        // auto& u_parent = parent_patch.vectorU();
+        // auto& f_parent = parent_patch.vectorF();
 
-        // BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
+        // BilinearInterpolant interpolant(x1_parent, x2_parent, f_parent);
 
         // auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
         // auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        // child_patch.vectorU() = interpolant(x1_child, x2_child);
+        // auto f_child = interpolant(x1_child, x2_child);
 
-        child_patch.vectorU() = solver.solve(child_patch.grid(), child_patch.vectorG(), child_patch.vectorF());
+        // child_patch.vectorF() = f_child;
+
+        // SANITY CHECKS: Plug in exact RHS function here instead of interpolation
+        child_patch.vectorF() = Vector<double>(child_grid.nx()*child_grid.ny(), 0);
+        for (auto i = 0; i < child_grid.nx(); i++) {
+            for (auto j = 0; j < child_grid.ny(); j++) {
+                double x = child_grid(0, i);
+                double y = child_grid(1, j);
+                int index = j + i*child_grid.ny();
+                child_patch.vectorF()[index] = -(sin(x) + sin(y));
+            }
+        }
+
         tagged_for_refinement = true;
     }
+
+//     if (parent_patch.vectorU().size() != 0) {
+//         // app.log("[createChildNode] creating child u");
+//         auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+//         auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+//         auto& u_parent = parent_patch.vectorU();
+
+//         BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
+
+//         auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+//         auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+//         child_patch.vectorU() = interpolant(x1_child, x2_child);
+
+//         // child_patch.vectorU() = solver.solve(child_patch.grid(), child_patch.vectorG(), child_patch.vectorF());
+//         tagged_for_refinement = true;
+//     }
 
     if (parent_patch.vectorH().size() != 0) {
         // app.log("[createChildNode] creating child h");
@@ -182,7 +212,8 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
         auto& beta = *siblings[1];
         auto& gamma = *siblings[2];
         auto& omega = *siblings[3];
-        FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega);
+        FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega, solver);
+        FiniteVolumeHPS::upwards4to1(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeX(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeS(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeT(tau, alpha, beta, gamma, omega);

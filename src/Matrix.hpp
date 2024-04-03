@@ -705,6 +705,31 @@ public:
         return *this;
     }
 
+    int write(std::string filename) {
+        std::ofstream file(filename, std::ios::binary);
+        if (!file) {
+            std::cerr << "Failed to open file: " << filename << std::endl;
+            return -1;
+        }
+
+        // Write the number of rows and columns as integers
+        int rows = nrows_;
+        int cols = ncols_;
+        file.write(reinterpret_cast<const char*>(&rows), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&cols), sizeof(int));
+
+        // Write the matrix entries in row-major format
+        for (auto i = 0; i < nrows_; i++) {
+            for (auto j = 0; j < ncols_; j++) {
+                NumericalType entry = operator()(i, j);
+                file.write(reinterpret_cast<const char*>(&entry), sizeof(NumericalType));
+            }
+        }
+
+        file.close();
+        return 0;
+    }
+
 private:
 
     /**

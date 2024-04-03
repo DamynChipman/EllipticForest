@@ -243,7 +243,6 @@ public:
 	 * 
 	 */
 	~Quadtree() {
-		std::cout << "Quadtree DESTRUCTOR called" << std::endl;
 		// Iterate through map and delete any owned nodes
 		for (typename NodeMap::iterator iter = map.begin(); iter != map.end(); ++iter) {
 			if (iter->second != nullptr) {

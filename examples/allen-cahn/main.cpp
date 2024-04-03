@@ -158,10 +158,10 @@ int main(int argc, char** argv) {
     double t_start = 0;
     app.options.setOption("t-start", t_start);
 
-    double t_end = 0.001;
+    double t_end = 0.01;
     app.options.setOption("t-end", t_end);
 
-    double nt = 200;
+    double nt = 20;
     app.options.setOption("nt", nt);
 
     double dt = (t_end - t_start) / (nt);
@@ -193,10 +193,6 @@ int main(int argc, char** argv) {
     solver.alpha_function = alphaFunction;
     solver.beta_function = betaFunction;
     solver.lambda_function = lambdaFunction;
-    solver.rhs_function_implicit_time_step = [&](double x, double y, double u_prev){
-        double energy = energyPotential(x, y, solver.time, u_prev);
-        return -(1.0/solver.dt)*u_prev - energy;
-    };
 
     // ====================================================
     // Create node factory and mesh
@@ -282,8 +278,8 @@ int main(int argc, char** argv) {
             EllipticForest::Vector<double> uMesh{};
             uMesh.name() = "u_soln";
             
-            EllipticForest::Vector<double> fMesh{};
-            fMesh.name() = "f_rhs";
+            // EllipticForest::Vector<double> fMesh{};
+            // fMesh.name() = "f_rhs";
             
             mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
                 if (node->leaf) {
@@ -291,14 +287,14 @@ int main(int argc, char** argv) {
                     auto& grid = patch.grid();
 
                     uMesh.append(patch.vectorU());
-                    fMesh.append(patch.vectorF());
+                    // fMesh.append(patch.vectorF());
                 }
                 return 1;
             });
 
             // Add mesh functions to mesh
             mesh.addMeshFunction(uMesh);
-            mesh.addMeshFunction(fMesh);
+            // mesh.addMeshFunction(fMesh);
 
             // Write VTK files:
             //      "allen-cahn-mesh-{n}.pvtu"            : Parallel header file for mesh and data
@@ -308,27 +304,27 @@ int main(int argc, char** argv) {
         }
 
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
-        HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
-            auto& grid = patch.grid();
-            int nx = grid.nx();
-            int ny = grid.ny();
-            patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
-            auto& u = patch.vectorU();
-            auto& f = patch.vectorF();
-            for (auto i = 0; i < nx; i++) {
-                for (auto j = 0; j < ny; j++) {
-                    int index = j + i*ny;
-                    double x = grid(0, i);
-                    double y = grid(1, j);
-                    double u_prev = u[index];
-                    double energy = energyPotential(x, y, time, u_prev);
-                    // f[index] = solver.rhs_function_implicit_time_step(x, y, u_prev);
-                    // double energy = energyPotential(x, y, time, u[index]);
-                    double f_index = -(1.0/dt)*u[index] - energy;
-                    f[index] = f_index;
-                }
-            }
-        });
+        // HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
+        //     auto& grid = patch.grid();
+        //     int nx = grid.nx();
+        //     int ny = grid.ny();
+        //     patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
+        //     auto& u = patch.vectorU();
+        //     auto& f = patch.vectorF();
+        //     for (auto i = 0; i < nx; i++) {
+        //         for (auto j = 0; j < ny; j++) {
+        //             int index = j + i*ny;
+        //             double x = grid(0, i);
+        //             double y = grid(1, j);
+        //             double u_prev = u[index];
+        //             double energy = energyPotential(x, y, time, u_prev);
+        //             // f[index] = solver.rhs_function_implicit_time_step(x, y, u_prev);
+        //             double f_index = -(1.0/dt)*u[index] + energy;
+        //             // double f_index = -(1.0/dt)*u_prev - (u_prev - pow(u_prev, 3))/pow(0.001, 2);
+        //             f[index] = f_index;
+        //         }
+        //     }
+        // });
 
         // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
         HPS.solveStage([&](int side, double x, double y, double* a, double* b){
@@ -367,10 +363,30 @@ int main(int argc, char** argv) {
         // ====================================================
         // Refine and coarsen the mesh
         // ====================================================
+        #if 0
+        // Pre-refine mesh
         mesh.clear();
         mesh.setMeshFromQuadtree();
         app.logHead("Output pre-adapt mesh: %04i", n_adapt_output);
+        EllipticForest::Vector<double> u_mesh_pre{};
+        u_mesh_pre.name() = "u_soln";
+        EllipticForest::Vector<double> f_mesh_pre{};
+        f_mesh_pre.name() = "f_rhs";
+        mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+            if (node->leaf) {
+                auto& patch = node->data;
+                auto& grid = patch.grid();
+
+                u_mesh_pre.append(patch.vectorU());
+                f_mesh_pre.append(patch.vectorF());
+            }
+            return 1;
+        });
+        mesh.addMeshFunction(u_mesh_pre);
+        mesh.addMeshFunction(f_mesh_pre);
         mesh.toVTK("allen-cahn-pre-adapt", n_adapt_output);
+        #endif
+
         mesh.quadtree.adapt(
             min_level,
             max_level,
@@ -417,10 +433,52 @@ int main(int argc, char** argv) {
                 return (int) refine_node;
             }
         );
+        // mesh.quadtree.merge(
+        //     [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* leaf_node) {
+        //         return 1;
+        //     },
+        //     [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> child_nodes) {
+        //         EllipticForest::FiniteVolumePatch& tau = parent_node->data;
+        //         EllipticForest::FiniteVolumePatch& alpha = child_nodes[0]->data;
+        //         EllipticForest::FiniteVolumePatch& beta = child_nodes[1]->data;
+        //         EllipticForest::FiniteVolumePatch& gamma = child_nodes[2]->data;
+        //         EllipticForest::FiniteVolumePatch& omega = child_nodes[3]->data;
+        //         std::vector<std::size_t> sizes = {
+        //             alpha.grid().nx(),
+        //             beta.grid().nx(),
+        //             gamma.grid().nx(),
+        //             omega.grid().nx()
+        //         };
+        //         int min_size = *std::min_element(sizes.begin(), sizes.end());
+        //         EllipticForest::FiniteVolumeGrid merged_grid(MPI_COMM_SELF, 2*min_size, alpha.grid().xLower(), beta.grid().xUpper(), 2*min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+        //         tau.grid() = merged_grid;
+        //         return 1;
+        //     }
+        // );
+
+        // Post-refine mesh
+        #if 0
         mesh.clear();
         mesh.setMeshFromQuadtree();
         app.logHead("Output post-adapt mesh: %04i", n_adapt_output);
+        EllipticForest::Vector<double> u_mesh_post{};
+        u_mesh_post.name() = "u_soln";
+        EllipticForest::Vector<double> f_mesh_post{};
+        f_mesh_post.name() = "f_rhs";
+        mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+            if (node->leaf) {
+                auto& patch = node->data;
+                auto& grid = patch.grid();
+
+                u_mesh_post.append(patch.vectorU());
+                f_mesh_post.append(patch.vectorF());
+            }
+            return 1;
+        });
+        mesh.addMeshFunction(u_mesh_post);
+        mesh.addMeshFunction(f_mesh_post);
         mesh.toVTK("allen-cahn-post-adapt", n_adapt_output++);
+        #endif
     }
 
     // All clean up is done in destructors

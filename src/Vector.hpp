@@ -358,6 +358,11 @@ public:
         data_.insert(data_.end(), vec.data().begin(), vec.data().end());
     }
 
+    void append(const NumericalType& val) {
+        size_ += 1;
+        data_.push_back(val);
+    }
+
     /**
      * @brief Create a new vector from an index set
      * 
@@ -755,6 +760,27 @@ public:
         std::string str = "";
         for (auto p : data_) { str += std::to_string(p) + " "; }
         return str;
+    }
+
+    int write(std::string filename) {
+        std::ofstream file(filename, std::ios::binary);
+        if (!file) {
+            std::cerr << "Failed to open file: " << filename << std::endl;
+            return -1;
+        }
+
+        // Write the number of rows and columns as integers
+        int size = data_.size();
+        file.write(reinterpret_cast<const char*>(&size), sizeof(int));
+
+        // Write the matrix entries in row-major format
+        for (auto i = 0; i < size; i++) {
+            NumericalType entry = data_[i];
+            file.write(reinterpret_cast<const char*>(&entry), sizeof(NumericalType));
+        }
+
+        file.close();
+        return 0;
     }
 
 };

@@ -222,11 +222,20 @@ ResultsData solveEllipticViaHPS() {
     // ====================================================
     EllipticForest::FiniteVolumeGrid grid(MPI_COMM_WORLD, nx, x_lower, x_upper, ny, y_lower, y_upper);
     EllipticForest::FiniteVolumePatch root_patch(MPI_COMM_WORLD, grid);
+    
+    // ====================================================
+    // Create patch solver
+    // ====================================================
+    EllipticForest::FiniteVolumeSolver solver{};
+    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
+    solver.alpha_function = alphaFunction;
+    solver.beta_function = betaFunction;
+    solver.lambda_function = lambdaFunction;
 
     // ====================================================
     // Create node factory and mesh
     // ====================================================
-    EllipticForest::FiniteVolumeNodeFactory nodeFactory{};
+    EllipticForest::FiniteVolumeNodeFactory nodeFactory(solver);
     EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh{};
     mesh.refineByFunction(
         [&](double x, double y){
@@ -239,15 +248,6 @@ ResultsData solveEllipticViaHPS() {
         root_patch,
         nodeFactory
     );
-
-    // ====================================================
-    // Create patch solver
-    // ====================================================
-    EllipticForest::FiniteVolumeSolver solver{};
-    solver.solver_type = EllipticForest::FiniteVolumeSolverType::FISHPACK90;
-    solver.alpha_function = alphaFunction;
-    solver.beta_function = betaFunction;
-    solver.lambda_function = lambdaFunction;
 
     // ====================================================
     // Create and run HPS solver
