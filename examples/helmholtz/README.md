@@ -1,30 +1,19 @@
 # EllipticForest Examples
 
-## Elliptic-Single
+## Helmholtz
 
-Solves Poisson's equation:
+Solves a Helmholtz equation
 
-$$\Delta u = f$$
+$$\Delta u + \lambda u = f$$
 
 subject to Dirichlet boundary conditions provided by the exact solution.
 
-By default, this is set to solve for the exact solution:
-
-$$u(x,y) = sin(x) + sin(y)$$
-
-thus,
-
-$$f(x,y) = -sin(x) - sin(y) = -u(x,y).$$
-
-EllipticForest solves this by creating a mesh and refining it according to the curvature of the
-solution (i.e., the right-hand side function `f`). The build, upwards, and solve stages are used
-to do the factorization and application of the solution operators. The solution is output to VTK
-files to be viewed with your favorite visualization tool (VisIt is mine!)
+Due to the highly oscillatory nature of this problem, there is no adaptive refinement. This problem is solved on a uniformly refined mesh.
 
 ## Usage
 
 ```Bash
-mpirun -n <number_of_processes> ./elliptic-single
+mpirun -n <number_of_processes> ./helmholtz <min-level> <max-level> <nx> <ny>
 ```
 
 ## Output

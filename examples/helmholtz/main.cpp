@@ -1,26 +1,19 @@
 /**
- * @file main.cpp : elliptic-single
+ * @file main.cpp : helmholtz
  * @author Damyn Chipman (DamynChipman@u.boisestate.edu)
- * @brief Sets up and solves an elliptic PDE using the Hierarchical Poincaré-Steklov (HPS) method.
+ * @brief Sets up and solves a Helmholtz equation
  * 
- * Solves Poisson's equation:
+ * Solves a Helmholtz equation:
  * 
- * laplacian( u ) = f
+ * laplacian( u ) + lambda * u = f
  * 
  * subject to Dirichlet boundary conditions provided by the exact solution.
  * 
- * By default, this is set to solve for the exact solution:
+ * Due to the highly oscillatory nature of this problem, there is no adaptive
+ * refinement. This problem is solved on a uniformly refined mesh.
  * 
- * u(x,y) = sin(x) + sin(y)
- * 
- * thus,
- * 
- * f(x,y) = -sin(x) - sin(y) = -u(x,y).
- * 
- * EllipticForest solves this by creating a mesh and refining it according to the curvature of the
- * solution (i.e., the right-hand side function `f`). The build, upwards, and solve stages are used
- * to do the factorization and application of the solution operators. The solution is output to VTK
- * files to be viewed with your favorite visualization tool (VisIt is mine!)
+ * Usage:
+ * mpirun -n <mpi-ranks> ./helmholtz <min-level> <max-level> <nx> <ny>
  * 
  */
 
@@ -43,9 +36,9 @@ double besselY(int n, double x) {
 }
 
 /**
- * @brief Main driver for elliptic-single
+ * @brief Main driver for helmholtz
  * 
- * Solves an elliptic PDE with user defined setup functions using EllipticForest
+ * Solves a Helmholtz equation with EllipticForest
  * 
  * @param argc 
  * @param argv 
@@ -143,31 +136,10 @@ int main(int argc, char** argv) {
         return 1.0;
     };
     solver.beta_function = [&](double x, double y){
-        // bool region1 = -10. < x && x < -9.5 && y > 1.5;
-        // bool region2 = -10. < x && x < -9.5 && -0.5 < y && y < 0.5;
-        // bool region3 = -10. < x && x < -9.5 && y < -1.5;
-        // if (region1 || region2 || region3) {
-        //     return 100.;
-        // }
-        // else {
-        //     return 1.;
-        // }
-        // if (-2. < x && x < 2. && -2. < y && y < 2.) {
-        //     return 100.;
-        // }
-        // else {
-        //     return 1.;
-        // }
         return 1.0;
     };
     solver.lambda_function = [&](double x, double y){
-        // if (-2. < x && x < 2. && -2. < y && y < 2.) {
-        //     return 100.;
-        // }
-        // else {
-        //     return 1.;
-        // }
-        return 100.0;
+        return lambda;
     };
 
     // ====================================================
@@ -193,34 +165,12 @@ int main(int argc, char** argv) {
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
         HPS.upwardsStage([&](double x, double y){
             return 0.;
-            // return amplitude*exp(pow(x0 - x, 2)/sigma_x + pow(y0 - y, 2)/sigma_y);
         });
 
         // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
         HPS.solveStage([&](int side, double x, double y, double* a, double* b){
             *a = 1.0;
             *b = 0.0;
-            // if (side == 0) {
-            //     int n_sources = 9;
-            //     double spacing = (y_upper - y_lower) / n_sources;
-            //     std::vector<double> x0s(n_sources, -15.);
-            //     std::vector<double> y0s(n_sources, 0.);
-            //     for (auto j = 0; j < n_sources; j++) {
-            //         y0s[j] = y_lower + (j + 0.5)*spacing;
-            //     }
-
-            //     double total = 0.;
-            //     for (auto i = 0; i < n_sources; i++) {
-            //         double r = sqrt(pow(x0s[i] - x, 2) + pow(y0s[i] - y, 2));
-            //         total += besselY(0, kappa*r);
-            //     }
-            //     return total;
-            // }
-            // else {
-            //     return 0.;
-            // }
-            // return 0.;
-
             double r = sqrt(pow(x0 - x, 2) + pow(y0 - y, 2));
             return besselY(0, kappa*r);
             
@@ -249,9 +199,9 @@ int main(int argc, char** argv) {
         mesh.addMeshFunction(uMesh);
 
         // Write VTK files:
-        //      "elliptic-mesh.pvtu"            : Parallel header file for mesh and data
-        //      "elliptic-quadtree.pvtu"        : p4est quadtree structure
-        mesh.toVTK("elliptic");
+        //      "helmholtz-mesh.pvtu"            : Parallel header file for mesh and data
+        //      "helmholtz-quadtree.pvtu"        : p4est quadtree structure
+        mesh.toVTK("helmholtz");
 
     }
 
