@@ -174,10 +174,10 @@ int main(int argc, char** argv) {
     bool homogeneous_rhs = false;
     app.options.setOption("homogeneous-rhs", homogeneous_rhs);
     
-    int min_level = 2;
+    int min_level = 1;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 5;
+    int max_level = 1;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
@@ -192,10 +192,10 @@ int main(int argc, char** argv) {
     double y_upper = 10.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 8;
+    int nx = 64;
     app.options.setOption("nx", nx);
     
-    int ny = 8;
+    int ny = 64;
     app.options.setOption("ny", ny);
 
     double threshold = 1.2;
@@ -256,31 +256,34 @@ int main(int argc, char** argv) {
     writeMesh(mesh, 0);
 
     // Refine the mesh in random spots
-    int n_adapts = 20;
-    for (int n = 0; n < n_adapts; n++) {
-        int n_leaf_patches = 0;
-        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-            if (node->leaf) {
-                n_leaf_patches++;
-            }
-            return 1;
-        });
+    // int n_adapts = 1;
+    // for (int n = 0; n < n_adapts; n++) {
+    //     int n_leaf_patches = 0;
+    //     mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
+    //         if (node->leaf) {
+    //             n_leaf_patches++;
+    //         }
+    //         return 1;
+    //     });
         
-        int id_to_refine = randomIntInRange(0, n_leaf_patches);
-        int leaf_counter = 0;
-        std::string path_to_refine = "";
-        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-            if (node->leaf) {
-                if (leaf_counter == id_to_refine) {
-                    path_to_refine = node->path;
-                }
-                leaf_counter++;
-            }
-            return 1;
-        });
-        mesh.quadtree.refineNode(path_to_refine, true);
-        mesh.quadtree.balance(EllipticForest::BalancePolicy::CORNER);
-    }
+    //     int id_to_refine = randomIntInRange(0, n_leaf_patches);
+    //     int leaf_counter = 0;
+    //     std::string path_to_refine = "";
+    //     mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
+    //         if (node->leaf) {
+    //             if (leaf_counter == id_to_refine) {
+    //                 path_to_refine = node->path;
+    //             }
+    //             leaf_counter++;
+    //         }
+    //         return 1;
+    //     });
+    //     mesh.quadtree.refineNode(path_to_refine, true);
+    //     mesh.quadtree.balance(EllipticForest::BalancePolicy::CORNER);
+    // }
+
+    std::string node_to_refine(argv[1]);
+    mesh.quadtree.refineNode(node_to_refine, true);
 
     // Solve refined mesh w/o factorization
     // HPS.upwardsStage([&](double x, double y){
