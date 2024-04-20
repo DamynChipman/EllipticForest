@@ -79,7 +79,7 @@ Once the problem has been solved over the entire mesh, each leaf patch in the me
 
 The user may choose to output the mesh and solution in an unstructured PVTK format using the VTK functionality built-in. To output to VTK files, the user first adds mesh functions to the mesh. This includes the solution stored in `vectorU` after the HPS solve. Then, the user calls the `toVTK` member function of the `Mesh` class. This will write a `.pvtu` file for the mesh and a `.pvtu` file for the quadtree. An example of this output for a Poisson equation is shown in \autoref{fig:poisson_solution}.
 
-![Solution of Poisson equation on a quadtree mesh using EllipticForest. The mesh and data are output in an unstructured PVTK format and visualized with VisIt [@HPV:VisIt].\label{fig:poisson_solution}](examples/elliptic-single/output_polar_star.png)
+![Solution of Poisson equation on a quadtree mesh using EllipticForest. The mesh and data are output in an unstructured PVTK format and visualized with VisIt [@HPV:VisIt].\label{fig:poisson_solution}](examples/elliptic-single/output.png)
 
 # Acknowledgements
 
