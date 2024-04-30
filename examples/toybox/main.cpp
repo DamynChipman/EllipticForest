@@ -163,6 +163,20 @@ void writeMesh(EllipticForest::Mesh<EllipticForest::FiniteVolumePatch>& mesh, in
     mesh.toVTK("toybox", n_output);
 }
 
+void writeData(EllipticForest::Mesh<EllipticForest::FiniteVolumePatch>& mesh, std::string data_file_prefix) {
+    mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        auto& patch = node->data;
+        auto& grid = patch.grid();
+        patch.matrixT().write(data_file_prefix + "-p" + node->path + "-matrix_T.bin");
+        patch.matrixS().write(data_file_prefix + "-p" + node->path + "-matrix_S.bin");
+        patch.vectorW().write(data_file_prefix + "-p" + node->path + "-vector_w.bin");
+        patch.vectorH().write(data_file_prefix + "-p" + node->path + "-vector_h.bin");
+        patch.vectorG().write(data_file_prefix + "-p" + node->path + "-vector_g.bin");
+        patch.vectorU().write(data_file_prefix + "-p" + node->path + "-vector_u.bin");
+        return 1;
+    });
+}
+
 int main(int argc, char** argv) {
 
     EllipticForestApp app(&argc, &argv);
@@ -254,6 +268,7 @@ int main(int argc, char** argv) {
     app.log("error-inf = %24.16e", error_inf);
     app.log("error-l2  = %24.16e", error_l2);
     writeMesh(mesh, 0);
+    writeData(mesh, "step-0");
 
     // Refine the mesh in random spots
     // int n_adapts = 1;
@@ -300,6 +315,7 @@ int main(int argc, char** argv) {
     app.log("error-inf = %24.16e", error_inf);
     app.log("error-l2  = %24.16e", error_l2);
     writeMesh(mesh, 1);
+    writeData(mesh, "step-1");
     
     EllipticForest::Vector<double> u_mesh_adapted{};
     mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
@@ -325,6 +341,7 @@ int main(int argc, char** argv) {
     app.log("error-inf = %24.16e", error_inf);
     app.log("error-l2  = %24.16e", error_l2);
     writeMesh(mesh, 2);
+    writeData(mesh, "step-2");
 
     EllipticForest::Vector<double> u_mesh_refactored{};
     mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
