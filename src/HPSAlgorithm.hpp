@@ -214,7 +214,8 @@ public:
                 PatchType& beta = child_nodes[1]->data;
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
-                upwards4to1(tau, alpha, beta, gamma, omega);
+                // upwards4to1(tau, alpha, beta, gamma, omega);
+                upwards4to1(tau, alpha, beta, gamma, omega, patch_solver);
                 return 1;
             }
         );
@@ -249,6 +250,29 @@ public:
 
         mesh.quadtree.merge(
             [&](Node<PatchType>* leaf_node){
+                return 1;
+            },
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
+                std::vector<std::size_t> sizes = {
+                    alpha.grid().nx(),
+                    beta.grid().nx(),
+                    gamma.grid().nx(),
+                    omega.grid().nx()
+                };
+                int min_size = *std::min_element(sizes.begin(), sizes.end());
+                PatchGridType merged_grid(MPI_COMM_SELF, 2*min_size, alpha.grid().xLower(), beta.grid().xUpper(), 2*min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+                tau.grid() = merged_grid;
+                return 1;
+            }
+        );
+
+        mesh.quadtree.merge(
+            [&](Node<PatchType>* leaf_node){
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 PatchType& patch = leaf_node->data;
@@ -278,7 +302,8 @@ public:
                 PatchType& beta = child_nodes[1]->data;
                 PatchType& gamma = child_nodes[2]->data;
                 PatchType& omega = child_nodes[3]->data;
-                upwards4to1(tau, alpha, beta, gamma, omega);
+                // upwards4to1(tau, alpha, beta, gamma, omega);
+                upwards4to1(tau, alpha, beta, gamma, omega, patch_solver);
                 // app.log("w: [%6i]", parent_node->data.vectorW().size());
                 return 1;
             }
@@ -374,9 +399,39 @@ public:
         app.addTimer("solve-stage");
         app.timers["solve-stage"].start();
 
+        // mesh.quadtree.merge(
+        //     [&](Node<PatchType>* leaf_node){
+        //         return 1;
+        //     },
+        //     [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+        //         PatchType& tau = parent_node->data;
+        //         PatchType& alpha = child_nodes[0]->data;
+        //         PatchType& beta = child_nodes[1]->data;
+        //         PatchType& gamma = child_nodes[2]->data;
+        //         PatchType& omega = child_nodes[3]->data;
+        //         std::vector<std::size_t> sizes = {
+        //             alpha.grid().nx(),
+        //             beta.grid().nx(),
+        //             gamma.grid().nx(),
+        //             omega.grid().nx()
+        //         };
+        //         int min_size = *std::min_element(sizes.begin(), sizes.end());
+        //         PatchGridType merged_grid(MPI_COMM_SELF, 2*min_size, alpha.grid().xLower(), beta.grid().xUpper(), 2*min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+        //         tau.grid() = merged_grid;
+        //         return 1;
+        //     }
+        // );
+
+
         // Set up data for Dirichlet solve
         PatchType& rootPatch = mesh.quadtree.root();
         PatchGridType& rootGrid = rootPatch.grid();
+        int n_grid = rootGrid.nx();
+        int n_T_rows_expected = n_grid*4;
+        int n_T_cols_expected = n_grid*4;
+        if (rootPatch.matrixT().nrows() != n_T_rows_expected || rootPatch.matrixT().ncols() != n_T_cols_expected) {
+            rootPatch.matrixT() = patch_solver.buildD2N(rootPatch.grid());
+        }
         int M = rootGrid.nx();
         std::vector<Vector<NumericalType>> aVectors = {
             Vector<NumericalType>(M),
@@ -783,7 +838,7 @@ public:
      * @param gamma Upper-left patch
      * @param omega Upper-right patch
      */
-    static void upwards4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega) {
+    static void upwards4to1(PatchType& tau, PatchType& alpha, PatchType& beta, PatchType& gamma, PatchType& omega, PatchSolverType& patch_solver) {
         
         EllipticForestApp& app = EllipticForestApp::getInstance();
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
@@ -854,13 +909,14 @@ public:
                 int n_T_rows_expected = n_grid*4;
                 int n_T_cols_expected = n_grid*4;
                 int n_h_size_expected = 4*n_grid;
-                // if (patch->matrixT().nrows() != n_T_rows_expected || patch->matrixT().ncols() != n_T_cols_expected) {
-                //     patch->matrixT() = patch_solver.buildD2N(patch->grid());
-                // }
+                if (patch->matrixT().nrows() != n_T_rows_expected || patch->matrixT().ncols() != n_T_cols_expected) {
+                    patch->matrixT() = patch_solver.buildD2N(patch->grid());
+                }
                 if (patch->vectorH().size() != n_h_size_expected) {
                     double r = (double) patch->vectorH().size() / (double) n_h_size_expected;
                     int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
                     if (p > 0) {
+                        app.log("UPWARDS STAGE: COARSENING H");
                         // h is larger than expected; coarsen
                         // h_coarse = L_12 * h_fine
                         // [4G] = [4G, 8G] [8G]
@@ -872,6 +928,7 @@ public:
                         patch->vectorH() = L12_patch * patch->vectorH();
                     }
                     else if (p < 0) {
+                        app.log("UPWARDS STAGE: REFINING H");
                         // h is smaller than expected; refine
                         // h_fine = L_21 * h_coarse
                         // [4G] = [4G, 2G] [2G]
@@ -1158,45 +1215,152 @@ public:
         int n_g_size_expected = 4*n_grid;
         int n_w_size_expected = 2*n_grid;
         if (tau.matrixS().nrows() != n_S_rows_expected || tau.matrixS().ncols() != n_S_cols_expected) {
-            double r = (double) tau.matrixS().nrows() / (double) n_S_rows_expected;
-            int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
-            if (p > 0) {
-                // S is larger than expected; coarsen
-                // S_coarse = L_12 * S_fine * L_21
-                // [2G, 4G] = [2G, 4G] [4G, 8G] [8G, 4G], G = N_grid
-                InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_grid/2);
-                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
-                InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_grid/2);
-                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            // Create index sets
+            int nside = tau.grid().nx() / 2;
+            Vector<int> I_W = vectorRange(0, nside-1);
+            Vector<int> I_E = vectorRange(nside, 2*nside - 1);
+            Vector<int> I_S = vectorRange(2*nside, 3*nside - 1);
+            Vector<int> I_N = vectorRange(3*nside, 4*nside - 1);
 
-                // S_coarse = L_12 * S_fine * L_21
-                tau.matrixS() = L12_patch * tau.matrixS();
-                tau.matrixS() = tau.matrixS() * L21_patch;
-            }
-            else if (p < 0) {
-                // S is smaller than expected; refine
-                // S_fine = L_21 * S_coarse * L_12
-                // [2G, 4G] = [2G, 1G] [1G, 2G] [2G, 4G], G = N_grid
-                InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid/2);
-                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            Vector<int> IS_ab = I_E;
+            Vector<int> IS_ag = I_N;
+            Vector<int> IS_at = concatenate({I_W, I_S});
+            
+            Vector<int> IS_ba = I_W;
+            Vector<int> IS_bo = I_N;
+            Vector<int> IS_bt = concatenate({I_E, I_S});
+            
+            Vector<int> IS_ga = I_S;
+            Vector<int> IS_go = I_E;
+            Vector<int> IS_gt = concatenate({I_W, I_N});
+
+            Vector<int> IS_ob = I_S;
+            Vector<int> IS_og = I_W;
+            Vector<int> IS_ot = concatenate({I_E, I_N});
+
+            // Create sub-matrices
+            // Form C
+            Matrix<NumericalType> T_a_gt = alpha.matrixT()(IS_ag, IS_at);
+            Matrix<NumericalType> T_g_at = gamma.matrixT()(IS_ga, IS_gt);
+            Matrix<NumericalType> T_b_ot = beta.matrixT()(IS_bo, IS_bt);
+            Matrix<NumericalType> T_o_bt = omega.matrixT()(IS_ob, IS_ot);
+            Matrix<NumericalType> T_a_bt = alpha.matrixT()(IS_ab, IS_at);
+            Matrix<NumericalType> T_b_at = beta.matrixT()(IS_ba, IS_bt);
+            Matrix<NumericalType> T_g_ot = gamma.matrixT()(IS_go, IS_gt);
+            Matrix<NumericalType> T_o_gt = omega.matrixT()(IS_og, IS_ot);
+            T_a_gt = -T_a_gt;
+            T_b_ot = -T_b_ot;
+            T_a_bt = -T_a_bt;
+            T_g_ot = -T_g_ot;
+            std::size_t C_nrows = T_a_gt.nRows() + T_b_ot.nRows() + T_a_bt.nRows() + T_g_ot.nRows();
+            std::size_t C_ncols = T_a_gt.nCols() + T_b_ot.nCols() + T_g_at.nCols() + T_o_bt.nCols();
+            std::vector<std::size_t> C_row_starts = { 0, T_a_gt.nRows(), T_a_gt.nRows() + T_b_ot.nRows(), T_a_gt.nRows() + T_b_ot.nRows() + T_a_bt.nRows() };
+            std::vector<std::size_t> C_col_starts = { 0, T_a_gt.nCols(), T_a_gt.nCols() + T_b_ot.nCols(), T_a_gt.nCols() + T_b_ot.nCols() + T_g_at.nCols() };
+            Matrix<NumericalType> C(C_nrows, C_ncols, 0);
+            C.setBlock(C_row_starts[0], C_col_starts[0], T_a_gt);
+            C.setBlock(C_row_starts[0], C_col_starts[2], T_g_at);
+            C.setBlock(C_row_starts[1], C_col_starts[1], T_b_ot);
+            C.setBlock(C_row_starts[1], C_col_starts[3], T_o_bt);
+            C.setBlock(C_row_starts[2], C_col_starts[0], T_a_bt);
+            C.setBlock(C_row_starts[2], C_col_starts[1], T_b_at);
+            C.setBlock(C_row_starts[3], C_col_starts[2], T_g_ot);
+            C.setBlock(C_row_starts[3], C_col_starts[3], T_o_gt);
+
+            // Form D
+            Matrix<NumericalType> T_a_gg = alpha.matrixT()(IS_ag, IS_ag);
+            Matrix<NumericalType> T_g_aa = gamma.matrixT()(IS_ga, IS_ga);
+            Matrix<NumericalType> T_a_gb = alpha.matrixT()(IS_ag, IS_ab);
+            Matrix<NumericalType> T_g_ao = gamma.matrixT()(IS_ga, IS_go);
+            Matrix<NumericalType> T_b_oo = beta.matrixT()(IS_bo, IS_bo);
+            Matrix<NumericalType> T_o_bb = omega.matrixT()(IS_ob, IS_ob);
+            Matrix<NumericalType> T_b_oa = beta.matrixT()(IS_bo, IS_ba);
+            Matrix<NumericalType> T_o_bg = omega.matrixT()(IS_ob, IS_og);
+            Matrix<NumericalType> T_a_bg = alpha.matrixT()(IS_ab, IS_ag);
+            Matrix<NumericalType> T_b_ao = beta.matrixT()(IS_ba, IS_bo);
+            Matrix<NumericalType> T_a_bb = alpha.matrixT()(IS_ab, IS_ab);
+            Matrix<NumericalType> T_b_aa = beta.matrixT()(IS_ba, IS_ba);
+            Matrix<NumericalType> T_g_oa = gamma.matrixT()(IS_go, IS_ga);
+            Matrix<NumericalType> T_o_gb = omega.matrixT()(IS_og, IS_ob);
+            Matrix<NumericalType> T_g_oo = gamma.matrixT()(IS_go, IS_go);
+            Matrix<NumericalType> T_o_gg = omega.matrixT()(IS_og, IS_og);
+            T_g_ao = -T_g_ao;
+            T_o_bg = -T_o_bg;
+            T_b_ao = -T_b_ao;
+            T_o_gb = -T_o_gb;
+            Matrix<NumericalType> T_diag1 = T_a_gg - T_g_aa;
+            Matrix<NumericalType> T_diag2 = T_b_oo - T_o_bb;
+            Matrix<NumericalType> T_diag3 = T_a_bb - T_b_aa;
+            Matrix<NumericalType> T_diag4 = T_g_oo - T_o_gg;
+            std::vector<std::size_t> D_row_starts = { 0, T_diag1.nRows(), T_diag1.nRows() + T_diag2.nRows(), T_diag1.nRows() + T_diag2.nRows() + T_diag3.nRows() };
+            std::vector<std::size_t> D_col_starts = { 0, T_diag1.nCols(), T_diag1.nCols() + T_diag2.nCols(), T_diag1.nCols() + T_diag2.nCols() + T_diag3.nCols() };
+            Matrix<NumericalType> D = blockDiagonalMatrix<NumericalType>({T_diag1, T_diag2, T_diag3, T_diag4});
+            D.setBlock(D_row_starts[0], D_col_starts[2], T_a_gb);
+            D.setBlock(D_row_starts[0], D_col_starts[3], T_g_ao);
+            D.setBlock(D_row_starts[1], D_col_starts[2], T_b_oa);
+            D.setBlock(D_row_starts[1], D_col_starts[3], T_o_bg);
+            D.setBlock(D_row_starts[2], D_col_starts[0], T_a_bg);
+            D.setBlock(D_row_starts[2], D_col_starts[1], T_b_ao);
+            D.setBlock(D_row_starts[3], D_col_starts[0], T_g_oa);
+            D.setBlock(D_row_starts[3], D_col_starts[1], T_o_gb);
+
+            // Set parent matrices
+            // tau.matrixX() = D;
+            // tau.matrixH() = B;
+            tau.matrixS() = solve(D, C);
+
+            // Reorder operators
+            Vector<int> pi_noChange = {0, 1, 2, 3};
+            Vector<int> pi_WESN = {0, 4, 2, 6, 1, 3, 5, 7};
+            Vector<int> blockSizes1(4, nside);
+            Vector<int> blockSizes2(8, nside);
+
+            // Permute S and T
+            tau.matrixS() = tau.matrixS().blockPermute(pi_noChange, pi_WESN, blockSizes1, blockSizes2);
+
+            // Fix size via interpolation
+            // double r = (double) tau.matrixS().nrows() / (double) n_S_rows_expected;
+            // int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+            // if (p > 0) {
+            //     app.log("SOLVE STAGE: COARSENING S");
+            //     // S is larger than expected; coarsen
+            //     // S_coarse = L_12 * S_fine * L_21
+            //     // [2G, 4G] = [2G, 4G] [4G, 8G] [8G, 4G], G = N_grid
+            //     InterpolationMatrixCoarse2Fine<NumericalType> L12_side(n_grid/2);
+            //     std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            //     Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+
+            //     InterpolationMatrixFine2Coarse<NumericalType> L21_side(n_grid/2);
+            //     std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //     Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+
+            //     // S_coarse = L_12 * S_fine * L_21
+            //     tau.matrixS() = L12_patch * tau.matrixS();
+            //     tau.matrixS() = tau.matrixS() * L21_patch;
+            // }
+            // else if (p < 0) {
+            //     app.log("SOLVE STAGE: REFINING S");
+            //     // S is smaller than expected; refine
+            //     // S_fine = L_21 * S_coarse * L_12
+            //     // [2G, 4G] = [2G, 1G] [1G, 2G] [2G, 4G], G = N_grid
+            //     InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid/2);
+            //     std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //     Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
                 
-                InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid/2);
-                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+            //     InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid/2);
+            //     std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            //     Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
-                // S_fine = L_21 * S_coarse * L_12
-                tau.matrixS() = L21_patch * tau.matrixS();
-                tau.matrixS() = tau.matrixS() * L12_patch;
-            }
+            //     // S_fine = L_21 * S_coarse * L_12
+            //     tau.matrixS() = L21_patch * tau.matrixS();
+            //     tau.matrixS() = tau.matrixS() * L12_patch;
+            // }
         }
         if (tau.vectorG().size() != n_g_size_expected) {
             double r = (double) tau.vectorG().size() / (double) n_g_size_expected;
             int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
             if (p > 0) {
+                app.log("SOLVE STAGE: COARSENING G");
                 // g is larger than expected; coarsen
                 // g_coarse = L_12 * g_fine
                 // [4G] = [4G, 8G] [8G]
@@ -1208,6 +1372,52 @@ public:
                 tau.vectorG() = L12_patch * tau.vectorG();
             }
             else if (p < 0) {
+                app.log("SOLVE STAGE: REFINING G - p = %i", p);
+                auto& fine_grid = tau.grid();
+                auto coarse_grid = PatchGridType(fine_grid.getComm(), fine_grid.nx()/2, fine_grid.xLower(), fine_grid.xUpper(), fine_grid.ny()/2, fine_grid.yLower(), fine_grid.yUpper());
+
+                // auto x_coarse = linspace(coarse_grid.xLower() + coarse_grid.dx()/2, coarse_grid.xUpper() - coarse_grid.dx()/2, coarse_grid.nx());
+                // auto y_coarse = linspace(coarse_grid.yLower() + coarse_grid.dy()/2, coarse_grid.yUpper() - coarse_grid.dy()/2, coarse_grid.ny());
+
+                // auto g_W_coarse = tau.vectorG().getSegment(0*coarse_grid.nx(), coarse_grid.nx());
+                // auto g_E_coarse = tau.vectorG().getSegment(1*coarse_grid.nx(), coarse_grid.nx());
+                // auto g_S_coarse = tau.vectorG().getSegment(2*coarse_grid.nx(), coarse_grid.nx());
+                // auto g_N_coarse = tau.vectorG().getSegment(3*coarse_grid.nx(), coarse_grid.nx());
+
+                // PolynomialInterpolant interpolant_W(y_coarse, g_W_coarse, 1);
+                // PolynomialInterpolant interpolant_E(y_coarse, g_E_coarse, 1);
+                // PolynomialInterpolant interpolant_S(x_coarse, g_S_coarse, 1);
+                // PolynomialInterpolant interpolant_N(x_coarse, g_N_coarse, 1);
+
+                // auto x_fine = linspace(fine_grid.xLower() + fine_grid.dx()/2, fine_grid.xUpper() - fine_grid.dx()/2, fine_grid.nx());
+                // auto y_fine = linspace(fine_grid.yLower() + fine_grid.dy()/2, fine_grid.yUpper() - fine_grid.dy()/2, fine_grid.ny());
+
+                // auto g_W_fine = interpolant_W(y_fine);
+                // auto g_E_fine = interpolant_E(y_fine);
+                // auto g_S_fine = interpolant_S(x_fine);
+                // auto g_N_fine = interpolant_N(x_fine);
+
+                // Vector<double> g_W_fine = Vector<double>(fine_grid.ny(), 0);
+                // Vector<double> g_E_fine = Vector<double>(fine_grid.ny(), 0);
+                // Vector<double> g_S_fine = Vector<double>(fine_grid.nx(), 0);
+                // Vector<double> g_N_fine = Vector<double>(fine_grid.nx(), 0);
+                // for (int j = 0; j < fine_grid.ny(); j++) {
+                //     double xw = fine_grid.xLower();
+                //     double xe = fine_grid.xUpper();
+                //     double yj = fine_grid(1, j);
+                //     g_W_fine[j] = sin(xw)*sinh(yj);
+                //     g_E_fine[j] = sin(xe)*sinh(yj);
+                // }
+                // for (int i = 0; i < fine_grid.nx(); i++) {
+                //     double ys = fine_grid.yLower();
+                //     double yn = fine_grid.yUpper();
+                //     double xi = fine_grid(0, i);
+                //     g_S_fine[i] = sin(xi)*sinh(ys);
+                //     g_N_fine[i] = sin(xi)*sinh(yn);
+                // }
+
+                // tau.vectorG() = concatenate({g_W_fine, g_E_fine, g_S_fine, g_N_fine});
+
                 for (int n = p; n < 0; n++) {
                     // g is smaller than expected; refine
                     // g_fine = L_21 * g_coarse
@@ -1255,6 +1465,7 @@ public:
             double r = (double) tau.vectorW().size() / (double) n_w_size_expected;
             int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
             if (p > 0) {
+                app.log("SOLVE STAGE: COARSENING W");
                 // w is larger than expected; coarsen
                 // w_coarse = L_12 * w_fine
                 // [2G] = [2G, 4G] [4G]
@@ -1266,6 +1477,7 @@ public:
                 tau.vectorW() = L12_patch * tau.vectorW();
             }
             else if (p < 0) {
+                app.log("SOLVE STAGE: REFINING W");
                 // w is smaller than expected; refine
                 // w_fine = L_21 * w_coarse
                 // [2G] = [2G, 1G] [1G]

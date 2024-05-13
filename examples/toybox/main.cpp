@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <random>
+#include <fstream>
 
 #include <SpecialMatrices.hpp>
 #include <EllipticForest.hpp>
@@ -22,6 +23,7 @@ using namespace EllipticForest;
  */
 double uFunction(double x, double y) {
     return sin(x) + sin(y);
+    // return sin(x)*sinh(y);
 }
 
 /**
@@ -35,6 +37,7 @@ double uFunction(double x, double y) {
  */
 double fFunction(double x, double y) {
     return -uFunction(x, y);
+    // return 0;
 }
 
 /**
@@ -194,26 +197,29 @@ int main(int argc, char** argv) {
     int max_level = 1;
     app.options.setOption("max-level", max_level);
 
-    double x_lower = -10.0;
+    double x_lower = -1.0;
     app.options.setOption("x-lower", x_lower);
 
-    double x_upper = 10.0;
+    double x_upper = 1.0;
     app.options.setOption("x-upper", x_upper);
 
-    double y_lower = -10.0;
+    double y_lower = -1.0;
     app.options.setOption("y-lower", y_lower);
 
-    double y_upper = 10.0;
+    double y_upper = 1.0;
     app.options.setOption("y-upper", y_upper);
     
-    int nx = 64;
+    int nx = 8;
     app.options.setOption("nx", nx);
     
-    int ny = 64;
+    int ny = 8;
     app.options.setOption("ny", ny);
 
     double threshold = 1.2;
     app.options.setOption("threshold", threshold);
+
+    int level_start = 1;
+    int level_finish = 7;
 
     FiniteVolumeGrid grid(mpi.getComm(), nx, x_lower, x_upper, ny, y_lower, y_upper);
     FiniteVolumePatch root_patch(mpi.getComm(), grid);
@@ -228,22 +234,22 @@ int main(int argc, char** argv) {
     EllipticForest::Quadtree<EllipticForest::FiniteVolumePatch> quadtree(mpi.getComm(), root_patch, node_factory, {x_lower, x_upper, y_lower, y_upper});
     quadtree.refine(true,
         [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-            if (node->level >= max_level) {
+            if (node->level >= level_start) {
                 return (int) false;
             }
-            if (node->level <= min_level) {
+            if (node->level <= level_start) {
                 return (int) true;
             }
-            auto& grid = node->data.grid();
-            for (int i = 0; i < grid.nx(); i++) {
-                for (int j = 0; j < grid.ny(); j++) {
-                    double x = grid(0, i);
-                    double y = grid(1, j);
-                    if (fabs(fFunction(x, y)) > threshold) {
-                        return (int) true;
-                    }
-                }
-            }
+            // auto& grid = node->data.grid();
+            // for (int i = 0; i < grid.nx(); i++) {
+            //     for (int j = 0; j < grid.ny(); j++) {
+            //         double x = grid(0, i);
+            //         double y = grid(1, j);
+            //         if (fabs(fFunction(x, y)) > threshold) {
+            //             return (int) true;
+            //         }
+            //     }
+            // }
             return (int) false;
         }
     );
@@ -264,41 +270,132 @@ int main(int argc, char** argv) {
     });
     double error_inf = computeMaxErrorFromExact(mesh.quadtree);
     double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-    app.log("--=== Solve on Initial Mesh ===--");
-    app.log("error-inf = %24.16e", error_inf);
-    app.log("error-l2  = %24.16e", error_l2);
+    app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
+    app.log("n = %04i, error-l2 = %24.16e, error-inf = %24.16e", 1, error_l2, error_inf);
+    // app.log("--=== Solve on Initial Mesh ===--");
+    // app.log("error-inf = %24.16e", error_inf);
+    // app.log("error-l2  = %24.16e", error_l2);
     writeMesh(mesh, 0);
-    writeData(mesh, "step-0");
+    // writeData(mesh, "step-0");
+
+    // Open a file for writing a CSV
+    std::ofstream output_file("error.csv");
+    if (!output_file.is_open()) {
+        std::cerr << "Failed to open error file." << std::endl;
+        return 1;
+    }
+
+    // Write headers
+    output_file << "n, l2, lI" << std::endl;
+    output_file << 1 << ",";
+    output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
+    output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
+
+    for (int n = level_start+1; n <= level_finish; n++) {
+        mesh.quadtree.refine(true,
+            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+                if (node->level >= n) {
+                    return (int) false;
+                }
+                if (node->level <= n) {
+                    return (int) true;
+                }
+                return (int) false;
+            }
+        );
+
+        if (atoi(argv[1]))
+            HPS.buildStage();
+        HPS.upwardsStage([&](double x, double y){
+            return fFunction(x, y);
+        });
+        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
+            *a = 1.0;
+            *b = 0.0;
+            return uFunction(x, y);
+        });
+        app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
+
+        double error_inf = computeMaxErrorFromExact(mesh.quadtree);
+        double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
+        app.log("n = %04i, error-l2 = %24.16e, error-inf = %24.16e", n, error_l2, error_inf);
+
+        output_file << n << ",";
+        output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
+        output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
+    }
+#if 0
+    // Write headers
+    output_file << "n, DOFs, l2, lI" << std::endl;
+
+    // std::ofstream ids_file("ids.txt");
+    // if (!ids_file.is_open()) {
+    //     std::cerr << "Failed to open ID file." << std::endl;
+    // }
+    std::ifstream ids_file("ids.txt");
 
     // Refine the mesh in random spots
-    // int n_adapts = 1;
-    // for (int n = 0; n < n_adapts; n++) {
-    //     int n_leaf_patches = 0;
-    //     mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-    //         if (node->leaf) {
-    //             n_leaf_patches++;
-    //         }
-    //         return 1;
-    //     });
+    app.log("--=== Begin refinement loop ===--");
+    int n_adapts = 100;
+    for (int n = 0; n < n_adapts; n++) {
+        int n_leaf_patches = 0;
+        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
+            if (node->leaf) {
+                n_leaf_patches++;
+            }
+            return 1;
+        });
         
-    //     int id_to_refine = randomIntInRange(0, n_leaf_patches);
-    //     int leaf_counter = 0;
-    //     std::string path_to_refine = "";
-    //     mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-    //         if (node->leaf) {
-    //             if (leaf_counter == id_to_refine) {
-    //                 path_to_refine = node->path;
-    //             }
-    //             leaf_counter++;
-    //         }
-    //         return 1;
-    //     });
-    //     mesh.quadtree.refineNode(path_to_refine, true);
-    //     mesh.quadtree.balance(EllipticForest::BalancePolicy::CORNER);
-    // }
+        // int id_to_refine = randomIntInRange(0, n_leaf_patches);
+        // int id_to_refine = ids_to_refine[n];
+        int id_to_refine;
+        ids_file >> id_to_refine;
 
-    std::string node_to_refine(argv[1]);
-    mesh.quadtree.refineNode(node_to_refine, true);
+        int leaf_counter = 0;
+        std::string path_to_refine = "";
+        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
+            if (node->leaf) {
+                if (leaf_counter == id_to_refine) {
+                    path_to_refine = node->path;
+                }
+                leaf_counter++;
+            }
+            return 1;
+        });
+        mesh.quadtree.refineNode(path_to_refine, true);
+        mesh.quadtree.balance(EllipticForest::BalancePolicy::CORNER);
+        // ids_file << id_to_refine << " ";
+
+        int n_dofs = 0;
+        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
+            if (node->leaf) {
+                n_dofs += node->data.grid().nx() * node->data.grid().ny();
+            }
+            return 1;
+        });
+
+        HPS.buildStage();
+        HPS.upwardsStage([&](double x, double y){
+            return fFunction(x, y);
+        });
+        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
+            *a = 1.0;
+            *b = 0.0;
+            return uFunction(x, y);
+        });
+
+        double error_inf = computeMaxErrorFromExact(mesh.quadtree);
+        double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
+        app.log("n = %04i, DOFs = %08i, error-inf = %24.16e, error-l2 = %24.16e", n, n_dofs, error_inf, error_l2);
+
+        output_file << n << ",";
+        output_file << n_dofs << ",";
+        output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
+        output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
+    }
+#endif
+    // std::string node_to_refine(argv[1]);
+    // mesh.quadtree.refineNode(node_to_refine, true);
 
     // Solve refined mesh w/o factorization
     // HPS.upwardsStage([&](double x, double y){
@@ -315,7 +412,7 @@ int main(int argc, char** argv) {
     app.log("error-inf = %24.16e", error_inf);
     app.log("error-l2  = %24.16e", error_l2);
     writeMesh(mesh, 1);
-    writeData(mesh, "step-1");
+    // writeData(mesh, "step-1");
     
     EllipticForest::Vector<double> u_mesh_adapted{};
     mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
@@ -341,7 +438,7 @@ int main(int argc, char** argv) {
     app.log("error-inf = %24.16e", error_inf);
     app.log("error-l2  = %24.16e", error_l2);
     writeMesh(mesh, 2);
-    writeData(mesh, "step-2");
+    // writeData(mesh, "step-2");
 
     EllipticForest::Vector<double> u_mesh_refactored{};
     mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
@@ -362,6 +459,9 @@ int main(int argc, char** argv) {
     u_mesh_diff.name() = "u_compare";
     mesh.addMeshFunction(u_mesh_diff);
     mesh.toVTK("toybox-comparison", 0);
+
+    // output_file.close();
+    // ids_file.close();
 
     return EXIT_SUCCESS;
 }

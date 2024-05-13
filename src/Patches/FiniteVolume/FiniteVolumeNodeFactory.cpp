@@ -148,28 +148,28 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
     if (parent_patch.vectorF().size() != 0) {
         // app.log("[createChildNode] creating child f");
         // TODO: Add try-catch for if the RHS function is set in the solver
-        // auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
-        // auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-        // auto& f_parent = parent_patch.vectorF();
+        auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+        auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        auto& f_parent = parent_patch.vectorF();
 
-        // BilinearInterpolant interpolant(x1_parent, x2_parent, f_parent);
+        BilinearInterpolant interpolant(x1_parent, x2_parent, f_parent);
 
-        // auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
-        // auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-        // auto f_child = interpolant(x1_child, x2_child);
+        auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+        auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        auto f_child = interpolant(x1_child, x2_child);
 
-        // child_patch.vectorF() = f_child;
+        child_patch.vectorF() = f_child;
 
         // SANITY CHECKS: Plug in exact RHS function here instead of interpolation
-        child_patch.vectorF() = Vector<double>(child_grid.nx()*child_grid.ny(), 0);
-        for (auto i = 0; i < child_grid.nx(); i++) {
-            for (auto j = 0; j < child_grid.ny(); j++) {
-                double x = child_grid(0, i);
-                double y = child_grid(1, j);
-                int index = j + i*child_grid.ny();
-                child_patch.vectorF()[index] = -(sin(x) + sin(y));
-            }
-        }
+        // child_patch.vectorF() = Vector<double>(child_grid.nx()*child_grid.ny(), 0);
+        // for (auto i = 0; i < child_grid.nx(); i++) {
+        //     for (auto j = 0; j < child_grid.ny(); j++) {
+        //         double x = child_grid(0, i);
+        //         double y = child_grid(1, j);
+        //         int index = j + i*child_grid.ny();
+        //         child_patch.vectorF()[index] = -(sin(x) + sin(y));
+        //     }
+        // }
 
         tagged_for_refinement = true;
     }
@@ -213,7 +213,35 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
         auto& gamma = *siblings[2];
         auto& omega = *siblings[3];
         FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega, solver);
-        FiniteVolumeHPS::upwards4to1(tau, alpha, beta, gamma, omega);
+        // FiniteVolumeHPS::upwards4to1(tau, alpha, beta, gamma, omega);
+
+        auto& fine_grid = tau.grid();
+        auto coarse_grid = FiniteVolumeGrid(tau.getComm(), fine_grid.nx()/2, fine_grid.xLower(), fine_grid.xUpper(), fine_grid.ny()/2, fine_grid.yLower(), fine_grid.yUpper());
+        
+        tau.matrixT() = solver.buildD2N(coarse_grid);
+        // auto f_coarse = Vector<double>(coarse_grid.nx()*coarse_grid.ny(), 0);
+
+        // auto x1_fine = linspace(fine_grid(0, 0), fine_grid(0, fine_grid.nx()-1), fine_grid.nx());
+        // auto x2_fine = linspace(fine_grid(1, 0), fine_grid(1, fine_grid.ny()-1), fine_grid.ny());
+        // auto& f_fine = tau.vectorF();
+
+        // BilinearInterpolant interpolant(x1_fine, x2_fine, f_fine);
+
+        // auto x1_coarse = linspace(coarse_grid(0, 0), coarse_grid(0, coarse_grid.nx()-1), coarse_grid.nx());
+        // auto x2_coarse = linspace(coarse_grid(1, 0), coarse_grid(1, coarse_grid.ny()-1), coarse_grid.ny());
+        // auto f_coarse = interpolant(x1_coarse, x2_coarse);
+        // auto& f_coarse = tau.vectorF();
+
+        // for (auto i = 0; i < coarse_grid.nx(); i++) {
+        //     for (auto j = 0; j < coarse_grid.ny(); j++) {
+        //         double x = coarse_grid(0, i);
+        //         double y = coarse_grid(1, j);
+        //         int index = j + i*coarse_grid.ny();
+        //         f_coarse[index] = -(sin(x) + sin(y));
+        //     }
+        // }
+
+        // tau.vectorH() = solver.particularNeumannData(coarse_grid, f_coarse);
         // FiniteVolumeHPS::mergeX(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeS(tau, alpha, beta, gamma, omega);
         // FiniteVolumeHPS::mergeT(tau, alpha, beta, gamma, omega);
