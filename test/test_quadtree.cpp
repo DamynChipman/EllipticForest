@@ -347,3 +347,35 @@ TEST(Quadtree, refine_coarsen_external_backend) {
     );
 
 }
+
+TEST(Quadtree, propagate) {
+    MPI::Communicator comm = MPI_COMM_SELF;
+    DoubleNodeFactory node_factory(comm);
+    double root_data = 1000.0;
+    Quadtree<double> quadtree(comm, root_data, node_factory);
+
+    int min_level, max_level, counter;
+
+    max_level = 3;
+
+    quadtree.refine(true,
+        [&](Node<double>* node){
+            return (int) node->level < max_level;
+        }
+    );
+
+    int n_calls = 0;
+    quadtree.propagate(
+        "0132",
+        [&](Node<double>* parent_node, std::vector<Node<double>*> children_nodes){
+            std::cout << "parent: " << parent_node->path << std::endl;
+            for (auto* child_node : children_nodes) {
+                std::cout << "  child: " << child_node->path << std::endl;
+            }
+            std::cout << std::endl;
+            n_calls++; 
+            return 1;
+        }
+    );
+    EXPECT_EQ(n_calls, max_level);
+}

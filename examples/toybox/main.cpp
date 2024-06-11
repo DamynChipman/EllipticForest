@@ -10,6 +10,8 @@
 
 using namespace EllipticForest;
 
+using FiniteVolumeHPS = HPSAlgorithm<FiniteVolumeGrid, FiniteVolumeSolver, FiniteVolumePatch, double>;
+
 /**
  * @brief User-defined solution function
  * 
@@ -219,7 +221,7 @@ int main(int argc, char** argv) {
     app.options.setOption("threshold", threshold);
 
     int level_start = 1;
-    int level_finish = 7;
+    int level_finish = 5;
 
     FiniteVolumeGrid grid(mpi.getComm(), nx, x_lower, x_upper, ny, y_lower, y_upper);
     FiniteVolumePatch root_patch(mpi.getComm(), grid);
@@ -256,7 +258,7 @@ int main(int argc, char** argv) {
     quadtree.balance(EllipticForest::BalancePolicy::CORNER);
     EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh(quadtree);
 
-    HPSAlgorithm<FiniteVolumeGrid, FiniteVolumeSolver, FiniteVolumePatch, double> HPS(mpi.getComm(), mesh, solver);
+    FiniteVolumeHPS HPS(mpi.getComm(), mesh, solver);
     
     // Factorize; solve on initial mesh
     HPS.buildStage();
@@ -286,21 +288,83 @@ int main(int argc, char** argv) {
     }
 
     // Write headers
-    output_file << "n, l2, lI" << std::endl;
+    output_file << "n,l2,lI" << std::endl;
     output_file << 1 << ",";
     output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
     output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
 
     for (int n = level_start+1; n <= level_finish; n++) {
-        mesh.quadtree.refine(true,
-            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-                if (node->level >= n) {
+        if (atoi(argv[1])) {
+            mesh.quadtree.refine(
+                true,
+                [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+                    if (node->level >= n) {
+                        return (int) false;
+                    }
+                    if (node->level <= n) {
+                        return (int) true;
+                    }
+                    return (int) false;
+                },
+                nullptr
+            );
+            HPS.buildStage();
+        }
+        else {
+            mesh.quadtree.refine(
+                true,
+                [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+                    if (node->level >= n) {
+                        return (int) false;
+                    }
+                    if (node->level <= n) {
+                        return (int) true;
+                    }
+                    return (int) false;
+                },
+                [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> children_nodes){
+                    auto& tau = parent_node->data;
+                    auto& alpha = children_nodes[0]->data;
+                    auto& beta = children_nodes[1]->data;
+                    auto& gamma = children_nodes[2]->data;
+                    auto& omega = children_nodes[3]->data;
+                    FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega, solver);
+                    return 1;
+                }
+            );
+        }
+
+        HPS.upwardsStage([&](double x, double y){
+            return fFunction(x, y);
+        });
+        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
+            *a = 1.0;
+            *b = 0.0;
+            return uFunction(x, y);
+        });
+        // app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
+
+        double error_inf = computeMaxErrorFromExact(mesh.quadtree);
+        double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
+        app.log("n = %04i, error-l2 = %24.16e, error-inf = %24.16e", n, error_l2, error_inf);
+
+        output_file << n << ",";
+        output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
+        output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
+    }
+
+    for (int n = level_finish-1; n >= level_start; n--) {
+        mesh.quadtree.coarsen(true,
+            [&](std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> nodes){
+                for (auto* node : nodes) {
+                    if (node->level >= n+1) {
+                        return (int) true;
+                    }
+                    if (node->level <= n+1) {
+                        return (int) false;
+                    }
                     return (int) false;
                 }
-                if (node->level <= n) {
-                    return (int) true;
-                }
-                return (int) false;
             }
         );
 
@@ -314,7 +378,7 @@ int main(int argc, char** argv) {
             *b = 0.0;
             return uFunction(x, y);
         });
-        app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
+        // app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
 
         double error_inf = computeMaxErrorFromExact(mesh.quadtree);
         double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
@@ -324,6 +388,7 @@ int main(int argc, char** argv) {
         output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
         output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
     }
+
 #if 0
     // Write headers
     output_file << "n, DOFs, l2, lI" << std::endl;

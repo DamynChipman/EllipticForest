@@ -160,6 +160,11 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
 
         child_patch.vectorF() = f_child;
 
+        // plt::scatter3(child_grid, f_child, 1.0, {{"c", "r"}}, 1);
+        // plt::scatter3(parent_grid, f_parent, 1.0, {{"c", "k"}}, 1);
+        // plt::title("refining: F");
+        // plt::show();
+
         // SANITY CHECKS: Plug in exact RHS function here instead of interpolation
         // child_patch.vectorF() = Vector<double>(child_grid.nx()*child_grid.ny(), 0);
         // for (auto i = 0; i < child_grid.nx(); i++) {
@@ -174,21 +179,26 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
         tagged_for_refinement = true;
     }
 
-//     if (parent_patch.vectorU().size() != 0) {
-//         // app.log("[createChildNode] creating child u");
-//         auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
-//         auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
-//         auto& u_parent = parent_patch.vectorU();
+    if (parent_patch.vectorU().size() != 0) {
+        // app.log("[createChildNode] creating child u");
+        auto x1_parent = linspace(parent_grid(0, 0), parent_grid(0, parent_grid.nx()-1), parent_grid.nx());
+        auto x2_parent = linspace(parent_grid(1, 0), parent_grid(1, parent_grid.ny()-1), parent_grid.ny());
+        auto& u_parent = parent_patch.vectorU();
 
-//         BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
+        BilinearInterpolant interpolant(x1_parent, x2_parent, u_parent);
 
-//         auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
-//         auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
-//         child_patch.vectorU() = interpolant(x1_child, x2_child);
+        auto x1_child = linspace(child_grid(0, 0), child_grid(0, child_grid.nx()-1), child_grid.nx());
+        auto x2_child = linspace(child_grid(1, 0), child_grid(1, child_grid.ny()-1), child_grid.ny());
+        child_patch.vectorU() = interpolant(x1_child, x2_child);
 
-//         // child_patch.vectorU() = solver.solve(child_patch.grid(), child_patch.vectorG(), child_patch.vectorF());
-//         tagged_for_refinement = true;
-//     }
+        // plt::scatter3(child_grid, child_patch.vectorU(), 1.0, {{"c", "r"}}, 1);
+        // plt::scatter3(parent_grid, u_parent, 1.0, {{"c", "k"}}, 1);
+        // plt::title("refining: U");
+        // plt::show();
+
+        // child_patch.vectorU() = solver.solve(child_patch.grid(), child_patch.vectorG(), child_patch.vectorF());
+        tagged_for_refinement = true;
+    }
 
     if (parent_patch.vectorH().size() != 0) {
         // app.log("[createChildNode] creating child h");
@@ -215,10 +225,10 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createChildNode(Node<FiniteVol
         FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega, solver);
         // FiniteVolumeHPS::upwards4to1(tau, alpha, beta, gamma, omega);
 
-        auto& fine_grid = tau.grid();
-        auto coarse_grid = FiniteVolumeGrid(tau.getComm(), fine_grid.nx()/2, fine_grid.xLower(), fine_grid.xUpper(), fine_grid.ny()/2, fine_grid.yLower(), fine_grid.yUpper());
+        // auto& fine_grid = tau.grid();
+        // auto coarse_grid = FiniteVolumeGrid(tau.getComm(), fine_grid.nx()/2, fine_grid.xLower(), fine_grid.xUpper(), fine_grid.ny()/2, fine_grid.yLower(), fine_grid.yUpper());
         
-        tau.matrixT() = solver.buildD2N(coarse_grid);
+        // tau.matrixT() = solver.buildD2N(coarse_grid);
         // auto f_coarse = Vector<double>(coarse_grid.nx()*coarse_grid.ny(), 0);
 
         // auto x1_fine = linspace(fine_grid(0, 0), fine_grid(0, fine_grid.nx()-1), fine_grid.nx());
@@ -296,45 +306,45 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<N
     if (needs_T_data) {
         parent_patch.matrixT() = solver.buildD2N(parent_patch.grid());
     }
-    if (needs_g_data) {
-        auto& alpha = child_nodes[0]->data;
-        auto& beta = child_nodes[1]->data;
-        auto& gamma = child_nodes[2]->data;
-        auto& omega = child_nodes[3]->data;
-        auto& tau = parent_patch;
+    // if (needs_g_data) {
+    //     auto& alpha = child_nodes[0]->data;
+    //     auto& beta = child_nodes[1]->data;
+    //     auto& gamma = child_nodes[2]->data;
+    //     auto& omega = child_nodes[3]->data;
+    //     auto& tau = parent_patch;
 
-        auto child_x_W = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
-        auto child_x_E = linspace(beta.grid()(1, 0), omega.grid()(1, omega.grid().ny()-1), beta.grid().ny() + omega.grid().ny());
-        auto child_x_S = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
-        auto child_x_N = linspace(gamma.grid()(0, 0), omega.grid()(0, omega.grid().nx()-1), gamma.grid().nx() + omega.grid().nx());
+    //     auto child_x_W = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
+    //     auto child_x_E = linspace(beta.grid()(1, 0), omega.grid()(1, omega.grid().ny()-1), beta.grid().ny() + omega.grid().ny());
+    //     auto child_x_S = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
+    //     auto child_x_N = linspace(gamma.grid()(0, 0), omega.grid()(0, omega.grid().nx()-1), gamma.grid().nx() + omega.grid().nx());
         
-        auto I_W = vectorRange(0, alpha.grid().ny()-1);
-        auto I_E = vectorRange(alpha.grid().ny(), 2*alpha.grid().ny()-1);
-        auto I_S = vectorRange(2*alpha.grid().ny(), (2*alpha.grid().ny() + alpha.grid().nx())-1);
-        auto I_N = vectorRange((2*alpha.grid().ny() + alpha.grid().nx()), (2*alpha.grid().ny() + 2*alpha.grid().nx())-1);
+    //     auto I_W = vectorRange(0, alpha.grid().ny()-1);
+    //     auto I_E = vectorRange(alpha.grid().ny(), 2*alpha.grid().ny()-1);
+    //     auto I_S = vectorRange(2*alpha.grid().ny(), (2*alpha.grid().ny() + alpha.grid().nx())-1);
+    //     auto I_N = vectorRange((2*alpha.grid().ny() + alpha.grid().nx()), (2*alpha.grid().ny() + 2*alpha.grid().nx())-1);
 
-        auto child_g_W = concatenate({alpha.vectorG()(I_W), gamma.vectorG()(I_W)});
-        auto child_g_E = concatenate({beta.vectorG()(I_E), omega.vectorG()(I_E)});
-        auto child_g_S = concatenate({alpha.vectorG()(I_S), beta.vectorG()(I_S)});
-        auto child_g_N = concatenate({gamma.vectorG()(I_N), omega.vectorG()(I_N)});
+    //     auto child_g_W = concatenate({alpha.vectorG()(I_W), gamma.vectorG()(I_W)});
+    //     auto child_g_E = concatenate({beta.vectorG()(I_E), omega.vectorG()(I_E)});
+    //     auto child_g_S = concatenate({alpha.vectorG()(I_S), beta.vectorG()(I_S)});
+    //     auto child_g_N = concatenate({gamma.vectorG()(I_N), omega.vectorG()(I_N)});
         
-        LinearInterpolant interpolant_W(child_x_W, child_g_W);
-        LinearInterpolant interpolant_E(child_x_E, child_g_E);
-        LinearInterpolant interpolant_S(child_x_S, child_g_S);
-        LinearInterpolant interpolant_N(child_x_N, child_g_N);
+    //     LinearInterpolant interpolant_W(child_x_W, child_g_W);
+    //     LinearInterpolant interpolant_E(child_x_E, child_g_E);
+    //     LinearInterpolant interpolant_S(child_x_S, child_g_S);
+    //     LinearInterpolant interpolant_N(child_x_N, child_g_N);
 
-        auto parent_x_W = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
-        auto parent_x_E = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
-        auto parent_x_S = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
-        auto parent_x_N = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+    //     auto parent_x_W = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+    //     auto parent_x_E = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+    //     auto parent_x_S = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+    //     auto parent_x_N = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
 
-        auto parent_g_W = interpolant_W(parent_x_W);
-        auto parent_g_E = interpolant_E(parent_x_E);
-        auto parent_g_S = interpolant_S(parent_x_S);
-        auto parent_g_N = interpolant_N(parent_x_N);
+    //     auto parent_g_W = interpolant_W(parent_x_W);
+    //     auto parent_g_E = interpolant_E(parent_x_E);
+    //     auto parent_g_S = interpolant_S(parent_x_S);
+    //     auto parent_g_N = interpolant_N(parent_x_N);
 
-        parent_patch.vectorG() = concatenate({parent_g_W, parent_g_E, parent_g_S, parent_g_N});
-    }
+    //     parent_patch.vectorG() = concatenate({parent_g_W, parent_g_E, parent_g_S, parent_g_N});
+    // }
     if (needs_u_data) {
         auto& alpha = child_nodes[0]->data;
         auto& beta = child_nodes[1]->data;
@@ -342,26 +352,85 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<N
         auto& omega = child_nodes[3]->data;
         auto& tau = parent_patch;
 
-        auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
-        auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
-        
-        Vector<int> block_sizes(4*alpha.grid().ny(), alpha.grid().nx());
-        Vector<int> pi_patch_order(4*alpha.grid().ny());
-        for (int j = 0; j < alpha.grid().ny(); j++) {
-            pi_patch_order[2*j] = j;
-            pi_patch_order[2*j+1] = alpha.grid().ny() + j;
-            pi_patch_order[2*j + 2*alpha.grid().ny()] = j + 2*alpha.grid().ny();
-            pi_patch_order[2*j + 2*alpha.grid().ny() + 1] = alpha.grid().ny() + j + 2*alpha.grid().ny();
+        tau.vectorU() = Vector<double>(tau.grid().nx()*tau.grid().ny(), 0.);
+
+        for (int i = 0; i < tau.grid().nx(); i++) {
+            for (int j = 0; j < tau.grid().ny(); j++) {
+                int index = j + i*tau.grid().ny();
+                int i_child, j_child, index_child;
+                double u_ll, u_lr, u_ul, u_ur;
+                if (i < tau.grid().nx()/2 && j < tau.grid().ny()/2) {
+                    // alpha
+                    i_child = i*2;
+                    j_child = j*2;
+                    index_child = j_child + i_child*alpha.grid().ny();
+                    u_ll = alpha.vectorU()[index_child];
+                    u_lr = alpha.vectorU()[index_child + 1];
+                    u_ul = alpha.vectorU()[index_child + alpha.grid().nx()];
+                    u_ur = alpha.vectorU()[index_child + alpha.grid().nx() + 1];
+                }
+                else if (i >= tau.grid().nx()/2 && j < tau.grid().ny()/2) {
+                    // beta
+                    i_child = i*2 % tau.grid().nx();
+                    j_child = j*2;
+                    index_child = j_child + i_child*beta.grid().ny();
+                    u_ll = beta.vectorU()[index_child];
+                    u_lr = beta.vectorU()[index_child + 1];
+                    u_ul = beta.vectorU()[index_child + beta.grid().nx()];
+                    u_ur = beta.vectorU()[index_child + beta.grid().nx() + 1];
+                }
+                else if (i < tau.grid().nx()/2 && j >= tau.grid().ny()/2) {
+                    // gamma
+                    i_child = i*2;
+                    j_child = j*2 % gamma.grid().nx();
+                    index_child = j_child + i_child*gamma.grid().ny();
+                    u_ll = gamma.vectorU()[index_child];
+                    u_lr = gamma.vectorU()[index_child + 1];
+                    u_ul = gamma.vectorU()[index_child + gamma.grid().nx()];
+                    u_ur = gamma.vectorU()[index_child + gamma.grid().nx() + 1];
+                }
+                else if (i >= tau.grid().nx()/2 && j >= tau.grid().ny()/2) {
+                    // omega
+                    i_child = i*2 % omega.grid().nx();
+                    j_child = j*2 % omega.grid().ny();
+                    index_child = j_child + i_child*omega.grid().ny();
+                    u_ll = omega.vectorU()[index_child];
+                    u_lr = omega.vectorU()[index_child + 1];
+                    u_ul = omega.vectorU()[index_child + omega.grid().nx()];
+                    u_ur = omega.vectorU()[index_child + omega.grid().nx() + 1];
+                }
+                tau.vectorU()[index] = (u_ll + u_lr + u_ul + u_ur) / 4.0;
+            }
         }
+
+        plt::scatter3(alpha.grid(), alpha.vectorU(), 1.0, {{"c", "r"}}, 1);
+        plt::scatter3(beta.grid(), beta.vectorU(), 1.0, {{"c", "g"}}, 1);
+        plt::scatter3(gamma.grid(), gamma.vectorU(), 1.0, {{"c", "b"}}, 1);
+        plt::scatter3(omega.grid(), omega.vectorU(), 1.0, {{"c", "y"}}, 1);
+        plt::scatter3(tau.grid(), tau.vectorU(), 1.0, {{"c", "k"}}, 1);
+        plt::title("coarsening: U");
+        plt::show();
+
+        // auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
+        // auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
         
-        Vector<double> u_child = concatenate({alpha.vectorU(), beta.vectorU(), gamma.vectorU(), omega.vectorU()});
-        Vector<double> u_child_patch_order = u_child.blockPermute(pi_patch_order, block_sizes);
+        // Vector<int> block_sizes(4*alpha.grid().ny(), alpha.grid().nx());
+        // Vector<int> pi_patch_order(4*alpha.grid().ny());
+        // for (int j = 0; j < alpha.grid().ny(); j++) {
+        //     pi_patch_order[2*j] = j;
+        //     pi_patch_order[2*j+1] = alpha.grid().ny() + j;
+        //     pi_patch_order[2*j + 2*alpha.grid().ny()] = j + 2*alpha.grid().ny();
+        //     pi_patch_order[2*j + 2*alpha.grid().ny() + 1] = alpha.grid().ny() + j + 2*alpha.grid().ny();
+        // }
+        
+        // Vector<double> u_child = concatenate({alpha.vectorU(), beta.vectorU(), gamma.vectorU(), omega.vectorU()});
+        // Vector<double> u_child_patch_order = u_child.blockPermute(pi_patch_order, block_sizes);
 
-        BilinearInterpolant interpolant(x1_child, x2_child, u_child_patch_order);
+        // BilinearInterpolant interpolant(x1_child, x2_child, u_child_patch_order);
 
-        auto x1_parent = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
-        auto x2_parent = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
-        parent_patch.vectorU() = interpolant(x1_parent, x2_parent);
+        // auto x1_parent = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+        // auto x2_parent = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+        // parent_patch.vectorU() = interpolant(x1_parent, x2_parent);
     }
     if (needs_f_data) {
         auto& alpha = child_nodes[0]->data;
@@ -370,30 +439,89 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<N
         auto& omega = child_nodes[3]->data;
         auto& tau = parent_patch;
 
-        auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
-        auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
-        
-        Vector<int> block_sizes(4*alpha.grid().ny(), alpha.grid().nx());
-        Vector<int> pi_patch_order(4*alpha.grid().ny());
-        for (int j = 0; j < alpha.grid().ny(); j++) {
-            pi_patch_order[2*j] = j;
-            pi_patch_order[2*j+1] = alpha.grid().ny() + j;
-            pi_patch_order[2*j + 2*alpha.grid().ny()] = j + 2*alpha.grid().ny();
-            pi_patch_order[2*j + 2*alpha.grid().ny() + 1] = alpha.grid().ny() + j + 2*alpha.grid().ny();
+        tau.vectorF() = Vector<double>(tau.grid().nx()*tau.grid().ny(), 0.);
+
+        for (int i = 0; i < tau.grid().nx(); i++) {
+            for (int j = 0; j < tau.grid().ny(); j++) {
+                int index = j + i*tau.grid().ny();
+                int i_child, j_child, index_child;
+                double f_ll, f_lr, f_ul, f_ur;
+                if (i < tau.grid().nx()/2 && j < tau.grid().ny()/2) {
+                    // alpha
+                    i_child = i*2;
+                    j_child = j*2;
+                    index_child = j_child + i_child*alpha.grid().ny();
+                    f_ll = alpha.vectorF()[index_child];
+                    f_lr = alpha.vectorF()[index_child + 1];
+                    f_ul = alpha.vectorF()[index_child + alpha.grid().nx()];
+                    f_ur = alpha.vectorF()[index_child + alpha.grid().nx() + 1];
+                }
+                else if (i >= tau.grid().nx()/2 && j < tau.grid().ny()/2) {
+                    // beta
+                    i_child = i*2 % tau.grid().nx();
+                    j_child = j*2;
+                    index_child = j_child + i_child*beta.grid().ny();
+                    f_ll = beta.vectorF()[index_child];
+                    f_lr = beta.vectorF()[index_child + 1];
+                    f_ul = beta.vectorF()[index_child + beta.grid().nx()];
+                    f_ur = beta.vectorF()[index_child + beta.grid().nx() + 1];
+                }
+                else if (i < tau.grid().nx()/2 && j >= tau.grid().ny()/2) {
+                    // gamma
+                    i_child = i*2;
+                    j_child = j*2 % gamma.grid().nx();
+                    index_child = j_child + i_child*gamma.grid().ny();
+                    f_ll = gamma.vectorF()[index_child];
+                    f_lr = gamma.vectorF()[index_child + 1];
+                    f_ul = gamma.vectorF()[index_child + gamma.grid().nx()];
+                    f_ur = gamma.vectorF()[index_child + gamma.grid().nx() + 1];
+                }
+                else if (i >= tau.grid().nx()/2 && j >= tau.grid().ny()/2) {
+                    // omega
+                    i_child = i*2 % omega.grid().nx();
+                    j_child = j*2 % omega.grid().ny();
+                    index_child = j_child + i_child*omega.grid().ny();
+                    f_ll = omega.vectorF()[index_child];
+                    f_lr = omega.vectorF()[index_child + 1];
+                    f_ul = omega.vectorF()[index_child + omega.grid().nx()];
+                    f_ur = omega.vectorF()[index_child + omega.grid().nx() + 1];
+                }
+                tau.vectorF()[index] = (f_ll + f_lr + f_ul + f_ur) / 4.0;
+            }
         }
+
+        plt::scatter3(alpha.grid(), alpha.vectorF(), 1.0, {{"c", "r"}}, 1);
+        plt::scatter3(beta.grid(), beta.vectorF(), 1.0, {{"c", "g"}}, 1);
+        plt::scatter3(gamma.grid(), gamma.vectorF(), 1.0, {{"c", "b"}}, 1);
+        plt::scatter3(omega.grid(), omega.vectorF(), 1.0, {{"c", "y"}}, 1);
+        plt::scatter3(tau.grid(), tau.vectorF(), 1.0, {{"c", "k"}}, 1);
+        plt::title("coarsening: F");
+        plt::show();
+
+        // auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
+        // auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
         
-        Vector<double> u_child = concatenate({alpha.vectorF(), beta.vectorF(), gamma.vectorF(), omega.vectorF()});
-        Vector<double> u_child_patch_order = u_child.blockPermute(pi_patch_order, block_sizes);
+        // Vector<int> block_sizes(4*alpha.grid().ny(), alpha.grid().nx());
+        // Vector<int> pi_patch_order(4*alpha.grid().ny());
+        // for (int j = 0; j < alpha.grid().ny(); j++) {
+        //     pi_patch_order[2*j] = j;
+        //     pi_patch_order[2*j+1] = alpha.grid().ny() + j;
+        //     pi_patch_order[2*j + 2*alpha.grid().ny()] = j + 2*alpha.grid().ny();
+        //     pi_patch_order[2*j + 2*alpha.grid().ny() + 1] = alpha.grid().ny() + j + 2*alpha.grid().ny();
+        // }
+        
+        // Vector<double> u_child = concatenate({alpha.vectorF(), beta.vectorF(), gamma.vectorF(), omega.vectorF()});
+        // Vector<double> u_child_patch_order = u_child.blockPermute(pi_patch_order, block_sizes);
 
-        BilinearInterpolant interpolant(x1_child, x2_child, u_child_patch_order);
+        // BilinearInterpolant interpolant(x1_child, x2_child, u_child_patch_order);
 
-        auto x1_parent = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
-        auto x2_parent = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
-        parent_patch.vectorF() = interpolant(x1_parent, x2_parent);
+        // auto x1_parent = linspace(tau.grid()(0, 0), tau.grid()(0, tau.grid().nx()-1), tau.grid().nx());
+        // auto x2_parent = linspace(tau.grid()(1, 0), tau.grid()(1, tau.grid().ny()-1), tau.grid().ny());
+        // parent_patch.vectorF() = interpolant(x1_parent, x2_parent);
     }
-    if (needs_h_data) {
-        parent_patch.vectorH() = solver.particularNeumannData(parent_patch.grid(), parent_patch.vectorF());
-    }
+    // if (needs_h_data) {
+    //     parent_patch.vectorH() = solver.particularNeumannData(parent_patch.grid(), parent_patch.vectorF());
+    // }
     
     // Create parent node
     std::string path = child_nodes[0]->path.substr(0, child_nodes[0]->path.length()-1);

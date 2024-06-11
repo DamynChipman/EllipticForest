@@ -59,12 +59,18 @@ std::pair<EllipticForest::Vector<NumericalType>, EllipticForest::Vector<Numerica
 }
 
 template<typename NumericalType>
-bool scatter3(EllipticForest::PatchGridBase<NumericalType>& grid, EllipticForest::Vector<NumericalType>& values) {
+bool scatter3(EllipticForest::PatchGridBase<NumericalType>& grid, EllipticForest::Vector<NumericalType>& values, const double s=1.0, const std::map<std::string, std::string>& keywords={}, const long fig_number=0) {
 
-    auto x1_points = grid.xPoints();
-    auto x2_points = grid.yPoints();
-    auto [x1_mesh, x2_mesh] = meshgrid(x1_points, x2_points);
-    scatter(x1_mesh.data(), x2_mesh.data(), values.data());
+    EllipticForest::Vector<double> x(grid.nx()*grid.ny(), 0.);
+    EllipticForest::Vector<double> y(grid.nx()*grid.ny(), 0.);
+    for (int i = 0; i < grid.nx(); i++) {
+        for (int j = 0; j < grid.ny(); j++) {
+            int I = j + i*grid.ny();
+            x[I] = grid(0, i);
+            y[I] = grid(1, j);
+        }
+    }
+    return scatter(x.data(), y.data(), values.data(), s, keywords, fig_number);
 
 }
 

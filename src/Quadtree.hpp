@@ -105,6 +105,12 @@ public:
 	std::function<int(Node<T>*, std::vector<Node<T>*>)> visit_family_fn;
 
 	/**
+	 * @brief Node family callback function for use in propagating
+	 * 
+	 */
+	std::function<int(Node<T>*, std::vector<Node<T>*>)> propagate_fn;
+
+	/**
 	 * @brief Communication algorithm used based on how merging and splitting are done
 	 * 
 	 */
@@ -417,9 +423,10 @@ public:
 	 * @param refine_recursive Flag to specify a recursive refinement
 	 * @param refine_function Function that returns if the provided leaf node should be refined
 	 */
-	void refine(bool refine_recursive, std::function<int(Node<T>*)> refine_function) {
+	void refine(bool refine_recursive, std::function<int(Node<T>*)> refine_function, std::function<int(Node<T>*, std::vector<Node<T>*>)> propagate_function=nullptr) {
 
 		visit_node_fn = refine_function;
+		propagate_fn = propagate_function;
 		p4est_refine(
 			p4est,
 			(int) refine_recursive,
@@ -501,9 +508,10 @@ public:
 	 * @param coarsen_recursive Flag to specify a recursive coarsening
 	 * @param coarsen_function Function that returns if the sibling nodes should be coarsened
 	 */
-	void coarsen(bool coarsen_recursive, std::function<int(std::vector<Node<T>*>)> coarsen_function) {
+	void coarsen(bool coarsen_recursive, std::function<int(std::vector<Node<T>*>)> coarsen_function, std::function<int(Node<T>*, std::vector<Node<T>*>)> propagate_function=nullptr) {
 
 		visit_siblings_fn = coarsen_function;
+		propagate_fn = propagate_function;
 		p4est_coarsen(
 			p4est,
 			(int) coarsen_recursive,
@@ -674,19 +682,45 @@ public:
 
 	}
 
-	void adapt(int min_level, int max_level, std::function<int(std::vector<Node<T>*>)> coarsen_function, std::function<int(Node<T>*)> refine_function) {
+	void adapt(int min_level, int max_level, std::function<int(std::vector<Node<T>*>)> coarsen_function, std::function<int(Node<T>*)> refine_function, std::function<int(Node<T>*, std::vector<Node<T>*>)> propagate_function=nullptr) {
 
-		for (int l = max_level; l > min_level; l--) {
-			coarsen(false, coarsen_function);
+		if (min_level == max_level) {
+			refine(true, refine_function, propagate_function);
+			balance(BalancePolicy::CORNER);
+			return;
+		}
+		for (int l = min_level; l < max_level; l++) {
+			refine(false, refine_function, propagate_function);
 			balance(BalancePolicy::CORNER);
 			// partition();
 		}
-		for (int l = min_level; l < max_level; l++) {
-			refine(false, refine_function);
+		for (int l = max_level; l > min_level; l--) {
+			coarsen(false, coarsen_function, propagate_function);
 			balance(BalancePolicy::CORNER);
 			// partition();
 		}
 		return;
+
+	}
+
+	void propagate(NodePathKey node_path, std::function<int(Node<T>*, std::vector<Node<T>*>)> family_callback) {
+
+		if (map.find(node_path) != map.end() && map[node_path] != nullptr) {
+			node_path.pop_back();
+			while (node_path.length() > 0) {
+				auto* parent_node = map[node_path];
+				std::vector<Node<T>*> children_nodes = {
+					map[node_path + "0"],
+					map[node_path + "1"],
+					map[node_path + "2"],
+					map[node_path + "3"]
+				};
+				if (!family_callback(parent_node, children_nodes)) {
+					return;
+				}
+				node_path.pop_back();
+			}
+		}
 
 	}
 
@@ -861,6 +895,11 @@ public:
 		map[path] = quadtree.node_factory->createChildNode(parent_node, sibling_id, pfirst, plast);
 		map[path]->leaf = true;
 		parent_node->leaf = false;
+
+		if (quadtree.propagate_fn && path.back() == '3') {
+			quadtree.propagate(path, quadtree.propagate_fn);
+		}
+
 	}
 
 	/**
@@ -893,6 +932,10 @@ public:
 				map.erase(it);
 				// map[child_path] = nullptr;
 			}
+		}
+
+		if (quadtree.propagate_fn) {
+			quadtree.propagate(path, quadtree.propagate_fn);
 		}
 	}
 
@@ -948,11 +991,7 @@ public:
 		auto& quadtree = *reinterpret_cast<Quadtree<T>*>(p4est->user_pointer);
 		auto& map = quadtree.map;
 		auto path = p4est::p4est_quadrant_path(quadrant);
-
-		// TODO: Figure out how to determine if a quadrant is being refined or coarsened
-		// NOTE: Not working because p4est wants to create grandchild instead of children
 		bool quad_refined = map.find(path) == map.end();
-
 		if (quad_refined) {
 			p4est_init_refined_callback(p4est, which_tree, quadrant);
 		}

@@ -15,6 +15,7 @@
 #include "SpecialMatrices.hpp"
 #include "Mesh.hpp"
 #include "Interpolation.hpp"
+#include "PlotUtils.hpp"
 
 namespace EllipticForest {
 
@@ -45,7 +46,7 @@ public:
      * @brief Cache storage for matrices
      * 
      */
-    DataCache<Matrix<NumericalType>> matrixCache{};
+    DataCache<Matrix<NumericalType>> matrix_cache{};
 
     /**
      * @brief Flag for if the build stage has already happened
@@ -130,17 +131,28 @@ public:
             [&](Node<PatchType>* leaf_node){
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
-                PatchType& patch = leaf_node->data;
+                auto& patch = leaf_node->data;
+                auto& grid = patch.grid();
                 // patch.isLeaf = true;
-                if (std::get<bool>(app.options["cache-operators"])) {
-                    if (!matrixCache.contains("T_leaf")) {
-                        matrixCache["T_leaf"] = patch_solver.buildD2N(patch.grid());
-                    }
-                    patch.matrixT() = matrixCache["T_leaf"];
-                }
-                else {
-                    patch.matrixT() = patch_solver.buildD2N(patch.grid());
-                }
+                // std::string matrix_key = "T-" + std::to_string(grid.nx());
+                // if (matrix_cache.contains(matrix_key)) {
+                //     patch.matrixT() = matrix_cache[matrix_key];
+                // }
+                // else {
+                //     auto T = patch_solver.buildD2N(grid);
+                //     patch.matrixT() = T;
+                //     matrix_cache[matrix_key] = T;
+                // }
+
+                // if (std::get<bool>(app.options["cache-operators"])) {
+                //     if (!matrix_cache.contains("T_leaf")) {
+                //         matrix_cache["T_leaf"] = patch_solver.buildD2N(patch.grid());
+                //     }
+                //     patch.matrixT() = matrix_cache["T_leaf"];
+                // }
+                // else {
+                    patch.matrixT() = patch_solver.buildD2N(grid);
+                // }
                 return 1;
             },
             [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
@@ -194,6 +206,29 @@ public:
 
         mesh.quadtree.merge(
             [&](Node<PatchType>* leaf_node){
+                return 0;
+            },
+            [&](Node<PatchType>* parent_node, std::vector<Node<PatchType>*> child_nodes){
+                PatchType& tau = parent_node->data;
+                PatchType& alpha = child_nodes[0]->data;
+                PatchType& beta = child_nodes[1]->data;
+                PatchType& gamma = child_nodes[2]->data;
+                PatchType& omega = child_nodes[3]->data;
+                std::vector<std::size_t> sizes = {
+                    alpha.grid().nx(),
+                    beta.grid().nx(),
+                    gamma.grid().nx(),
+                    omega.grid().nx()
+                };
+                int min_size = *std::min_element(sizes.begin(), sizes.end());
+                PatchGridType merged_grid(MPI_COMM_SELF, 2*min_size, alpha.grid().xLower(), beta.grid().xUpper(), 2*min_size, alpha.grid().yLower(), gamma.grid().yUpper());
+                tau.grid() = merged_grid;
+                return 1;
+            }
+        );
+
+        mesh.quadtree.merge(
+            [&](Node<PatchType>* leaf_node){
                 // app.log("Leaf callback: path = " + leaf_node->path);
                 // Leaf callback
                 PatchType& patch = leaf_node->data;
@@ -203,6 +238,10 @@ public:
 
                 // Set particular Neumann data using patch solver function
                 patch.vectorH() = patch_solver.particularNeumannData(patch.grid(), patch.vectorF());
+
+                // plt::plot(patch.vectorH().data());
+                // plt::title("H: post-leaf callback in upwards stage");
+                // plt::show();
 
                 return 1;
             },
@@ -910,35 +949,54 @@ public:
                 int n_T_cols_expected = n_grid*4;
                 int n_h_size_expected = 4*n_grid;
                 if (patch->matrixT().nrows() != n_T_rows_expected || patch->matrixT().ncols() != n_T_cols_expected) {
+                    app.log("UPWARDS STAGE: RECOMPUTING T, expected size: (%i,%i), actual size: (%i,%i)", n_T_rows_expected, n_T_cols_expected, patch->matrixT().nrows(), patch->matrixT().ncols());
                     patch->matrixT() = patch_solver.buildD2N(patch->grid());
                 }
                 if (patch->vectorH().size() != n_h_size_expected) {
-                    double r = (double) patch->vectorH().size() / (double) n_h_size_expected;
-                    int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
-                    if (p > 0) {
-                        app.log("UPWARDS STAGE: COARSENING H");
-                        // h is larger than expected; coarsen
-                        // h_coarse = L_12 * h_fine
-                        // [4G] = [4G, 8G] [8G]
-                        InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid);
-                        std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                        Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+                    app.log("UPWARDS STAGE: RECOMPUTING H, expected size: (%i), actual size: (%i)", n_h_size_expected, patch->vectorH().size());
+                    // patch->vectorH() = patch_solver.particularNeumannData(patch->grid(), patch->vectorF());
+                    
+                    int target_size = n_grid;
+                    int actual_size = patch->vectorH().size() / 4;
 
-                        // h_coarse = L_12 * h_fine
-                        patch->vectorH() = L12_patch * patch->vectorH();
-                    }
-                    else if (p < 0) {
-                        app.log("UPWARDS STAGE: REFINING H");
-                        // h is smaller than expected; refine
-                        // h_fine = L_21 * h_coarse
-                        // [4G] = [4G, 2G] [2G]
-                        InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid);
-                        std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                        Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+                    auto target_grid = PatchGridType(tau.getComm(), target_size, patch->grid().xLower(), patch->grid().xUpper(), target_size, patch->grid().yLower(), patch->grid().yUpper());
+                    auto actual_grid = PatchGridType(tau.getComm(), actual_size, target_grid.xLower(), target_grid.xUpper(), actual_size, target_grid.yLower(), target_grid.yUpper());
 
-                        // h_fine = L_21 * h_coarse
-                        patch->vectorH() = L21_patch * patch->vectorH();
-                    }
+                    auto x_actual = linspace(actual_grid.xLower() + actual_grid.dx()/2, actual_grid.xUpper() - actual_grid.dx()/2, actual_grid.nx());
+                    auto y_actual = linspace(actual_grid.yLower() + actual_grid.dy()/2, actual_grid.yUpper() - actual_grid.dy()/2, actual_grid.ny());
+
+                    auto h_W_actual = patch->vectorH().getSegment(0*actual_grid.nx(), actual_grid.nx());
+                    auto h_E_actual = patch->vectorH().getSegment(1*actual_grid.nx(), actual_grid.nx());
+                    auto h_S_actual = patch->vectorH().getSegment(2*actual_grid.nx(), actual_grid.nx());
+                    auto h_N_actual = patch->vectorH().getSegment(3*actual_grid.nx(), actual_grid.nx());
+
+                    PolynomialInterpolant interpolant_W(y_actual, h_W_actual, 1);
+                    PolynomialInterpolant interpolant_E(y_actual, h_E_actual, 1);
+                    PolynomialInterpolant interpolant_S(x_actual, h_S_actual, 1);
+                    PolynomialInterpolant interpolant_N(x_actual, h_N_actual, 1);
+
+                    auto x_target = linspace(target_grid.xLower() + target_grid.dx()/2, target_grid.xUpper() - target_grid.dx()/2, target_grid.nx());
+                    auto y_target = linspace(target_grid.yLower() + target_grid.dy()/2, target_grid.yUpper() - target_grid.dy()/2, target_grid.ny());
+
+                    auto h_W_target = interpolant_W(y_target);
+                    auto h_E_target = interpolant_E(y_target);
+                    auto h_S_target = interpolant_S(x_target);
+                    auto h_N_target = interpolant_N(x_target);
+
+                    patch->vectorH() = concatenate({h_W_target, h_E_target, h_S_target, h_N_target});
+
+                    // plt::plot(y_actual.data(), h_W_actual.data());
+                    // plt::plot(y_target.data(), h_W_target.data());
+                    // plt::show();
+                    // plt::plot(y_actual.data(), h_E_actual.data());
+                    // plt::plot(y_target.data(), h_E_target.data());
+                    // plt::show();
+                    // plt::plot(x_actual.data(), h_S_actual.data());
+                    // plt::plot(x_target.data(), h_S_target.data());
+                    // plt::show();
+                    // plt::plot(x_actual.data(), h_N_actual.data());
+                    // plt::plot(x_target.data(), h_N_target.data());
+                    // plt::show();
                 }
             }
 
@@ -1143,8 +1201,17 @@ public:
                 h_diff_omega_gamma
             });
 
+            // plt::plot(h_diff.data());
+            // std::string t = "h_diff: tau = [" + std::to_string(tau.grid().xLower()) + "," + std::to_string(tau.grid().xUpper()) + "] x [" + std::to_string(tau.grid().yLower()) + "," + std::to_string(tau.grid().yUpper()) + "]";
+            // plt::title(t);
+            // plt::show();
+
             // Compute and set w_tau
-            tau.vectorW() = solve(D, h_diff);
+            tau.vectorW() = solve(D, h_diff); // why is h_diff_omega_beta so much bigger???
+
+            // plt::plot(tau.vectorW().data());
+            // plt::title("tau.w");
+            // plt::show();
 
             // Compute and set h_tau
             tau.vectorH() = B * tau.vectorW();
@@ -1215,6 +1282,7 @@ public:
         int n_g_size_expected = 4*n_grid;
         int n_w_size_expected = 2*n_grid;
         if (tau.matrixS().nrows() != n_S_rows_expected || tau.matrixS().ncols() != n_S_cols_expected) {
+            app.log("SOLVE STAGE: RECOMPUTING S, expected size: (%i,%i), actual size: (%i,%i)", n_S_rows_expected, n_S_cols_expected, tau.matrixS().nrows(), tau.matrixS().ncols());
 
             // Create index sets
             int nside = tau.grid().nx() / 2;
@@ -1357,115 +1425,127 @@ public:
             // }
         }
         if (tau.vectorG().size() != n_g_size_expected) {
-            double r = (double) tau.vectorG().size() / (double) n_g_size_expected;
-            int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
-            if (p > 0) {
-                app.log("SOLVE STAGE: COARSENING G");
-                // g is larger than expected; coarsen
-                // g_coarse = L_12 * g_fine
-                // [4G] = [4G, 8G] [8G]
-                InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid);
-                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+            app.log("SOLVE STAGE: RECOMPUTING G, expected size: (%i), actual size: (%i)", n_g_size_expected, tau.vectorG().size());
+            int target_size = n_grid;
+            int actual_size = tau.vectorG().size() / 4;
 
-                // g_coarse = L_12 * g_fine
-                tau.vectorG() = L12_patch * tau.vectorG();
-            }
-            else if (p < 0) {
-                app.log("SOLVE STAGE: REFINING G - p = %i", p);
-                auto& fine_grid = tau.grid();
-                auto coarse_grid = PatchGridType(fine_grid.getComm(), fine_grid.nx()/2, fine_grid.xLower(), fine_grid.xUpper(), fine_grid.ny()/2, fine_grid.yLower(), fine_grid.yUpper());
+            auto target_grid = PatchGridType(tau.getComm(), target_size, tau.grid().xLower(), tau.grid().xUpper(), target_size, tau.grid().yLower(), tau.grid().yUpper());
+            auto actual_grid = PatchGridType(tau.getComm(), actual_size, target_grid.xLower(), target_grid.xUpper(), actual_size, target_grid.yLower(), target_grid.yUpper());
 
-                // auto x_coarse = linspace(coarse_grid.xLower() + coarse_grid.dx()/2, coarse_grid.xUpper() - coarse_grid.dx()/2, coarse_grid.nx());
-                // auto y_coarse = linspace(coarse_grid.yLower() + coarse_grid.dy()/2, coarse_grid.yUpper() - coarse_grid.dy()/2, coarse_grid.ny());
+            auto x_actual = linspace(actual_grid.xLower() + actual_grid.dx()/2, actual_grid.xUpper() - actual_grid.dx()/2, actual_grid.nx());
+            auto y_actual = linspace(actual_grid.yLower() + actual_grid.dy()/2, actual_grid.yUpper() - actual_grid.dy()/2, actual_grid.ny());
 
-                // auto g_W_coarse = tau.vectorG().getSegment(0*coarse_grid.nx(), coarse_grid.nx());
-                // auto g_E_coarse = tau.vectorG().getSegment(1*coarse_grid.nx(), coarse_grid.nx());
-                // auto g_S_coarse = tau.vectorG().getSegment(2*coarse_grid.nx(), coarse_grid.nx());
-                // auto g_N_coarse = tau.vectorG().getSegment(3*coarse_grid.nx(), coarse_grid.nx());
+            auto g_W_actual = tau.vectorG().getSegment(0*actual_grid.nx(), actual_grid.nx());
+            auto g_E_actual = tau.vectorG().getSegment(1*actual_grid.nx(), actual_grid.nx());
+            auto g_S_actual = tau.vectorG().getSegment(2*actual_grid.nx(), actual_grid.nx());
+            auto g_N_actual = tau.vectorG().getSegment(3*actual_grid.nx(), actual_grid.nx());
 
-                // PolynomialInterpolant interpolant_W(y_coarse, g_W_coarse, 1);
-                // PolynomialInterpolant interpolant_E(y_coarse, g_E_coarse, 1);
-                // PolynomialInterpolant interpolant_S(x_coarse, g_S_coarse, 1);
-                // PolynomialInterpolant interpolant_N(x_coarse, g_N_coarse, 1);
+            PolynomialInterpolant interpolant_W(y_actual, g_W_actual, 1);
+            PolynomialInterpolant interpolant_E(y_actual, g_E_actual, 1);
+            PolynomialInterpolant interpolant_S(x_actual, g_S_actual, 1);
+            PolynomialInterpolant interpolant_N(x_actual, g_N_actual, 1);
 
-                // auto x_fine = linspace(fine_grid.xLower() + fine_grid.dx()/2, fine_grid.xUpper() - fine_grid.dx()/2, fine_grid.nx());
-                // auto y_fine = linspace(fine_grid.yLower() + fine_grid.dy()/2, fine_grid.yUpper() - fine_grid.dy()/2, fine_grid.ny());
+            auto x_target = linspace(target_grid.xLower() + target_grid.dx()/2, target_grid.xUpper() - target_grid.dx()/2, target_grid.nx());
+            auto y_target = linspace(target_grid.yLower() + target_grid.dy()/2, target_grid.yUpper() - target_grid.dy()/2, target_grid.ny());
 
-                // auto g_W_fine = interpolant_W(y_fine);
-                // auto g_E_fine = interpolant_E(y_fine);
-                // auto g_S_fine = interpolant_S(x_fine);
-                // auto g_N_fine = interpolant_N(x_fine);
+            auto g_W_target = interpolant_W(y_target);
+            auto g_E_target = interpolant_E(y_target);
+            auto g_S_target = interpolant_S(x_target);
+            auto g_N_target = interpolant_N(x_target);
 
-                // Vector<double> g_W_fine = Vector<double>(fine_grid.ny(), 0);
-                // Vector<double> g_E_fine = Vector<double>(fine_grid.ny(), 0);
-                // Vector<double> g_S_fine = Vector<double>(fine_grid.nx(), 0);
-                // Vector<double> g_N_fine = Vector<double>(fine_grid.nx(), 0);
-                // for (int j = 0; j < fine_grid.ny(); j++) {
-                //     double xw = fine_grid.xLower();
-                //     double xe = fine_grid.xUpper();
-                //     double yj = fine_grid(1, j);
-                //     g_W_fine[j] = sin(xw)*sinh(yj);
-                //     g_E_fine[j] = sin(xe)*sinh(yj);
-                // }
-                // for (int i = 0; i < fine_grid.nx(); i++) {
-                //     double ys = fine_grid.yLower();
-                //     double yn = fine_grid.yUpper();
-                //     double xi = fine_grid(0, i);
-                //     g_S_fine[i] = sin(xi)*sinh(ys);
-                //     g_N_fine[i] = sin(xi)*sinh(yn);
-                // }
+            tau.vectorG() = concatenate({g_W_target, g_E_target, g_S_target, g_N_target});
 
-                // tau.vectorG() = concatenate({g_W_fine, g_E_fine, g_S_fine, g_N_fine});
+            // double r = (double) tau.vectorG().size() / (double) n_g_size_expected;
+            // int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+            // if (p > 0) {
+            //     app.log("SOLVE STAGE: COARSENING G");
+            //     // g is larger than expected; coarsen
+            //     // g_coarse = L_12 * g_fine
+            //     // [4G] = [4G, 8G] [8G]
+            //     InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid);
+            //     std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+            //     Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
-                for (int n = p; n < 0; n++) {
-                    // g is smaller than expected; refine
-                    // g_fine = L_21 * g_coarse
-                    // [4G] = [4G, 2G] [2G]
-                    double refine_factor = pow(2, n+1);
-                    int n_target = n_grid * refine_factor;
-                    InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_target);
-                    std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                    Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+            //     // g_coarse = L_12 * g_fine
+            //     tau.vectorG() = L12_patch * tau.vectorG();
+            // }
+            // else if (p < 0) {
+            //     app.log("SOLVE STAGE: REFINING G - p = %i", p);
+            //     auto& fine_grid = tau.grid();
+            //     auto coarse_grid = PatchGridType(fine_grid.getComm(), fine_grid.nx()/2, fine_grid.xLower(), fine_grid.xUpper(), fine_grid.ny()/2, fine_grid.yLower(), fine_grid.yUpper());
 
-                    // g_fine = L_21 * g_coarse
-                    tau.vectorG() = L21_patch * tau.vectorG();
-                }
+            //     auto x_coarse = linspace(coarse_grid.xLower() + coarse_grid.dx()/2, coarse_grid.xUpper() - coarse_grid.dx()/2, coarse_grid.nx());
+            //     auto y_coarse = linspace(coarse_grid.yLower() + coarse_grid.dy()/2, coarse_grid.yUpper() - coarse_grid.dy()/2, coarse_grid.ny());
 
-                // int n_fine = n_grid;
-                // int n_coarse = n_grid/2;
-                // double h_fine = tau.grid().dx();
-                // double h_coarse = h_fine / 2.;
+            //     auto g_W_coarse = tau.vectorG().getSegment(0*coarse_grid.nx(), coarse_grid.nx());
+            //     auto g_E_coarse = tau.vectorG().getSegment(1*coarse_grid.nx(), coarse_grid.nx());
+            //     auto g_S_coarse = tau.vectorG().getSegment(2*coarse_grid.nx(), coarse_grid.nx());
+            //     auto g_N_coarse = tau.vectorG().getSegment(3*coarse_grid.nx(), coarse_grid.nx());
 
-                // auto coarse_y = linspace(tau.grid().yLower() + h_coarse/2, tau.grid().yUpper() - h_coarse/2, n_coarse);
-                // auto coarse_x = linspace(tau.grid().xLower() + h_coarse/2, tau.grid().xUpper() - h_coarse/2, n_coarse);
+            //     PolynomialInterpolant interpolant_W(y_coarse, g_W_coarse, 1);
+            //     PolynomialInterpolant interpolant_E(y_coarse, g_E_coarse, 1);
+            //     PolynomialInterpolant interpolant_S(x_coarse, g_S_coarse, 1);
+            //     PolynomialInterpolant interpolant_N(x_coarse, g_N_coarse, 1);
 
-                // auto g_coarse_W = tau.vectorG().getSegment(0*n_coarse, n_coarse);
-                // auto g_coarse_E = tau.vectorG().getSegment(1*n_coarse, n_coarse);
-                // auto g_coarse_S = tau.vectorG().getSegment(2*n_coarse, n_coarse);
-                // auto g_coarse_N = tau.vectorG().getSegment(3*n_coarse, n_coarse);
+            //     auto x_fine = linspace(fine_grid.xLower() + fine_grid.dx()/2, fine_grid.xUpper() - fine_grid.dx()/2, fine_grid.nx());
+            //     auto y_fine = linspace(fine_grid.yLower() + fine_grid.dy()/2, fine_grid.yUpper() - fine_grid.dy()/2, fine_grid.ny());
 
-                // PolynomialInterpolant interpolant_W(coarse_y, g_coarse_W, 1);
-                // PolynomialInterpolant interpolant_E(coarse_y, g_coarse_E, 1);
-                // PolynomialInterpolant interpolant_S(coarse_x, g_coarse_S, 1);
-                // PolynomialInterpolant interpolant_N(coarse_x, g_coarse_N, 1);
+            //     auto g_W_fine = interpolant_W(y_fine);
+            //     auto g_E_fine = interpolant_E(y_fine);
+            //     auto g_S_fine = interpolant_S(x_fine);
+            //     auto g_N_fine = interpolant_N(x_fine);
 
-                // auto fine_y = linspace(tau.grid().yLower() + h_fine/2, tau.grid().yUpper() - h_fine/2, n_fine);
-                // auto fine_x = linspace(tau.grid().xLower() + h_fine/2, tau.grid().xUpper() - h_fine/2, n_fine);
+            //     tau.vectorG() = concatenate({g_W_fine, g_E_fine, g_S_fine, g_N_fine});
 
-                // auto g_fine_W = interpolant_W(fine_y);
-                // auto g_fine_E = interpolant_E(fine_y);
-                // auto g_fine_S = interpolant_S(fine_x);
-                // auto g_fine_N = interpolant_N(fine_x);
+            //     // for (int n = p; n < 0; n++) {
+            //     //     // g is smaller than expected; refine
+            //     //     // g_fine = L_21 * g_coarse
+            //     //     // [4G] = [4G, 2G] [2G]
+            //     //     double refine_factor = pow(2, n+1);
+            //     //     int n_target = n_grid * refine_factor;
+            //     //     InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_target);
+            //     //     std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+            //     //     Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-                // tau.vectorG() = concatenate({g_fine_W, g_fine_E, g_fine_S, g_fine_N});
-            }
+            //     //     // g_fine = L_21 * g_coarse
+            //     //     tau.vectorG() = L21_patch * tau.vectorG();
+            //     // }
+
+            //     // int n_fine = n_grid;
+            //     // int n_coarse = n_grid/2;
+            //     // double h_fine = tau.grid().dx();
+            //     // double h_coarse = h_fine / 2.;
+
+            //     // auto coarse_y = linspace(tau.grid().yLower() + h_coarse/2, tau.grid().yUpper() - h_coarse/2, n_coarse);
+            //     // auto coarse_x = linspace(tau.grid().xLower() + h_coarse/2, tau.grid().xUpper() - h_coarse/2, n_coarse);
+
+            //     // auto g_coarse_W = tau.vectorG().getSegment(0*n_coarse, n_coarse);
+            //     // auto g_coarse_E = tau.vectorG().getSegment(1*n_coarse, n_coarse);
+            //     // auto g_coarse_S = tau.vectorG().getSegment(2*n_coarse, n_coarse);
+            //     // auto g_coarse_N = tau.vectorG().getSegment(3*n_coarse, n_coarse);
+
+            //     // PolynomialInterpolant interpolant_W(coarse_y, g_coarse_W, 1);
+            //     // PolynomialInterpolant interpolant_E(coarse_y, g_coarse_E, 1);
+            //     // PolynomialInterpolant interpolant_S(coarse_x, g_coarse_S, 1);
+            //     // PolynomialInterpolant interpolant_N(coarse_x, g_coarse_N, 1);
+
+            //     // auto fine_y = linspace(tau.grid().yLower() + h_fine/2, tau.grid().yUpper() - h_fine/2, n_fine);
+            //     // auto fine_x = linspace(tau.grid().xLower() + h_fine/2, tau.grid().xUpper() - h_fine/2, n_fine);
+
+            //     // auto g_fine_W = interpolant_W(fine_y);
+            //     // auto g_fine_E = interpolant_E(fine_y);
+            //     // auto g_fine_S = interpolant_S(fine_x);
+            //     // auto g_fine_N = interpolant_N(fine_x);
+
+            //     // tau.vectorG() = concatenate({g_fine_W, g_fine_E, g_fine_S, g_fine_N});
+            // }
         }
         if (tau.vectorW().size() != n_w_size_expected) {
+            app.log("SOLVE STAGE: RECOMPUTING W, expected size: (%i), actual size: (%i)", n_w_size_expected, tau.vectorW().size());
             double r = (double) tau.vectorW().size() / (double) n_w_size_expected;
             int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
             if (p > 0) {
-                app.log("SOLVE STAGE: COARSENING W");
+                // app.log("SOLVE STAGE: COARSENING W");
                 // w is larger than expected; coarsen
                 // w_coarse = L_12 * w_fine
                 // [2G] = [2G, 4G] [4G]
@@ -1477,7 +1557,7 @@ public:
                 tau.vectorW() = L12_patch * tau.vectorW();
             }
             else if (p < 0) {
-                app.log("SOLVE STAGE: REFINING W");
+                // app.log("SOLVE STAGE: REFINING W");
                 // w is smaller than expected; refine
                 // w_fine = L_21 * w_coarse
                 // [2G] = [2G, 1G] [1G]
@@ -1547,10 +1627,20 @@ public:
 
         // Apply solution operator to get interior of tau
         Vector<NumericalType> u_tau_interior = tau.matrixS() * tau.vectorG();
-
+        double umin, umax;
+        umin = *std::min_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
+        umax = *std::max_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
+        if (umin < -1e3 || umax > 1e3) {
+            app.log("(1) SOLUTION IS BLOWING UP : umin = %24.16e, umax = %24.16e", umin, umax);
+        }
         // Apply non-homogeneous contribution
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
             u_tau_interior = u_tau_interior + tau.vectorW();
+        }
+        umin = *std::min_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
+        umax = *std::max_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
+        if (umin < -1e3 || umax > 1e3) {
+            app.log("(2) SOLUTION IS BLOWING UP : umin = %24.16e, umax = %24.16e", umin, umax);
         }
 
         // Extract components of interior of tau

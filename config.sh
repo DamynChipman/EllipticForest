@@ -14,10 +14,12 @@ P4EST_PATH=${HOME}/packages/p4est/p4est/build/local
 PETSC_PATH=/opt/homebrew
 
 # PYTHON_ENV_PATH : Path to Python conda environment that has numpy and matplotlib installed
-PYTHON_ENV_PATH=${HOME}/miniforge3/envs/EllipticForest
+#PYTHON_ENV_PATH=${HOME}/miniforge3/envs/EllipticForest
+PYTHON_ENV_PATH=${HOME}/miniforge3/envs/py38
 
 # PYTHON_VERSION : Version of python in conda environment path
-PYTHON_VERSION=python3.11
+#PYTHON_VERSION=python3.11
+PYTHON_VERSION=python3.8
 
 # BUILD_DIR : Build directory
 BUILD_DIR=build-$(git branch --show-current)

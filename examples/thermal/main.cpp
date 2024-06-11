@@ -60,6 +60,8 @@
 const double TIME_START = 0;
 const double TIME_FINAL = 100;
 
+using FiniteVolumeHPS = EllipticForest::HPSAlgorithm<EllipticForest::FiniteVolumeGrid, EllipticForest::FiniteVolumeSolver, EllipticForest::FiniteVolumePatch, double>;
+
 /**
  * @brief Function for west boundary
  * 
@@ -125,8 +127,8 @@ double sources(double x, double y, double t) {
     double x0 = 5.0*sin(period*t);
     double y0 = 5.0*cos(period*t);
     double amplitude = 100.0;
-    double sigma_x = 0.2;
-    double sigma_y = 0.2;
+    double sigma_x = 0.75;
+    double sigma_y = 1.25;
     double k = 1;
     double Q = amplitude*exp(-(pow(x - x0, 2)/(2.0*pow(sigma_x,2)) + pow(y - y0, 2)/(2.0*pow(sigma_y, 2))));
     return Q / k;
@@ -177,8 +179,8 @@ void writeMesh(EllipticForest::Mesh<EllipticForest::FiniteVolumePatch>& mesh, do
     EllipticForest::Vector<double> uMesh{};
     uMesh.name() = "u_soln";
     
-    // EllipticForest::Vector<double> fMesh{};
-    // fMesh.name() = "f_rhs";
+    EllipticForest::Vector<double> fMesh{};
+    fMesh.name() = "f_rhs";
     
     mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
         if (node->leaf) {
@@ -186,14 +188,14 @@ void writeMesh(EllipticForest::Mesh<EllipticForest::FiniteVolumePatch>& mesh, do
             auto& grid = patch.grid();
 
             uMesh.append(patch.vectorU());
-            // fMesh.append(patch.vectorF());
+            fMesh.append(patch.vectorF());
         }
         return 1;
     });
 
     // Add mesh functions to mesh
     mesh.addMeshFunction(uMesh);
-    // mesh.addMeshFunction(fMesh);
+    mesh.addMeshFunction(fMesh);
     mesh.addMeshFunction(
         [&](double x, double y){
             return sources(x, y, time);
@@ -239,10 +241,10 @@ int main(int argc, char** argv) {
     double threshold = 1.0;
     app.options.setOption("refinement-threshold", threshold);
     
-    int min_level = 4;
+    int min_level = 2;
     app.options.setOption("min-level", min_level);
     
-    int max_level = 5;
+    int max_level = 4;
     app.options.setOption("max-level", max_level);
 
     double x_lower = -10.0;
@@ -269,7 +271,7 @@ int main(int argc, char** argv) {
     double t_end = TIME_FINAL;
     app.options.setOption("t-end", t_end);
 
-    double nt = 100;
+    double nt = 2000;
     app.options.setOption("nt", nt);
 
     double dt = (t_end - t_start) / (nt);
@@ -312,7 +314,9 @@ int main(int argc, char** argv) {
     EllipticForest::Quadtree<EllipticForest::FiniteVolumePatch> quadtree(mpi.getComm(), root_patch, node_factory, {x_lower, x_upper, y_lower, y_upper});
     quadtree.refine(true,
         [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-            return (int) node->level < min_level;
+            if (node->level < max_level) {
+                return (int) true;
+            }
         }
     );
     EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh(quadtree);
@@ -351,44 +355,61 @@ int main(int argc, char** argv) {
     // 2. Call the setup stage
     HPS.setupStage();
 
-    // 3. Call the build stage
-    int n_output = 0;
-    int n_rebuild = -1;
-    writeMesh(mesh, 0, n_output++);
-    HPS.buildStage();
-
     // Begin solver loop; demonstrates ability to solve multiple times once build stage is done
+    int n_output = 0;
+    int n_debug = 0;
     for (auto n = 0; n <= nt; n++) {
         double time = t_start + n*dt;
         app.logHead("============================");
         app.logHead("n = %4i, time = %f", n, time);
+        writeMesh(mesh, time, n_output++);
 
-        // Rebuild every n_rebuild steps
-        if (n % n_rebuild == n_rebuild - 1) {
+        if (n == 0 || atoi(argv[1])) {
+            // Compute initial factorization and output initial conditions
             HPS.buildStage();
         }
 
-        // 4. Call the upwards stage; provide a callback to set load data on leaf patches
-        // writeMesh(mesh, time, n_output++);
-        // HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
-        //     auto& grid = patch.grid();
-        //     int nx = grid.nx();
-        //     int ny = grid.ny();
-        //     patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
-        //     auto& u = patch.vectorU();
-        //     auto& f = patch.vectorF();
-        //     for (auto i = 0; i < nx; i++) {
-        //         for (auto j = 0; j < ny; j++) {
-        //             int index = j + i*ny;
-        //             double x = grid(0, i);
-        //             double y = grid(1, j);
-        //             f[index] = -(1.0/dt)*u[index] - sources(x, y, time);
-        //         }
+        // Call the upwards stage; provide a callback to set load data on leaf patches
+        HPS.upwardsStage([&](EllipticForest::FiniteVolumePatch& patch){
+            auto& grid = patch.grid();
+            int nx = grid.nx();
+            int ny = grid.ny();
+            patch.vectorF() = EllipticForest::Vector<double>(nx*ny);
+            auto& u = patch.vectorU();
+            auto& f = patch.vectorF();
+            for (auto i = 0; i < nx; i++) {
+                for (auto j = 0; j < ny; j++) {
+                    int index = j + i*ny;
+                    double x = grid(0, i);
+                    double y = grid(1, j);
+                    f[index] = -(1.0/dt)*u[index] - sources(x, y, time-dt);
+                }
+            }
+        });
+
+        // mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //     if (node->leaf) {
+        //         auto& patch = node->data;
+        //         auto& grid = patch.grid();
+        //         plt::scatter3(grid, patch.vectorU(), 1.0, {{"c", "r"}}, 1);
         //     }
+        //     return 1;
         // });
+        // plt::title("U: post-upwards");
+        // plt::show();
+
+        // mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //     if (node->leaf) {
+        //         auto& patch = node->data;
+        //         auto& grid = patch.grid();
+        //         plt::scatter3(grid, patch.vectorF(), 1.0, {{"c", "r"}}, 1);
+        //     }
+        //     return 1;
+        // });
+        // plt::title("F: post-upwards");
+        // plt::show();
 
         // 5. Call the solve stage; provide a callback to set physical boundary Dirichlet data on root patch
-        writeMesh(mesh, time, n_output++);
         HPS.solveStage([&](int side, double x, double y, double* a, double* b){
             switch (side) {
                 case 0:
@@ -428,6 +449,30 @@ int main(int argc, char** argv) {
             return 0.0;
         });
 
+        // mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //     if (node->leaf) {
+        //         auto& patch = node->data;
+        //         auto& grid = patch.grid();
+        //         plt::scatter3(grid, patch.vectorU(), 1.0, {{"c", "r"}}, 1);
+        //     }
+        //     return 1;
+        // });
+        // plt::title("U: post-solve");
+        // plt::show();
+
+        // mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //     if (node->leaf) {
+        //         auto& patch = node->data;
+        //         auto& grid = patch.grid();
+        //         plt::scatter3(grid, patch.vectorF(), 1.0, {{"c", "r"}}, 1);
+        //     }
+        //     return 1;
+        // });
+        // plt::title("F: post-solve");
+        // plt::show();
+
+        writeMesh(mesh, time, n_output++);
+
         // ====================================================
         // Write solution and functions to file
         // ====================================================
@@ -437,93 +482,99 @@ int main(int argc, char** argv) {
         // ====================================================
         // Refine and coarsen the mesh
         // ====================================================
-        writeMesh(mesh, time, n_output++);
         mesh.quadtree.adapt(
             min_level,
             max_level,
             // Coarsen function
             [&](std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> nodes){
-                bool coarsen_nodes = false;
-                // for (auto* child_node : nodes) {
-                //     if (child_node->leaf) {
-                //         auto& patch = child_node->data;
-                //         auto& grid = patch.grid();
-                //         auto& u = patch.vectorU();
-                //         auto nx = grid.nx();
-                //         auto ny = grid.ny();
+                bool coarsen_nodes = true;
+                for (auto* node : nodes) {
+                    if (node->leaf) {
+                        if (node->level <= min_level) {
+                            return (int) false;
+                        }
 
-                //         if (child_node->level <= min_level) {
-                //             return 0;
-                //         }
-
-                //         for (int i = 0; i < nx; i++) {
-                //             for (int j = 0; j < ny; j++) {
-                //                 double x = grid(0, i);
-                //                 double y = grid(1, j);
-                //                 // app.log("COARSEN: source = " + std::to_string(sources(x, y, time)));
-                //                 coarsen_nodes = (sources(x, y, time) < coarsen_threshold);
-
-                //                 if (coarsen_nodes) {
-                //                     break;
-                //                 }
-                //             }
-                //             if (coarsen_nodes) {
-                //                 break;
-                //             }
-                //         }
-                //     }
-                // }
+                        auto& patch = node->data;
+                        auto& grid = patch.grid();
+                        auto& u = patch.vectorU();
+                        auto nx = grid.nx();
+                        auto ny = grid.ny();
+                        for (int i = 0; i < nx; i++) {
+                            for (int j = 0; j < ny; j++) {
+                                double x = grid(0, i);
+                                double y = grid(1, j);
+                                if (sources(x, y, time) > coarsen_threshold) {
+                                    coarsen_nodes = false;
+                                }
+                            }
+                        }
+                        if (coarsen_nodes == false) {
+                            return (int) false;
+                        }
+                    }
+                }
                 return (int) coarsen_nodes;
             },
             // Refine function
             [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
                 bool refine_node = false;
                 if (node->leaf) {
+                    if (node->level >= max_level) {
+                        return (int) false;
+                    }
+
                     auto& patch = node->data;
                     auto& grid = patch.grid();
                     auto& u = patch.vectorU();
                     auto nx = grid.nx();
                     auto ny = grid.ny();
-
-                    if (node->level >= max_level) {
-                        return 0;
-                    }
-
                     for (int i = 0; i < nx; i++) {
                         for (int j = 0; j < ny; j++) {
                             double x = grid(0, i);
                             double y = grid(1, j);
                             refine_node = (sources(x, y, time) > refine_threshold);
-
-                            // int I_ij = j + i*ny;
-                            // int I_ip1j = j + (i+1)*ny;
-                            // int I_im1j = j + (i-1)*ny;
-                            // int I_ijp1 = (j+1) + i*ny;
-                            // int I_ijm1 = (j-1) + i*ny;
-
-                            // double u_ij = u(I_ij);
-                            // double u_ip1j = u(I_ip1j);
-                            // double u_im1j = u(I_im1j);
-                            // double u_ijp1 = u(I_ijp1);
-                            // double u_ijm1 = u(I_ijm1);
-
-                            // double dudx = (u_ip1j - u_im1j) / (2.0*grid.dx());
-                            // double dudy = (u_ijp1 - u_ijm1) / (2.0*grid.dy());
-                            // double mag_grad_u = sqrt(pow(dudx, 2) + pow(dudy, 2));
-                            // refine_node = mag_grad_u > refine_threshold;
-
                             if (refine_node) {
-                                break;
+                                return (int) refine_node;
                             }
-                        }
-                        if (refine_node) {
-                            break;
                         }
                     }
                 }
                 return (int) refine_node;
+            },
+            // Propagate function
+            [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> children_nodes){
+                auto& tau = parent_node->data;
+                auto& alpha = children_nodes[0]->data;
+                auto& beta = children_nodes[1]->data;
+                auto& gamma = children_nodes[2]->data;
+                auto& omega = children_nodes[3]->data;
+                FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega, solver);
+                return 1;
             }
         );
+
+        // mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //     if (node->leaf) {
+        //         auto& patch = node->data;
+        //         auto& grid = patch.grid();
+        //         plt::scatter3(grid, patch.vectorU(), 1.0, {{"c", "r"}}, 1);
+        //     }
+        //     return 1;
+        // });
+        // plt::title("U: post-adapt");
+        // plt::show();
+
+        // mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
+        //     if (node->leaf) {
+        //         auto& patch = node->data;
+        //         auto& grid = patch.grid();
+        //         plt::scatter3(grid, patch.vectorF(), 1.0, {{"c", "r"}}, 1);
+        //     }
+        //     return 1;
+        // });
+        // plt::title("F: post-adapt");
+        // plt::show();
+        
         // mesh.quadtree.merge(
         //     [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* leaf_node) {
         //         return 1;
@@ -546,7 +597,7 @@ int main(int argc, char** argv) {
         //         return 1;
         //     }
         // );
-        writeMesh(mesh, time, n_output++);
+        // writeMesh(mesh, time, n_output++);
 
         // for (int l = max_level; l > min_level; l--) {
         //     mesh.quadtree.coarsen(false,
