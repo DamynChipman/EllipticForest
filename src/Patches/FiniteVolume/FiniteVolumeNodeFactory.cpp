@@ -403,13 +403,13 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<N
             }
         }
 
-        plt::scatter3(alpha.grid(), alpha.vectorU(), 1.0, {{"c", "r"}}, 1);
-        plt::scatter3(beta.grid(), beta.vectorU(), 1.0, {{"c", "g"}}, 1);
-        plt::scatter3(gamma.grid(), gamma.vectorU(), 1.0, {{"c", "b"}}, 1);
-        plt::scatter3(omega.grid(), omega.vectorU(), 1.0, {{"c", "y"}}, 1);
-        plt::scatter3(tau.grid(), tau.vectorU(), 1.0, {{"c", "k"}}, 1);
-        plt::title("coarsening: U");
-        plt::show();
+        // plt::scatter3(alpha.grid(), alpha.vectorU(), 1.0, {{"c", "r"}}, 1);
+        // plt::scatter3(beta.grid(), beta.vectorU(), 1.0, {{"c", "g"}}, 1);
+        // plt::scatter3(gamma.grid(), gamma.vectorU(), 1.0, {{"c", "b"}}, 1);
+        // plt::scatter3(omega.grid(), omega.vectorU(), 1.0, {{"c", "y"}}, 1);
+        // plt::scatter3(tau.grid(), tau.vectorU(), 1.0, {{"c", "k"}}, 1);
+        // plt::title("coarsening: U");
+        // plt::show();
 
         // auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
         // auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());
@@ -490,13 +490,13 @@ Node<FiniteVolumePatch>* FiniteVolumeNodeFactory::createParentNode(std::vector<N
             }
         }
 
-        plt::scatter3(alpha.grid(), alpha.vectorF(), 1.0, {{"c", "r"}}, 1);
-        plt::scatter3(beta.grid(), beta.vectorF(), 1.0, {{"c", "g"}}, 1);
-        plt::scatter3(gamma.grid(), gamma.vectorF(), 1.0, {{"c", "b"}}, 1);
-        plt::scatter3(omega.grid(), omega.vectorF(), 1.0, {{"c", "y"}}, 1);
-        plt::scatter3(tau.grid(), tau.vectorF(), 1.0, {{"c", "k"}}, 1);
-        plt::title("coarsening: F");
-        plt::show();
+        // plt::scatter3(alpha.grid(), alpha.vectorF(), 1.0, {{"c", "r"}}, 1);
+        // plt::scatter3(beta.grid(), beta.vectorF(), 1.0, {{"c", "g"}}, 1);
+        // plt::scatter3(gamma.grid(), gamma.vectorF(), 1.0, {{"c", "b"}}, 1);
+        // plt::scatter3(omega.grid(), omega.vectorF(), 1.0, {{"c", "y"}}, 1);
+        // plt::scatter3(tau.grid(), tau.vectorF(), 1.0, {{"c", "k"}}, 1);
+        // plt::title("coarsening: F");
+        // plt::show();
 
         // auto x1_child = linspace(alpha.grid()(0, 0), beta.grid()(0, beta.grid().nx()-1), alpha.grid().nx() + beta.grid().nx());
         // auto x2_child = linspace(alpha.grid()(1, 0), gamma.grid()(1, gamma.grid().ny()-1), alpha.grid().ny() + gamma.grid().ny());

@@ -239,9 +239,11 @@ public:
                 // Set particular Neumann data using patch solver function
                 patch.vectorH() = patch_solver.particularNeumannData(patch.grid(), patch.vectorF());
 
-                // plt::plot(patch.vectorH().data());
-                // plt::title("H: post-leaf callback in upwards stage");
-                // plt::show();
+                // if (DEBUG_STATE && patch.grid().xLower() == 0.25 && patch.grid().xUpper() == 0.3125 && patch.grid().yLower() == 0.25 && patch.grid().yUpper() == 0.3125) {
+                //     plt::plot(patch.vectorH().data());
+                //     plt::title("H: post-leaf callback in upwards stage");
+                //     plt::show();
+                // }
 
                 return 1;
             },
@@ -1201,17 +1203,8 @@ public:
                 h_diff_omega_gamma
             });
 
-            // plt::plot(h_diff.data());
-            // std::string t = "h_diff: tau = [" + std::to_string(tau.grid().xLower()) + "," + std::to_string(tau.grid().xUpper()) + "] x [" + std::to_string(tau.grid().yLower()) + "," + std::to_string(tau.grid().yUpper()) + "]";
-            // plt::title(t);
-            // plt::show();
-
             // Compute and set w_tau
             tau.vectorW() = solve(D, h_diff); // why is h_diff_omega_beta so much bigger???
-
-            // plt::plot(tau.vectorW().data());
-            // plt::title("tau.w");
-            // plt::show();
 
             // Compute and set h_tau
             tau.vectorH() = B * tau.vectorW();
@@ -1627,20 +1620,10 @@ public:
 
         // Apply solution operator to get interior of tau
         Vector<NumericalType> u_tau_interior = tau.matrixS() * tau.vectorG();
-        double umin, umax;
-        umin = *std::min_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
-        umax = *std::max_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
-        if (umin < -1e3 || umax > 1e3) {
-            app.log("(1) SOLUTION IS BLOWING UP : umin = %24.16e, umax = %24.16e", umin, umax);
-        }
+
         // Apply non-homogeneous contribution
         if (!std::get<bool>(app.options["homogeneous-rhs"])) {
             u_tau_interior = u_tau_interior + tau.vectorW();
-        }
-        umin = *std::min_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
-        umax = *std::max_element(u_tau_interior.data().begin(), u_tau_interior.data().end());
-        if (umin < -1e3 || umax > 1e3) {
-            app.log("(2) SOLUTION IS BLOWING UP : umin = %24.16e, umax = %24.16e", umin, umax);
         }
 
         // Extract components of interior of tau

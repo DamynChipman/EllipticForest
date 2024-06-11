@@ -141,11 +141,7 @@ int main(int argc, char** argv) {
     double threshold = 1.0;
     app.options.setOption("refinement-threshold", threshold);
     
-    int min_level = 2;
-    app.options.setOption("min-level", min_level);
     
-    int max_level = 4;
-    app.options.setOption("max-level", max_level);
 
     double x_lower = 0.0;
     app.options.setOption("x-lower", x_lower);
@@ -168,13 +164,13 @@ int main(int argc, char** argv) {
     double t_start = 0;
     app.options.setOption("t-start", t_start);
 
-    double t_end = 0.04;
+    double t_end = 0.0025;
     app.options.setOption("t-end", t_end);
 
     double nt = 2000;
     app.options.setOption("nt", nt);
 
-    double dt = (t_end - t_start) / (nt);
+    double dt = 2e-5;
     app.options.setOption("dt", dt);
 
     int n_vtk = 1;
@@ -185,6 +181,18 @@ int main(int argc, char** argv) {
 
     double coarsen_threshold = 1e-3;
     app.options.setOption("coarsen-threshold", coarsen_threshold);
+
+    int min_level = 4;
+    int max_level = 4;
+    bool full_hps = true;
+    if (argc > 1) {
+        min_level = atoi(argv[1]);
+        max_level = atoi(argv[2]);
+        full_hps = (bool) atoi(argv[3]);
+    }
+    app.options.setOption("min-level", min_level);
+    app.options.setOption("max-level", max_level);
+    app.options.setOption("full-hps", full_hps);
 
     // double epsilon = 0.01;
     double h = (x_upper - x_lower) / (nx) / pow(2, max_level);
@@ -424,11 +432,15 @@ int main(int argc, char** argv) {
     // Begin solver loop; demonstrates ability to solve multiple times once build stage is done
     int n_output = 1;
     int n_adapt_output = 0;
+    double time = 0.;
     for (auto n = 1; n <= nt; n++) {
 
-        double time = t_start + n*dt;
+        time = time + dt;
         solver.time = time;
         solver.dt = dt;
+        if (time > t_end) {
+            break;
+        }
         app.logHead("============================");
         app.logHead("n = %4i, time = %f", n, time);
 
@@ -521,39 +533,6 @@ int main(int argc, char** argv) {
             );
         }
 
-        if (vtk_flag && n % n_vtk == 0) {
-            mesh.clear();
-            mesh.setMeshFromQuadtree();
-            app.logHead("Output mesh: %04i", n_output);
-            
-            // Extract out solution and right-hand side data stored on leaves
-            EllipticForest::Vector<double> uMesh{};
-            uMesh.name() = "u_soln";
-            
-            EllipticForest::Vector<double> fMesh{};
-            fMesh.name() = "f_rhs";
-            
-            mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-                if (node->leaf) {
-                    auto& patch = node->data;
-                    auto& grid = patch.grid();
-
-                    uMesh.append(patch.vectorU());
-                    fMesh.append(patch.vectorF());
-                }
-                return 1;
-            });
-
-            // Add mesh functions to mesh
-            mesh.addMeshFunction(uMesh);
-            mesh.addMeshFunction(fMesh);
-
-            // Write VTK files:
-            //      "allen-cahn-mesh-{n}.pvtu"            : Parallel header file for mesh and data
-            //      "allen-cahn-quadtree-{n}.pvtu"        : p4est quadtree structure
-            mesh.toVTK("allen-cahn-post-adapt", n_output);
-        }
-
         // double u_min = -1.;
         // double u_max = 1.;
         // mesh.iteratePatches([&](EllipticForest::FiniteVolumePatch& patch){
@@ -566,7 +545,7 @@ int main(int argc, char** argv) {
         // });
         // app.log("u_min = %8.4e, u_max = %8.4e", u_min, u_max);
 
-        if (atoi(argv[1])) 
+        if (full_hps)
             HPS.buildStage();
 
         // 4. Call the upwards stage; provide a callback to set load data on leaf patches
