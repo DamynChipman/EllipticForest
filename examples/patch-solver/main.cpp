@@ -27,6 +27,11 @@ namespace plt = matplotlibcpp;
  * @return double 
  */
 double uExact(double x, double y) {
+    // Sine/Cosine
+    // return sin(x) + sin(y);
+
+    // Variable coefficient
+    // return x*(1. - x)*y*(1. - y)*exp(x*y);
     return sin(x) + sin(y);
 }
 
@@ -38,7 +43,12 @@ double uExact(double x, double y) {
  * @return double 
  */
 double fRHS(double x, double y) {
-    return -uExact(x, y);
+    // Sine/Cosine
+    // return -uExact(x, y);
+
+    // Variable coefficient
+    // return M_PI*(exp(x*y)*(1 - x)*x*(1 - y) - exp(x*y)*(1 - x)*x*y + exp(x*y)*(1 - x)*exp(2)*(1 - y)*y)*cos(M_PI*x)*cos(M_PI*y) - M_PI*(exp(x*y)*(1 - x)*(1 - y)*y - exp(x*y)*x*(1 - y)*y + exp(x*y)*(1 - x)*x*(1 - y)*exp(2))*sin(M_PI*x)*sin(M_PI*y) + (-2*exp(x*y)*(1 - x)*x + 2*exp(x*y)*(1 - x)*exp(2)*(1 - y) - 2*exp(x*y)*(1 - x)*exp(2)*y + exp(x*y)*(1 - x)*exp(3)*(1 - y)*y)*(2 + cos(M_PI*x)*sin(M_PI*y)) + (-2*exp(x*y)*(1 - y)*y + 2*exp(x*y)*(1 - x)*(1 - y)*exp(2) - 2*exp(x*y)*x*(1 - y)*exp(2) + exp(x*y)*(1 - x)*x*(1 - y)*exp(3))*(2 + cos(M_PI*x)*sin(M_PI*y));
+    return pow(cos(y),2)*sin(x) + pow(cos(x),2)*sin(y) - sin(x)*(2 + sin(x)*sin(y)) - sin(y)*(2 + sin(x)*sin(y));
 }
 
 /**
@@ -58,7 +68,7 @@ int main(int argc, char** argv) {
     // ====================================================
     // Set up convergence parameters
     // ====================================================
-    std::vector<int> ns = {8, 16, 32, 64, 128};
+    std::vector<int> ns = {8, 16, 32, 64, 128, 256, 512, 1024};
     std::vector<double> errors;
     EllipticForest::Vector<double> u_exact, u_petsc;
     int nx, ny;
@@ -72,7 +82,9 @@ int main(int argc, char** argv) {
         return 1.0;
     };
     solver.beta_function = [&](double x, double y){
-        return 1.0;
+        // return 1.0;
+        // return cos(M_PI*x)*sin(M_PI*y) + 2.;
+        return sin(x)*sin(y) + 2.;
     };
     solver.lambda_function = [&](double x, double y){
         return 0.0;
@@ -81,6 +93,7 @@ int main(int argc, char** argv) {
     // ====================================================
     // Run convergence sweep
     // ====================================================
+    app.addTimer("solve-time");
     for (auto n : ns) {
 
         // ====================================================
@@ -132,14 +145,19 @@ int main(int argc, char** argv) {
         // ====================================================
         // Solve with patch solver
         // ====================================================
+        auto solve_timer = app.timers["solve-time"];
+        solve_timer.restart();
+        solve_timer.start();
         u_petsc = solver.solve(grid, g, f);
+        solve_timer.stop();
+        double dt_solve = solve_timer.time();
 
         // ====================================================
         // Compute error
         // ====================================================
         double error = EllipticForest::vectorInfNorm(u_exact, u_petsc);
         errors.push_back(error);
-        app.log("N = %4i, Error = %.8e", n, error);
+        app.logHead("N = %4i, Error = %16.8e, Time = %16.8f [sec]", n, error, dt_solve);
 
     }
 

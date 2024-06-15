@@ -35,10 +35,18 @@ using Group = MPI_Group;
 using Status = MPI_Status;
 
 /**
+ * @brief Type alias for MPI_Request
+ * 
+ */
+using Request = MPI_Request;
+
+/**
  * @brief Type alias for MPI_Datatype
  * 
  */
 using Datatype = MPI_Datatype;
+
+int probe(int src, int tag, Communicator comm, Status* status);
 
 /**
  * @brief Class for any MPI based object; can also be used by itself for global MPI utility
@@ -221,6 +229,11 @@ int send(T& data, int dest, int tag, Communicator comm) {
     return MPI_Send(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), dest, tag, comm);
 }
 
+template<class T>
+int isend(T& data, int dest, int tag, Communicator comm, Request* request) {
+    return MPI_Isend(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), dest, tag, comm, request);
+}
+
 /**
  * @brief Wrapper for MPI_Recv
  * 
@@ -235,6 +248,11 @@ int send(T& data, int dest, int tag, Communicator comm) {
 template<class T>
 int receive(T& data, int src, int tag, Communicator comm, Status* status) {
     return MPI_Recv(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), src, tag, comm, status);
+}
+
+template<class T>
+int ireceive(T& data, int src, int tag, Communicator comm, Request* request) {
+    return MPI_Irecv(TypeTraits<T>::getAddress(data), TypeTraits<T>::getSize(data), TypeTraits<T>::getType(data), src, tag, comm, request);
 }
 
 /**

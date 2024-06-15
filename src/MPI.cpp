@@ -4,6 +4,10 @@ namespace EllipticForest {
 
 namespace MPI {
 
+int probe(int src, int tag, Communicator comm, Status* status) {
+    return MPI_Probe(src, tag, comm, status);
+}
+
 void communicatorSubsetRange(Communicator super_comm, int r_first, int r_last, int tag, Communicator* sub_comm) {
 
     // Get group of super communicator

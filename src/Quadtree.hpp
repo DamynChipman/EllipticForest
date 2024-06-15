@@ -6,6 +6,7 @@
 #ifndef QUADTREE_HPP_
 #define QUADTREE_HPP_
 
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <ostream>
@@ -630,16 +631,145 @@ public:
 	 */
 	void partition() {
 
-		if (this->getSize() != 1) {
-			throw std::runtime_error("Parallel partitioning not implemented!");
+		// if (this->getSize() != 1) {
+		// 	throw std::runtime_error("Parallel partitioning not implemented!");
+		// }
+
+		p4est_partition(
+			p4est,
+			false,
+			nullptr
+		);
+
+		// Create partitioned path-indexed quadtree structure
+		NodeMap pmap;
+		void* saved_user_pointer = p4est->user_pointer;
+		p4est->user_pointer = (void*) &pmap;
+		p4est_search_all(
+			p4est,
+			0,
+			[](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant, int pfirst, int plast, p4est_locidx_t local_num, void* point){
+				auto& pmap = *((NodeMap*) p4est->user_pointer);
+				auto path = p4est::p4est_quadrant_path(quadrant);
+				pmap[path] = new Node<T>();
+				pmap[path]->path = path;
+				pmap[path]->level = quadrant->level;
+				pmap[path]->pfirst = pfirst;
+				pmap[path]->plast = plast;
+				return 1;
+			},
+			nullptr,
+			nullptr
+		);
+		p4est->user_pointer = saved_user_pointer;
+
+		auto& app = EllipticForestApp::getInstance();
+		app.log("contents of map:");
+		for (auto& pair : map) {
+			auto path = pair.first;
+			auto* node = pair.second;
+			int pfirst = node->pfirst;
+			int plast = node->plast;
+			int rank = this->getRank();
+			bool owned = pfirst <= rank && rank <= plast;
+			bool has_data = node != nullptr;
+			app.log("path = " + path + ", owned = " + std::to_string(owned) + ", data = " + std::to_string(node->data) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]");
+		}
+		app.log("contents of pmap:");
+		for (auto& pair : pmap) {
+			auto path = pair.first;
+			auto* node = pair.second;
+			int pfirst = node->pfirst;
+			int plast = node->plast;
+			int rank = this->getRank();
+			bool owned = pfirst <= rank && rank <= plast;
+			bool has_data = node != nullptr;
+			app.log("path = " + path + ", owned = " + std::to_string(owned) + ", data = " + std::to_string(node->data) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]");
 		}
 
-		// p4est_partition(
-		// 	p4est,
-		// 	false,
-		// 	nullptr
-		// );
+		// Iterate through map and send data this rank does not own
+		// for (auto& pair : map) {
+		// 	auto path = pair.first;
+		// 	auto* node = pair.second;
+		// 	auto* pnode = pmap[path];
+			
+		// 	bool owned = pnode->pfirst <= this->getRank() && this->getRank() <= pnode->plast;
+		// 	bool has_data = node != nullptr;
 
+		// 	// unsigned hash_index = p4est_quadrant_hash_fn(quadrant, nullptr);
+		// 	// int tag = static_cast<int>(hash_index % (INT_MAX + 1ULL));
+
+		// 	if (has_data && !owned) {
+		// 		// Rank has node data but does not own it; send to ranks that do
+		// 		for (auto dest = pnode->pfirst; dest <= pnode->plast; dest++) {
+		// 			app.log("sending message: data = " + std::to_string(node->data) + ", tag = " + std::to_string(0) + ", dest = " + std::to_string(dest));
+		// 			MPI::send(node->data, dest, 0, this->getComm());
+		// 			app.log("sent!");
+		// 		}	
+		// 	}
+
+		// 	// if (has_data) {
+		// 	// 	if (owned) {
+		// 	// 		// Rank has data and is owned; do nothing
+		// 	// 		continue;
+		// 	// 	}
+		// 	// 	else {
+		// 	// 		// Rank has node data but does not own it; send to ranks that do
+		// 	// 		for (auto dest = pnode->pfirst; dest <= pnode->plast; dest++) {
+		// 	// 			app.log("sending message: data = " + std::to_string(node->data) + ", tag = " + std::to_string(tag) + ", dest = " + std::to_string(dest));
+		// 	// 			MPI::send(node->data, dest, tag, quadtree.getComm());
+		// 	// 			app.log("sent!");
+		// 	// 		}
+
+		// 	// 		// Clean up unused data
+		// 	// 		// delete node;
+		// 	// 	}
+		// 	// }
+		// 	// else {
+		// 	// 	if (owned) {
+		// 	// 		// Rank does not have quad data but does own it; receive from rank that does
+		// 	// 		T temp;
+
+		// 	// 		MPI::Status status;
+		// 	// 		app.log("probing for messages...");
+		// 	// 		MPI::probe(MPI_ANY_SOURCE, tag, quadtree.getComm(), &status);
+		// 	// 		app.log("receiving message: tag = " + std::to_string(tag) + ", src = " + std::to_string(status.MPI_SOURCE));
+		// 	// 		MPI::receive(temp, status.MPI_SOURCE, tag, quadtree.getComm(), MPI_STATUS_IGNORE);
+		// 	// 		app.log("received message: data = " + std::to_string(temp) + ", src = " + std::to_string(status.MPI_SOURCE));
+		// 	// 		// MPI::ireceive(temp, MPI_ANY_SOURCE, tag, quadtree.getComm(), nullptr);
+		// 	// 		node = quadtree.node_factory->createNode(temp, path, quadrant->level, pfirst, plast);
+		// 	// 	}
+		// 	// 	else {
+		// 	// 		// Rank does not have data and does not need it; do nothing
+		// 	// 		continue;
+		// 	// 	}
+		// 	// }
+
+		// }
+
+		// // Receive data into partitioned nodes
+		// for (auto& pair : pmap) {
+		// 	auto path = pair.first;
+		// 	auto* pnode = pair.second;
+			
+		// 	bool owned = pnode->pfirst <= this->getRank() && this->getRank() <= pnode->plast;
+		// 	bool has_data = pnode != nullptr;
+
+		// 	if (owned && !has_data) {
+		// 		T temp;
+		// 		MPI::Status status;
+		// 		app.log("probing for messages...");
+		// 		MPI::probe(MPI_ANY_SOURCE, 0, this->getComm(), &status);
+		// 		app.log("receiving message: 0 = " + std::to_string(0) + ", src = " + std::to_string(status.MPI_SOURCE));
+		// 		MPI::receive(temp, status.MPI_SOURCE, 0, this->getComm(), MPI_STATUS_IGNORE);
+		// 		app.log("received message: data = " + std::to_string(temp) + ", src = " + std::to_string(status.MPI_SOURCE));
+		// 		pnode->data = temp;
+		// 		// MPI::ireceive(temp, MPI_ANY_SOURCE, 0, this->getComm(), nullptr);
+		// 		// pnode = node_factory->createNode(temp, path, pnode-, pfirst, plast);
+		// 	}
+		// }
+
+		// app.log("====================================================================================================");
 		// // Can I use p4est_search_all to iterate over the partitioned leaf-quadtree and then send/receive nodes?
 		// p4est_search_all(
 		// 	p4est,
@@ -654,23 +784,48 @@ public:
 		// 		auto path = p4est::p4est_quadrant_path(quadrant);
 		// 		auto* node = map[path];
 
+		// 		unsigned hash_index = p4est_quadrant_hash_fn(quadrant, nullptr);
+		// 		int tag = static_cast<int>(hash_index % (INT_MAX + 1ULL));
+
 		// 		bool owned = pfirst <= rank && rank <= plast;
 		// 		bool has_data = node != nullptr;
 		// 		auto& app = EllipticForestApp::getInstance();
-		// 		app.log("path = " + path + ", owned = " + std::to_string(owned) + ", has_data = " + std::to_string(has_data) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]");
+		// 		app.log("path = " + path + ", index = " + std::to_string(tag) + ", owned = " + std::to_string(owned) + ", has_data = " + std::to_string(has_data) + ", ranks = [" + std::to_string(pfirst) + "-" + std::to_string(plast) + "]");
 
-		// 		if (owned) {
-		// 			if (node == nullptr) {
-		// 				// Node is owned but had no data; need to receive
-		// 				// Receive from where...?
-		// 				MPI::Status status;
-		// 				int src = quadtree->getSize() - 1; // Is the source rank always the last one...?
-		// 				MPI::receive(node->data, src, 0, quadtree->getComm(), &status);
+		// 		if (has_data) {
+		// 			if (owned) {
+		// 				// Rank has data and is owned; do nothing
+		// 				return 1;
 		// 			}
 		// 			else {
-		// 				// Node is owned and has data; need to send
-		// 				// Who to send to...?
+		// 				// Rank has quad data but does not own it; send to ranks that do
+		// 				for (auto dest = pfirst; dest <= plast; dest++) {
+		// 					app.log("sending message: data = " + std::to_string(node->data) + ", tag = " + std::to_string(tag) + ", dest = " + std::to_string(dest));
+		// 					MPI::send(node->data, dest, tag, quadtree.getComm());
+		// 					app.log("sent!");
+		// 				}
 
+		// 				// Clean up unused data
+		// 				delete node;
+		// 			}
+		// 		}
+		// 		else {
+		// 			if (owned) {
+		// 				// Rank does not have quad data but does own it; receive from rank that does
+		// 				T temp;
+
+		// 				MPI::Status status;
+		// 				app.log("probing for messages...");
+		// 				MPI::probe(MPI_ANY_SOURCE, tag, quadtree.getComm(), &status);
+		// 				app.log("receiving message: tag = " + std::to_string(tag) + ", src = " + std::to_string(status.MPI_SOURCE));
+		// 				MPI::receive(temp, status.MPI_SOURCE, tag, quadtree.getComm(), MPI_STATUS_IGNORE);
+		// 				app.log("received message: data = " + std::to_string(temp) + ", src = " + std::to_string(status.MPI_SOURCE));
+		// 				// MPI::ireceive(temp, MPI_ANY_SOURCE, tag, quadtree.getComm(), nullptr);
+		// 				node = quadtree.node_factory->createNode(temp, path, quadrant->level, pfirst, plast);
+		// 			}
+		// 			else {
+		// 				// Rank does not have data and does not need it; do nothing
+		// 				return 1;
 		// 			}
 		// 		}
 
@@ -998,6 +1153,18 @@ public:
 		else {
 			p4est_init_coarsened_callback(p4est, which_tree, quadrant);
 		}
+	}
+
+	static int path2Index(const NodePathKey& path, int max_length) {
+		int index = 0;
+		for (char c : path) {
+			index += index*(4 + max_length) + (c - '0');
+		}
+		int max_length_bits = max_length * 2;
+		int path_length_bits = ceil(log2(max_length + 1));
+		// index = (path.size() << max_length_bits) | index;
+		index *= std::pow(4, path.size());
+		return index;
 	}
 
 };

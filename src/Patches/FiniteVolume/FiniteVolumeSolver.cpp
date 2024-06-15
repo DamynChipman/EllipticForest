@@ -45,7 +45,7 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         MatCreate(MPI_COMM_SELF, &A);
         MatSetSizes(A, N, N, N, N);
         // MatSetFromOptions(A);
-        MatSetType(A, MATDENSE);
+        // MatSetType(A, MATDENSE);
         MatSetUp(A);
 
         Vec f;
@@ -193,18 +193,27 @@ Vector<double> FiniteVolumeSolver::solve(FiniteVolumeGrid& grid, Vector<double>&
         MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
         VecAssemblyEnd(f);
 
-        // Setup factorization
-        IS row_perm, col_perm;
-        Vector<int> idx_row = vectorRange(0, N-1);
-        Vector<int> idx_col = vectorRange(0, N-1);
-        ISCreateGeneral(MPI_COMM_WORLD, N, idx_row.data().data(), PETSC_COPY_VALUES, &row_perm);
-        ISCreateGeneral(MPI_COMM_WORLD, N, idx_col.data().data(), PETSC_COPY_VALUES, &col_perm);
-        MatFactorInfo mat_factor_info;
-        MatFactorInfoInitialize(&mat_factor_info);
+        KSP ksp;
+        PC pc;
+        KSPCreate(MPI_COMM_SELF, &ksp);
+        KSPSetOperators(ksp, A, A);
+        KSPGetPC(ksp, &pc);
+        KSPSetType(ksp, KSPNONE);
+        PCSetType(pc, PCLU);
+        KSPSolve(ksp, f, x);
 
-        // Solve linear system
-        MatLUFactor(A, row_perm, col_perm, &mat_factor_info);
-        MatSolve(A, f, x);
+        // // Setup factorization
+        // IS row_perm, col_perm;
+        // Vector<int> idx_row = vectorRange(0, N-1);
+        // Vector<int> idx_col = vectorRange(0, N-1);
+        // ISCreateGeneral(MPI_COMM_WORLD, N, idx_row.data().data(), PETSC_COPY_VALUES, &row_perm);
+        // ISCreateGeneral(MPI_COMM_WORLD, N, idx_col.data().data(), PETSC_COPY_VALUES, &col_perm);
+        // MatFactorInfo mat_factor_info;
+        // MatFactorInfoInitialize(&mat_factor_info);
+
+        // // Solve linear system
+        // MatLUFactor(A, row_perm, col_perm, &mat_factor_info);
+        // MatSolve(A, f, x);
 
         // Create EllipticForest vector
         double* x_data;
@@ -354,6 +363,9 @@ Vector<double> FiniteVolumeSolver::mapD2N(FiniteVolumeGrid& grid, Vector<double>
 
 Matrix<double> FiniteVolumeSolver::buildD2N(FiniteVolumeGrid& grid) {
 
+    auto& app = EllipticForestApp::getInstance();
+    bool homogeneous_beta = std::get<bool>(app.options["homogeneous-beta"]);
+
     std::size_t N = grid.nx();
 	std::size_t M = 4*N;
 	Matrix<double> T(M, M);
@@ -361,95 +373,97 @@ Matrix<double> FiniteVolumeSolver::buildD2N(FiniteVolumeGrid& grid) {
 	Vector<double> f_zero(N*N, 0.0);
 	Vector<double> col_j(M);
 
-#if DTN_OPTIMIZE
-	// Iterate through first side of grid to form T
-	// Compute first column of block T
-	for (int j = 0; j < N; j++) {
-		e_hat_j[j] = 1.0;
-		col_j = mapD2N(grid, e_hat_j, f_zero);
-		T.setColumn(j, col_j);
-		e_hat_j[j] = 0.0;
-	}
+    if (homogeneous_beta) {
+        // Iterate through first side of grid to form T
+        // Compute first column of block T
+        for (int j = 0; j < N; j++) {
+            e_hat_j[j] = 1.0;
+            col_j = mapD2N(grid, e_hat_j, f_zero);
+            T.setColumn(j, col_j);
+            e_hat_j[j] = 0.0;
+        }
 
-	// Extract blocks of T
-	Matrix<double> T_WW = T.getBlock(0*N, 0*N, N, N);
-	Matrix<double> T_EW = T.getBlock(1*N, 0*N, N, N);
-	Matrix<double> T_SW = T.getBlock(2*N, 0*N, N, N);
-	Matrix<double> T_NW = T.getBlock(3*N, 0*N, N, N);
+        // Extract blocks of T
+        Matrix<double> T_WW = T.getBlock(0*N, 0*N, N, N);
+        Matrix<double> T_EW = T.getBlock(1*N, 0*N, N, N);
+        Matrix<double> T_SW = T.getBlock(2*N, 0*N, N, N);
+        Matrix<double> T_NW = T.getBlock(3*N, 0*N, N, N);
 
-	// Define other blocks in terms of first block column
-	// T_WE = -T_EW
-	// T_EE = -T_WW
-	// T_SE = -T_NW^T
-	// T_NE = Reversed columns from T_NW
-	// 
-	// T_WS = T_SW
-	// T_ES = T_NW
-	// T_SS = T_WW
-	// T_NS = T_EW
-	//
-	// T_WN = -T_NW
-	// T_EN = T_NE
-	// T_SN = -T_EW
-	// T_NN = -T_WW
-	Matrix<double> T_WE(N, N);
-	Matrix<double> T_EE(N, N);
-	Matrix<double> T_SE(N, N);
-	Matrix<double> T_NE(N, N);
+        // Define other blocks in terms of first block column
+        // T_WE = -T_EW
+        // T_EE = -T_WW
+        // T_SE = -T_NW^T
+        // T_NE = Reversed columns from T_NW
+        // 
+        // T_WS = T_SW
+        // T_ES = T_NW
+        // T_SS = T_WW
+        // T_NS = T_EW
+        //
+        // T_WN = -T_NW
+        // T_EN = T_NE
+        // T_SN = -T_EW
+        // T_NN = -T_WW
+        Matrix<double> T_WE(N, N);
+        Matrix<double> T_EE(N, N);
+        Matrix<double> T_SE(N, N);
+        Matrix<double> T_NE(N, N);
 
-	Matrix<double> T_WS(N, N);
-	Matrix<double> T_ES(N, N);
-	Matrix<double> T_SS(N, N);
-	Matrix<double> T_NS(N, N);
+        Matrix<double> T_WS(N, N);
+        Matrix<double> T_ES(N, N);
+        Matrix<double> T_SS(N, N);
+        Matrix<double> T_NS(N, N);
 
-	Matrix<double> T_WN(N, N);
-	Matrix<double> T_EN(N, N);
-	Matrix<double> T_SN(N, N);
-	Matrix<double> T_NN(N, N);
+        Matrix<double> T_WN(N, N);
+        Matrix<double> T_EN(N, N);
+        Matrix<double> T_SN(N, N);
+        Matrix<double> T_NN(N, N);
 
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < N; j++) {
-			T_WE(i,j) = -T_EW(i,j);
-			T_EE(i,j) = -T_WW(i,j);
-			T_SE(i,j) = -T_NW(j,i);
-			T_NE(i,j) = T_NW((N-1) - i, j);
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+                T_WE(i,j) = -T_EW(i,j);
+                T_EE(i,j) = -T_WW(i,j);
+                T_SE(i,j) = -T_NW(j,i);
+                T_NE(i,j) = T_NW((N-1) - i, j);
 
-			T_WS(i,j) = T_SW(i,j);
-			T_ES(i,j) = T_NW(i,j);
-			T_SS(i,j) = T_WW(i,j);
-			T_NS(i,j) = T_EW(i,j);
+                T_WS(i,j) = T_SW(i,j);
+                T_ES(i,j) = T_NW(i,j);
+                T_SS(i,j) = T_WW(i,j);
+                T_NS(i,j) = T_EW(i,j);
 
-			T_WN(i,j) = -T_NW(j,i);
-			T_EN(i,j) = T_NE(i,j);
-			T_SN(i,j) = -T_EW(i,j);
-			T_NN(i,j) = -T_WW(i,j);
-		}
-	}
+                T_WN(i,j) = -T_NW(j,i);
+                T_EN(i,j) = T_NE(i,j);
+                T_SN(i,j) = -T_EW(i,j);
+                T_NN(i,j) = -T_WW(i,j);
+            }
+        }
 
-	// Set blocks into T
-	T.setBlock(0*N, 1*N, T_WE);
-	T.setBlock(1*N, 1*N, T_EE);
-	T.setBlock(2*N, 1*N, T_SE);
-	T.setBlock(3*N, 1*N, T_NE);
-	
-	T.setBlock(0*N, 2*N, T_WS);
-	T.setBlock(1*N, 2*N, T_ES);
-	T.setBlock(2*N, 2*N, T_SS);
-	T.setBlock(3*N, 2*N, T_NS);
+        // Set blocks into T
+        T.setBlock(0*N, 1*N, T_WE);
+        T.setBlock(1*N, 1*N, T_EE);
+        T.setBlock(2*N, 1*N, T_SE);
+        T.setBlock(3*N, 1*N, T_NE);
+        
+        T.setBlock(0*N, 2*N, T_WS);
+        T.setBlock(1*N, 2*N, T_ES);
+        T.setBlock(2*N, 2*N, T_SS);
+        T.setBlock(3*N, 2*N, T_NS);
 
-	T.setBlock(0*N, 3*N, T_WN);
-	T.setBlock(1*N, 3*N, T_EN);
-	T.setBlock(2*N, 3*N, T_SN);
-	T.setBlock(3*N, 3*N, T_NN);
-#else
-	// Iterate through all points on boundary to form T
-	for (int j = 0; j < M; j++) {
-		e_hat_j[j] = 1.0;
-		col_j = this->mapD2N(grid, e_hat_j, f_zero);
-		T.setColumn(j, col_j);
-		e_hat_j[j] = 0.0;
-	}
-#endif
+        T.setBlock(0*N, 3*N, T_WN);
+        T.setBlock(1*N, 3*N, T_EN);
+        T.setBlock(2*N, 3*N, T_SN);
+        T.setBlock(3*N, 3*N, T_NN);
+    }
+    else {
+        // Iterate through all points on boundary to form T
+        for (int j = 0; j < M; j++) {
+            e_hat_j[j] = 1.0;
+            col_j = this->mapD2N(grid, e_hat_j, f_zero);
+            T.setColumn(j, col_j);
+            e_hat_j[j] = 0.0;
+        }
+    }
+
 	return T;
 
 }

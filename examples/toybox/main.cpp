@@ -6,527 +6,95 @@
 
 #include <SpecialMatrices.hpp>
 #include <EllipticForest.hpp>
+#include <P4est.hpp>
 #include <Patches/FiniteVolume/FiniteVolume.hpp>
 
 using namespace EllipticForest;
 
-using FiniteVolumeHPS = HPSAlgorithm<FiniteVolumeGrid, FiniteVolumeSolver, FiniteVolumePatch, double>;
+static double REFINE_FACTOR = 0.25;
+static double COARSEN_FACTOR = 2.0;
 
-/**
- * @brief User-defined solution function
- * 
- * When computing error, calls this function to compare with numerical solution.
- * 
- * Used by EllipticForest to create the boundary data.
- * 
- * @param x x-coordinate
- * @param y y-coordinate
- * @return double 
- */
-double uFunction(double x, double y) {
-    return sin(x) + sin(y);
-    // return sin(x)*sinh(y);
-}
+class DoubleNodeFactory : public MPI::MPIObject, public AbstractNodeFactory<double> {
 
-/**
- * @brief User-defined load function
- * 
- * Right-hand side function of the elliptic PDE.
- * 
- * @param x x-coordinate
- * @param y y-coordinate
- * @return double 
- */
-double fFunction(double x, double y) {
-    return -uFunction(x, y);
-    // return 0;
-}
+public:
 
-/**
- * @brief User-defined alpha function
- * 
- * @param x x-coordinate
- * @param y y-coordinate
- * @return double 
- */
-double alphaFunction(double x, double y) {
-    return 1.0;
-}
-
-/**
- * @brief User-defined beta function
- * 
- * @param x x-coordinate
- * @param y y-coordinate
- * @return double 
- */
-double betaFunction(double x, double y) {
-    return 1.0;
-}
-
-/**
- * @brief User-defined lambda function
- * 
- * @param x x-coordinate
- * @param y y-coordinate
- * @return double 
- */
-double lambdaFunction(double x, double y) {
-    return 0.0;
-}
-
-int randomIntInRange(int min, int max) {
-    static std::mt19937 rng{ std::random_device{}() };
-    std::uniform_real_distribution<double> dist(min, max);
-    return dist(rng);
-}
-
-double computeMaxErrorFromExact(Quadtree<FiniteVolumePatch>& quadtree) {
-    double max_abs_error = 0.;
-    quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-        if (node->leaf) {
-            auto& patch = node->data;
-            auto& grid = patch.grid();
-            for (int i = 0; i < grid.nx(); i++) {
-                for (int j = 0; j < grid.ny(); j++) {
-                    double xc = grid(0, i);
-                    double yc = grid(1, j);
-                    int index = j + i*grid.ny();
-                    double u_exact = uFunction(xc, yc);
-                    double u_approx = patch.vectorU()[index];
-                    double abs_error = fabs(u_exact - u_approx);
-                    max_abs_error = fmax(max_abs_error, abs_error);
-                }
-            }
-        }
-        return 1;
-    });
-    return max_abs_error;
-}
-
-double computeL2ErrorFromExact(Quadtree<FiniteVolumePatch>& quadtree) {
-    double l2_error = 0;
-    quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-        if (node->leaf) {
-            auto& patch = node->data;
-            auto& grid = patch.grid();
-            for (int i = 0; i < grid.nx(); i++) {
-                for (int j = 0; j < grid.ny(); j++) {
-                    double xc = grid(0, i);
-                    double yc = grid(1, j);
-                    int index = j + i*grid.ny();
-                    double u_exact = uFunction(xc, yc);
-                    double u_approx = patch.vectorU()[index];
-                    l2_error += (grid.dx()*grid.dy())*pow(fabs(u_exact - u_approx), 2);
-                }
-            }
-        }
-        return 1;
-    });
-    return sqrt(l2_error / pow(20., 2));
-}
-
-void writeMesh(EllipticForest::Mesh<EllipticForest::FiniteVolumePatch>& mesh, int n_output) {
-    auto& app = EllipticForest::EllipticForestApp::getInstance();
-    mesh.clear();
-    mesh.setMeshFromQuadtree();
-    app.logHead("Output mesh: %04i", n_output);
+    DoubleNodeFactory() :
+        MPIObject(MPI_COMM_WORLD)
+            {}
     
-    // Extract out solution and right-hand side data stored on leaves
-    EllipticForest::Vector<double> u_mesh{};
-    u_mesh.name() = "u_soln";
+    DoubleNodeFactory(MPI::Communicator comm) :
+        MPIObject(comm)
+            {}
 
-    EllipticForest::Vector<double> u_diff{};
-    u_diff.name() = "u_diff";
-    
-    mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-        if (node->leaf) {
-            auto& patch = node->data;
-            auto& grid = patch.grid();
+    virtual Node<double>* createNode(double data, std::string path, int level, int pfirst, int plast) {
+        return new Node<double>(this->getComm(), data, path, level, pfirst, plast);
+    }
 
-            u_mesh.append(patch.vectorU());
-            for (int i = 0; i < grid.nx(); i++) {
-                for (int j = 0; j < grid.ny(); j++) {
-                    double xc = grid(0, i);
-                    double yc = grid(1, j);
-                    int index = j + i*grid.ny();
-                    u_diff.append(patch.vectorU()[index] - uFunction(xc, yc));
-                }
-            }
-        }
-        return 1;
-    });
+    virtual Node<double>* createChildNode(Node<double>* parent_node, int sibling_id, int pfirst, int plast) {
+        double child_data = REFINE_FACTOR*parent_node->data;
+        std::string child_path = parent_node->path + std::to_string(sibling_id);
+        int child_level = parent_node->level + 1;
+        return new Node<double>(this->getComm(), child_data, child_path, child_level, pfirst, plast);
+    }
 
-    // Add mesh functions to mesh
-    mesh.addMeshFunction(u_mesh);
-    mesh.addMeshFunction(u_diff);
-    // mesh.addMeshFunction(fMesh);
+    virtual Node<double>* createParentNode(std::vector<Node<double>*> children_nodes, int pfirst, int plast) {
+        double parent_data = 0;
+        for (auto* child : children_nodes) { parent_data += COARSEN_FACTOR*child->data; }
+        std::string parent_path = children_nodes[0]->path.substr(0, children_nodes[0]->path.length()-1);
+        int parent_level = children_nodes[0]->level - 1;
+        return new Node<double>(this->getComm(), parent_data, parent_path, parent_level, pfirst, plast);
+    }
 
-    // Write VTK files:
-    //      "toybox-mesh-{n}.pvtu"            : Parallel header file for mesh and data
-    //      "toybox-quadtree-{n}.pvtu"        : p4est quadtree structure
-    mesh.toVTK("toybox", n_output);
-}
-
-void writeData(EllipticForest::Mesh<EllipticForest::FiniteVolumePatch>& mesh, std::string data_file_prefix) {
-    mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-        auto& patch = node->data;
-        auto& grid = patch.grid();
-        patch.matrixT().write(data_file_prefix + "-p" + node->path + "-matrix_T.bin");
-        patch.matrixS().write(data_file_prefix + "-p" + node->path + "-matrix_S.bin");
-        patch.vectorW().write(data_file_prefix + "-p" + node->path + "-vector_w.bin");
-        patch.vectorH().write(data_file_prefix + "-p" + node->path + "-vector_h.bin");
-        patch.vectorG().write(data_file_prefix + "-p" + node->path + "-vector_g.bin");
-        patch.vectorU().write(data_file_prefix + "-p" + node->path + "-vector_u.bin");
-        return 1;
-    });
-}
+};
 
 int main(int argc, char** argv) {
 
     EllipticForestApp app(&argc, &argv);
-    MPI::MPIObject mpi(MPI_COMM_SELF);
+    MPI::Communicator comm = MPI_COMM_WORLD;
+    MPI::MPIObject mpi(comm);
+    // p4est_connectivity_t* conn = EllipticForest::p4est::p4est_connectivity_new_square_domain(0, 1, 0, 1);
+    // p4est_t* p4est_obj = p4est_new_ext(comm, conn, 0, 0, true, 0, nullptr, nullptr);
+    // p4est_refine(
+    //     p4est_obj,
+    //     1,
+    //     [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+    //         std::cout << "HERE 1" << std::endl;
+    //         return 1;
+    //     },
+    //     [](p4est_t* p4est, p4est_topidx_t which_tree, p4est_quadrant_t* quadrant){
+    //         std::cout << "HERE 2" << std::endl;
+    //         return;
+    //     }
+    // );
 
-    bool cache_operators = false;
-    app.options.setOption("cache-operators", cache_operators);
-
-    bool homogeneous_rhs = false;
-    app.options.setOption("homogeneous-rhs", homogeneous_rhs);
-    
-    int min_level = 1;
-    app.options.setOption("min-level", min_level);
-    
-    int max_level = 1;
-    app.options.setOption("max-level", max_level);
-
-    double x_lower = -1.0;
-    app.options.setOption("x-lower", x_lower);
-
-    double x_upper = 1.0;
-    app.options.setOption("x-upper", x_upper);
-
-    double y_lower = -1.0;
-    app.options.setOption("y-lower", y_lower);
-
-    double y_upper = 1.0;
-    app.options.setOption("y-upper", y_upper);
-    
-    int nx = 8;
-    app.options.setOption("nx", nx);
-    
-    int ny = 8;
-    app.options.setOption("ny", ny);
-
-    double threshold = 1.2;
-    app.options.setOption("threshold", threshold);
-
-    int level_start = 1;
-    int level_finish = 5;
-
-    FiniteVolumeGrid grid(mpi.getComm(), nx, x_lower, x_upper, ny, y_lower, y_upper);
-    FiniteVolumePatch root_patch(mpi.getComm(), grid);
-
-    FiniteVolumeSolver solver{};
-    solver.solver_type = FiniteVolumeSolverType::FISHPACK90;
-    solver.alpha_function = alphaFunction;
-    solver.beta_function = betaFunction;
-    solver.lambda_function = lambdaFunction;
-
-    FiniteVolumeNodeFactory node_factory(mpi.getComm(), solver);
-    EllipticForest::Quadtree<EllipticForest::FiniteVolumePatch> quadtree(mpi.getComm(), root_patch, node_factory, {x_lower, x_upper, y_lower, y_upper});
+    DoubleNodeFactory node_factory(comm);
+    double root_data = 1000.0;
+    Quadtree<double> quadtree(comm, root_data, node_factory);
+    int max_level = 2;
+    app.log("Calling refine...");
     quadtree.refine(true,
-        [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-            if (node->level >= level_start) {
-                return (int) false;
-            }
-            if (node->level <= level_start) {
-                return (int) true;
-            }
-            // auto& grid = node->data.grid();
-            // for (int i = 0; i < grid.nx(); i++) {
-            //     for (int j = 0; j < grid.ny(); j++) {
-            //         double x = grid(0, i);
-            //         double y = grid(1, j);
-            //         if (fabs(fFunction(x, y)) > threshold) {
-            //             return (int) true;
-            //         }
-            //     }
-            // }
-            return (int) false;
+        [&](Node<double>* node){
+            // app.log("[refine] node-path: " + node->path + ", data: %f", node->data);
+            return (int) node->level < max_level;
         }
     );
-    quadtree.balance(EllipticForest::BalancePolicy::CORNER);
-    EllipticForest::Mesh<EllipticForest::FiniteVolumePatch> mesh(quadtree);
 
-    FiniteVolumeHPS HPS(mpi.getComm(), mesh, solver);
-    
-    // Factorize; solve on initial mesh
-    HPS.buildStage();
-    HPS.upwardsStage([&](double x, double y){
-        return fFunction(x, y);
-    });
-    HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-        *a = 1.0;
-        *b = 0.0;
-        return uFunction(x, y);
-    });
-    double error_inf = computeMaxErrorFromExact(mesh.quadtree);
-    double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-    app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
-    app.log("n = %04i, error-l2 = %24.16e, error-inf = %24.16e", 1, error_l2, error_inf);
-    // app.log("--=== Solve on Initial Mesh ===--");
-    // app.log("error-inf = %24.16e", error_inf);
-    // app.log("error-l2  = %24.16e", error_l2);
-    writeMesh(mesh, 0);
-    // writeData(mesh, "step-0");
-
-    // Open a file for writing a CSV
-    std::ofstream output_file("error.csv");
-    if (!output_file.is_open()) {
-        std::cerr << "Failed to open error file." << std::endl;
-        return 1;
-    }
-
-    // Write headers
-    output_file << "n,l2,lI" << std::endl;
-    output_file << 1 << ",";
-    output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
-    output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
-
-    for (int n = level_start+1; n <= level_finish; n++) {
-        if (atoi(argv[1])) {
-            mesh.quadtree.refine(
-                true,
-                [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-                    if (node->level >= n) {
-                        return (int) false;
-                    }
-                    if (node->level <= n) {
-                        return (int) true;
-                    }
-                    return (int) false;
-                },
-                nullptr
-            );
-            HPS.buildStage();
-        }
-        else {
-            mesh.quadtree.refine(
-                true,
-                [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-                    if (node->level >= n) {
-                        return (int) false;
-                    }
-                    if (node->level <= n) {
-                        return (int) true;
-                    }
-                    return (int) false;
-                },
-                [&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* parent_node, std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> children_nodes){
-                    auto& tau = parent_node->data;
-                    auto& alpha = children_nodes[0]->data;
-                    auto& beta = children_nodes[1]->data;
-                    auto& gamma = children_nodes[2]->data;
-                    auto& omega = children_nodes[3]->data;
-                    FiniteVolumeHPS::merge4to1(tau, alpha, beta, gamma, omega, solver);
-                    return 1;
-                }
-            );
-        }
-
-        HPS.upwardsStage([&](double x, double y){
-            return fFunction(x, y);
-        });
-        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-            *a = 1.0;
-            *b = 0.0;
-            return uFunction(x, y);
-        });
-        // app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
-
-        double error_inf = computeMaxErrorFromExact(mesh.quadtree);
-        double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-        app.log("n = %04i, error-l2 = %24.16e, error-inf = %24.16e", n, error_l2, error_inf);
-
-        output_file << n << ",";
-        output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
-        output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
-    }
-
-    for (int n = level_finish-1; n >= level_start; n--) {
-        mesh.quadtree.coarsen(true,
-            [&](std::vector<EllipticForest::Node<EllipticForest::FiniteVolumePatch>*> nodes){
-                for (auto* node : nodes) {
-                    if (node->level >= n+1) {
-                        return (int) true;
-                    }
-                    if (node->level <= n+1) {
-                        return (int) false;
-                    }
-                    return (int) false;
-                }
-            }
-        );
-
-        if (atoi(argv[1]))
-            HPS.buildStage();
-        HPS.upwardsStage([&](double x, double y){
-            return fFunction(x, y);
-        });
-        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-            *a = 1.0;
-            *b = 0.0;
-            return uFunction(x, y);
-        });
-        // app.log("Root patch size: %i", mesh.quadtree.map["0"]->data.grid().nx());
-
-        double error_inf = computeMaxErrorFromExact(mesh.quadtree);
-        double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-        app.log("n = %04i, error-l2 = %24.16e, error-inf = %24.16e", n, error_l2, error_inf);
-
-        output_file << n << ",";
-        output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
-        output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
-    }
-
-#if 0
-    // Write headers
-    output_file << "n, DOFs, l2, lI" << std::endl;
-
-    // std::ofstream ids_file("ids.txt");
-    // if (!ids_file.is_open()) {
-    //     std::cerr << "Failed to open ID file." << std::endl;
-    // }
-    std::ifstream ids_file("ids.txt");
-
-    // Refine the mesh in random spots
-    app.log("--=== Begin refinement loop ===--");
-    int n_adapts = 100;
-    for (int n = 0; n < n_adapts; n++) {
-        int n_leaf_patches = 0;
-        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-            if (node->leaf) {
-                n_leaf_patches++;
-            }
+    quadtree.traversePreOrder(
+        [&](Node<double>* node){
+            app.log("[traverse] node-path: " + node->path + ", data: %f", node->data);
             return 1;
-        });
-        
-        // int id_to_refine = randomIntInRange(0, n_leaf_patches);
-        // int id_to_refine = ids_to_refine[n];
-        int id_to_refine;
-        ids_file >> id_to_refine;
-
-        int leaf_counter = 0;
-        std::string path_to_refine = "";
-        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-            if (node->leaf) {
-                if (leaf_counter == id_to_refine) {
-                    path_to_refine = node->path;
-                }
-                leaf_counter++;
-            }
-            return 1;
-        });
-        mesh.quadtree.refineNode(path_to_refine, true);
-        mesh.quadtree.balance(EllipticForest::BalancePolicy::CORNER);
-        // ids_file << id_to_refine << " ";
-
-        int n_dofs = 0;
-        mesh.quadtree.traversePreOrder([&](Node<FiniteVolumePatch>* node){
-            if (node->leaf) {
-                n_dofs += node->data.grid().nx() * node->data.grid().ny();
-            }
-            return 1;
-        });
-
-        HPS.buildStage();
-        HPS.upwardsStage([&](double x, double y){
-            return fFunction(x, y);
-        });
-        HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-            *a = 1.0;
-            *b = 0.0;
-            return uFunction(x, y);
-        });
-
-        double error_inf = computeMaxErrorFromExact(mesh.quadtree);
-        double error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-        app.log("n = %04i, DOFs = %08i, error-inf = %24.16e, error-l2 = %24.16e", n, n_dofs, error_inf, error_l2);
-
-        output_file << n << ",";
-        output_file << n_dofs << ",";
-        output_file << std::scientific << std::setprecision(16) << error_l2 << ",";
-        output_file << std::scientific << std::setprecision(16) << error_inf << std::endl;;
-    }
-#endif
-    // std::string node_to_refine(argv[1]);
-    // mesh.quadtree.refineNode(node_to_refine, true);
-
-    // Solve refined mesh w/o factorization
-    // HPS.upwardsStage([&](double x, double y){
-    //     return fFunction(x, y);
-    // });
-    HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-        *a = 1.0;
-        *b = 0.0;
-        return uFunction(x, y);
-    });
-    error_inf = computeMaxErrorFromExact(mesh.quadtree);
-    error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-    app.log("--=== Solve on Adapted Mesh ===--");
-    app.log("error-inf = %24.16e", error_inf);
-    app.log("error-l2  = %24.16e", error_l2);
-    writeMesh(mesh, 1);
-    // writeData(mesh, "step-1");
-    
-    EllipticForest::Vector<double> u_mesh_adapted{};
-    mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-        if (node->leaf) {
-            u_mesh_adapted.append(node->data.vectorU());
         }
-        return 1;
-    });
+    );
 
-    // Rebuild and solve on new mesh
-    HPS.buildStage();
-    HPS.upwardsStage([&](double x, double y){
-        return fFunction(x, y);
-    });
-    HPS.solveStage([&](int side, double x, double y, double* a, double* b){
-        *a = 1.0;
-        *b = 0.0;
-        return uFunction(x, y);
-    });
-    error_inf = computeMaxErrorFromExact(mesh.quadtree);
-    error_l2 = computeL2ErrorFromExact(mesh.quadtree);
-    app.log("--=== Solve on Refactored Mesh ===--");
-    app.log("error-inf = %24.16e", error_inf);
-    app.log("error-l2  = %24.16e", error_l2);
-    writeMesh(mesh, 2);
-    // writeData(mesh, "step-2");
+    app.log("Calling partition...");
+    quadtree.partition();
 
-    EllipticForest::Vector<double> u_mesh_refactored{};
-    mesh.quadtree.traversePreOrder([&](EllipticForest::Node<EllipticForest::FiniteVolumePatch>* node){
-        if (node->leaf) {
-            u_mesh_refactored.append(node->data.vectorU());
-        }
-        return 1;
-    });
-
-    auto u_mesh_diff = u_mesh_refactored - u_mesh_adapted;
-    error_inf = *std::max_element(u_mesh_diff.data().begin(), u_mesh_diff.data().end());
-    app.log("error-diff= %24.16e", error_inf);
-
-    mesh.clear();
-    mesh.setMeshFromQuadtree();
-    app.logHead("Output mesh: %04i", 3);
-    
-    u_mesh_diff.name() = "u_compare";
-    mesh.addMeshFunction(u_mesh_diff);
-    mesh.toVTK("toybox-comparison", 0);
-
-    // output_file.close();
-    // ids_file.close();
+    // quadtree.traversePreOrder(
+    //     [&](Node<double>* node){
+    //         app.log("[traverse] node-path: " + node->path + ", data: %f", node->data);
+    //         return 1;
+    //     }
+    // );
 
     return EXIT_SUCCESS;
 }

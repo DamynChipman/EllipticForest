@@ -526,9 +526,16 @@ public:
             Vector<NumericalType> r = concatenate(rVectors);
             Vector<NumericalType> a = concatenate(aVectors);
             Vector<NumericalType> b = concatenate(bVectors);
-            Vector<NumericalType>& h = rootPatch.vectorH();
+
             Matrix<NumericalType>& T = rootPatch.matrixT();
             Vector<NumericalType>& g = rootPatch.vectorG();
+            Vector<NumericalType> h{};
+            if (!std::get<bool>(app.options["homogeneous-rhs"])) {
+                h = rootPatch.vectorH();
+            }
+            else {
+                h = Vector<NumericalType>(4*rootPatch.grid().nx(), 0);
+            }
 
             Matrix<NumericalType> A = DiagonalMatrix<NumericalType>(a);
             Matrix<NumericalType> B = DiagonalMatrix<NumericalType>(b);
@@ -1533,33 +1540,35 @@ public:
             //     // tau.vectorG() = concatenate({g_fine_W, g_fine_E, g_fine_S, g_fine_N});
             // }
         }
-        if (tau.vectorW().size() != n_w_size_expected) {
-            app.log("SOLVE STAGE: RECOMPUTING W, expected size: (%i), actual size: (%i)", n_w_size_expected, tau.vectorW().size());
-            double r = (double) tau.vectorW().size() / (double) n_w_size_expected;
-            int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
-            if (p > 0) {
-                // app.log("SOLVE STAGE: COARSENING W");
-                // w is larger than expected; coarsen
-                // w_coarse = L_12 * w_fine
-                // [2G] = [2G, 4G] [4G]
-                InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid/2);
-                std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
-                Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
+        if (!std::get<bool>(app.options["homogeneous-rhs"])) {    
+            if (tau.vectorW().size() != n_w_size_expected) {
+                app.log("SOLVE STAGE: RECOMPUTING W, expected size: (%i), actual size: (%i)", n_w_size_expected, tau.vectorW().size());
+                double r = (double) tau.vectorW().size() / (double) n_w_size_expected;
+                int p = (int) log2(r); // Should be ..., -2, -1, 0, 1, -2, ...
+                if (p > 0) {
+                    // app.log("SOLVE STAGE: COARSENING W");
+                    // w is larger than expected; coarsen
+                    // w_coarse = L_12 * w_fine
+                    // [2G] = [2G, 4G] [4G]
+                    InterpolationMatrixFine2Coarse<NumericalType> L12_side(n_grid/2);
+                    std::vector<Matrix<NumericalType>> L12_diagonals = {L12_side, L12_side, L12_side, L12_side};
+                    Matrix<NumericalType> L12_patch = blockDiagonalMatrix(L12_diagonals);
 
-                // w_coarse = L_12 * w_fine
-                tau.vectorW() = L12_patch * tau.vectorW();
-            }
-            else if (p < 0) {
-                // app.log("SOLVE STAGE: REFINING W");
-                // w is smaller than expected; refine
-                // w_fine = L_21 * w_coarse
-                // [2G] = [2G, 1G] [1G]
-                InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid/2);
-                std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
-                Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
+                    // w_coarse = L_12 * w_fine
+                    tau.vectorW() = L12_patch * tau.vectorW();
+                }
+                else if (p < 0) {
+                    // app.log("SOLVE STAGE: REFINING W");
+                    // w is smaller than expected; refine
+                    // w_fine = L_21 * w_coarse
+                    // [2G] = [2G, 1G] [1G]
+                    InterpolationMatrixCoarse2Fine<NumericalType> L21_side(n_grid/2);
+                    std::vector<Matrix<NumericalType>> L21_diagonals = {L21_side, L21_side, L21_side, L21_side};
+                    Matrix<NumericalType> L21_patch = blockDiagonalMatrix(L21_diagonals);
 
-                // w_fine = L_21 * w_coarse
-                tau.vectorW() = L21_patch * tau.vectorW();
+                    // w_fine = L_21 * w_coarse
+                    tau.vectorW() = L21_patch * tau.vectorW();
+                }
             }
         }
         // if (tau.vectorW().size() != n_w_size_expected) {
