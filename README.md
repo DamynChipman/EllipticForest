@@ -1,6 +1,6 @@
 # EllipticForest
 
-A Quadtree-Adatpive implementation of the Hierarchical Poincaré-Steklov (HPS) method for solving elliptic partial differential equations.
+A Quadtree-Adaptive implementation of the Hierarchical Poincaré-Steklov (HPS) method for solving elliptic partial differential equations.
 
 ## Features
 
